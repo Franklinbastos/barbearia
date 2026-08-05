@@ -14,7 +14,7 @@ describe('parseEnv', () => {
   });
 
   it('recusa quando falta variável obrigatória', () => {
-    const { AUTH_SECRET, ...incompleto } = valido;
+    const { AUTH_SECRET: _AUTH_SECRET, ...incompleto } = valido;
     expect(() => parseEnv(incompleto)).toThrow(/AUTH_SECRET/);
   });
 

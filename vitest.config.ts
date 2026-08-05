@@ -6,6 +6,9 @@ export default defineConfig({
     environment: 'node',
     setupFiles: ['./vitest.setup.ts'],
     include: ['src/**/*.test.ts', 'tests/**/*.test.ts'],
+    // Testes de integração compartilham um Postgres real e o helper de teste
+    // faz TRUNCATE ao final de cada teste — arquivos rodando em paralelo se pisam.
+    fileParallelism: false,
     coverage: {
       provider: 'v8',
       include: ['src/**/*.ts'],

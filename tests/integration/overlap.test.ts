@@ -1,15 +1,17 @@
 import { describe, it, expect } from 'vitest';
-import { withTestDb } from '../helpers/db';
+import { withTestDb, type TestDb } from '../helpers/db';
 import { barbershop, staff, customer, appointment } from '@/db/schema';
 
-async function semear(db: Awaited<ReturnType<typeof withTestDb>> extends never ? never : any) {
+async function semear(db: TestDb) {
   const [loja] = await db.insert(barbershop).values({ slug: 'teste', name: 'Barbearia Teste' }).returning();
   const [barbeiro] = await db.insert(staff).values({ barbershopId: loja.id, name: 'João', role: 'OWNER' }).returning();
   const [cliente] = await db.insert(customer).values({ barbershopId: loja.id, name: 'Cliente', phone: '11999999999' }).returning();
   return { loja, barbeiro, cliente };
 }
 
-function agendamento(ids: { loja: any; barbeiro: any; cliente: any }, startISO: string, endISO: string) {
+type Sementes = Awaited<ReturnType<typeof semear>>;
+
+function agendamento(ids: Sementes, startISO: string, endISO: string) {
   return {
     barbershopId: ids.loja.id,
     staffId: ids.barbeiro.id,
