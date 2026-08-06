@@ -5,6 +5,10 @@ const schema = z.object({
   AUTH_SECRET: z.string().min(32, 'AUTH_SECRET precisa de pelo menos 32 caracteres'),
   MANAGE_TOKEN_SECRET: z.string().min(32, 'MANAGE_TOKEN_SECRET precisa de pelo menos 32 caracteres'),
   APP_URL: z.string().url('APP_URL deve ser uma URL válida'),
+  WHATSAPP_ENABLED: z.enum(['true', 'false']).default('false'),
+  WHATSAPP_PHONE_NUMBER_ID: z.string().optional(),
+  WHATSAPP_ACCESS_TOKEN: z.string().optional(),
+  WHATSAPP_LANGUAGE: z.string().default('pt_BR'),
 });
 
 export type Env = z.infer<typeof schema>;

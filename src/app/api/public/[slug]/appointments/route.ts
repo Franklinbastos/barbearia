@@ -5,6 +5,7 @@ import { findBarbershopBySlug, listActiveStaff } from '@/db/repositories';
 import { createAppointment } from '@/domain/booking';
 import { toApiError, invalidInput } from '@/lib/api-error';
 import { buildManageUrl } from '@/lib/tokens';
+import { notifyOnce, getSender } from '@/notifications';
 
 const body = z.object({
   serviceId: z.string().uuid('Serviço inválido'),
@@ -45,6 +46,13 @@ export async function POST(req: Request, { params }: { params: Promise<{ slug: s
 
     const equipe = await listActiveStaff(db, loja.id);
     const barbeiro = equipe.find((b) => b.id === criado.staffId);
+
+    void notifyOnce(db, {
+      barbershopId: loja.id,
+      appointmentId: criado.appointmentId,
+      type: 'CONFIRMATION',
+      sender: getSender(),
+    }).catch((erro) => console.error('Falha ao notificar confirmação', erro));
 
     return NextResponse.json(
       {

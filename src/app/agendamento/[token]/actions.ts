@@ -6,6 +6,7 @@ import { db } from '@/db/client';
 import { appointment } from '@/db/schema';
 import { verifyManageToken } from '@/lib/tokens';
 import { cancelAppointment } from '@/domain/booking';
+import { notifyOnce, getSender } from '@/notifications';
 
 export type CancelState = { erro?: string; cancelado?: boolean };
 
@@ -26,6 +27,13 @@ export async function cancelByTokenAction(_prev: CancelState, formData: FormData
   } catch {
     return { erro: 'Não foi possível cancelar. Fale com a barbearia.' };
   }
+
+  void notifyOnce(db, {
+    barbershopId: linha.barbershopId,
+    appointmentId: verificado.appointmentId,
+    type: 'CANCELLATION',
+    sender: getSender(),
+  }).catch((erro) => console.error('Falha ao notificar cancelamento', erro));
 
   revalidatePath(`/agendamento/${token}`);
   return { cancelado: true };
