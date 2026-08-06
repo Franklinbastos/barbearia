@@ -4,3 +4,4 @@ export * from './service';
 export * from './customer';
 export * from './appointment';
 export * from './notification';
+export * from './auth';

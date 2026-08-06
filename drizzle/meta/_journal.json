@@ -15,6 +15,13 @@
       "when": 1785967181861,
       "tag": "0001_exclusion_constraint",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1785969760513,
+      "tag": "0002_tricky_dark_beast",
+      "breakpoints": true
     }
   ]
 }
