@@ -1,36 +1,68 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Agenda para Barbearias
 
-## Getting Started
+SaaS multi-barbearia de agendamento online. Cliente final marca sozinho numa
+página pública (`/b/{slug}`), sem conta nem senha; o dono e os barbeiros
+administram pelo painel (`/app`). Notificação por WhatsApp é canal de saída,
+não substitui a página pública.
 
-First, run the development server:
+Fase 1: agendamento, painel, notificação por WhatsApp. Sem cobrança, sem bot
+conversacional — ver `docs/superpowers/specs/` para o design completo.
+
+## Rodando localmente
+
+Pré-requisitos: Node 22, Docker, npm.
 
 ```bash
+docker compose up -d               # Postgres local, porta 5433
+cp .env.example .env               # gerar AUTH_SECRET, MANAGE_TOKEN_SECRET,
+                                    # CRON_SECRET com openssl rand -base64 32
+npm install
+npm run db:migrate
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Abrir `http://localhost:3000/signup` para criar a primeira barbearia.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Testes
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```bash
+npm test              # unit + integração (Vitest, Postgres real)
+npm run test:cov       # com cobertura
+npm run test:e2e       # fluxo público de ponta a ponta (Playwright)
+npm run lint
+npm run build
+```
 
-## Learn More
+Os testes de integração truncam as tabelas de negócio a cada `withTestDb` —
+rodam contra o mesmo Postgres do `docker compose`, não um banco separado.
 
-To learn more about Next.js, take a look at the following resources:
+## Estrutura
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```
+src/domain/         regras de negócio puras, sem I/O
+  availability/      motor de disponibilidade (grade, colisão, fuso)
+  booking/            criação/cancelamento de agendamento
+  catalog/            validação de serviço, expediente, configurações
+  onboarding/          cadastro da barbearia
+  privacy/             anonimização de cliente (LGPD)
+  reminders/            seleção de lembretes devidos
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+src/db/
+  schema/              tabelas Drizzle
+  repositories/        acesso ao banco, sempre escopado por barbershopId
+  client.ts, migrate.ts
 
-## Deploy on Vercel
+src/app/
+  (public) b/[slug]/       página pública de agendamento
+  agendamento/[token]/     link assinado do cliente (ver/cancelar)
+  app/                     painel (agenda, serviços, equipe, clientes, configurações)
+  api/public/[slug]/       API pública consumida pela página do cliente
+  api/cron/reminders/       rota de cron dos lembretes
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+src/notifications/    envio de WhatsApp, templates, log idempotente
+src/lib/               env, tokens, rate limit, formatação
+```
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Deploy
+
+Ver `docs/deploy.md`.

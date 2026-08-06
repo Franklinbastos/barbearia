@@ -87,7 +87,7 @@ export function SlotStep({
         <ul style={{ listStyle: 'none', padding: 0, display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
           {slots.map((s) => (
             <li key={`${s.staffId}-${s.startAt}`}>
-              <button type="button" onClick={() => onSelect(s)}>
+              <button type="button" data-testid="slot" onClick={() => onSelect(s)}>
                 {formatTime(s.startAt, timeZone)}
                 {!staffId ? ` — ${s.staffName}` : ''}
               </button>

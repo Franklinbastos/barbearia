@@ -71,7 +71,7 @@ export function ContactStep({
       <button type="button" onClick={onVoltar}>Voltar</button>
       <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
         <label>
-          Nome
+          Seu nome
           <input value={name} onChange={(e) => setName(e.target.value)} required minLength={2} />
         </label>
         <label>

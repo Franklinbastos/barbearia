@@ -8,6 +8,8 @@ import { buildManageUrl } from '@/lib/tokens';
 import { notifyOnce, getSender } from '@/notifications';
 import { checkRateLimit, clientKey } from '@/lib/rate-limit';
 
+export const dynamic = 'force-dynamic';
+
 const body = z.object({
   serviceId: z.string().uuid('Serviço inválido'),
   staffId: z.string().uuid().optional(),

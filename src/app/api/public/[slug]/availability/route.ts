@@ -6,6 +6,8 @@ import { getAvailability } from '@/domain/booking';
 import { toApiError, invalidInput } from '@/lib/api-error';
 import { checkRateLimit, clientKey } from '@/lib/rate-limit';
 
+export const dynamic = 'force-dynamic';
+
 const query = z.object({
   serviceId: z.string().uuid('serviceId inválido'),
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'date deve estar no formato YYYY-MM-DD'),
@@ -47,11 +49,14 @@ export async function GET(req: Request, { params }: { params: Promise<{ slug: st
       staffId: parsed.data.staffId,
       date: parsed.data.date,
     });
-    return NextResponse.json({
-      slots: slots.map((s) => ({
-        startAt: s.start.toISOString(), staffId: s.staffId, staffName: s.staffName,
-      })),
-    });
+    return NextResponse.json(
+      {
+        slots: slots.map((s) => ({
+          startAt: s.start.toISOString(), staffId: s.staffId, staffName: s.staffName,
+        })),
+      },
+      { headers: { 'Cache-Control': 'no-store' } },
+    );
   } catch (erro) {
     return toApiError(erro);
   }
