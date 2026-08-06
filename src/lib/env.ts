@@ -9,6 +9,8 @@ const schema = z.object({
   WHATSAPP_PHONE_NUMBER_ID: z.string().optional(),
   WHATSAPP_ACCESS_TOKEN: z.string().optional(),
   WHATSAPP_LANGUAGE: z.string().default('pt_BR'),
+  CRON_SECRET: z.string().min(16, 'CRON_SECRET precisa de pelo menos 16 caracteres'),
+  REMINDER_WINDOW_MINUTES: z.coerce.number().int().positive().default(180),
 });
 
 export type Env = z.infer<typeof schema>;

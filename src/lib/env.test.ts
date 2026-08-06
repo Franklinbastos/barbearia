@@ -7,6 +7,7 @@ describe('parseEnv', () => {
     AUTH_SECRET: 'x'.repeat(32),
     MANAGE_TOKEN_SECRET: 'y'.repeat(32),
     APP_URL: 'http://localhost:3000',
+    CRON_SECRET: 'z'.repeat(16),
   };
 
   it('aceita um ambiente completo', () => {
