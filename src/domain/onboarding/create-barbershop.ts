@@ -17,7 +17,7 @@ export function normalizeSlug(input: string): string {
 }
 
 /** Expediente padrão: segunda a sábado, 9h às 18h, com parada das 12h às 13h. */
-const EXPEDIENTE_PADRAO = [1, 2, 3, 4, 5, 6].flatMap((weekday) => [
+export const EXPEDIENTE_PADRAO = [1, 2, 3, 4, 5, 6].flatMap((weekday) => [
   { weekday, startTime: '09:00:00', endTime: '12:00:00' },
   { weekday, startTime: '13:00:00', endTime: '18:00:00' },
 ]);
