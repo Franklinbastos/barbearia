@@ -7,6 +7,8 @@ const ITENS = [
   { href: '/app/agenda', label: 'Agenda' },
   { href: '/app/servicos', label: 'Serviços' },
   { href: '/app/equipe', label: 'Equipe' },
+  { href: '/app/clientes', label: 'Clientes' },
+  { href: '/app/configuracoes', label: 'Configurações' },
 ];
 
 export function PanelNav({ shopName }: { shopName: string }) {
