@@ -10,6 +10,14 @@ export async function listActiveServices(db: Db, barbershopId: string) {
     .orderBy(asc(service.sortOrder), asc(service.name));
 }
 
+export async function listAllServices(db: Db, barbershopId: string) {
+  return db
+    .select()
+    .from(service)
+    .where(eq(service.barbershopId, barbershopId))
+    .orderBy(asc(service.sortOrder), asc(service.name));
+}
+
 export async function findServiceById(db: Db, barbershopId: string, serviceId: string) {
   const [linha] = await db
     .select()
