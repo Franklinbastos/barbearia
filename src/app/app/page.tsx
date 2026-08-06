@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation';
 
 export default function PanelHomePage() {
-  redirect('/app/servicos');
+  redirect('/app/agenda');
 }
