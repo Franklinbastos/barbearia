@@ -4,6 +4,7 @@ import { db } from '@/db/client';
 import { findBarbershopBySlug } from '@/db/repositories';
 import { getAvailability } from '@/domain/booking';
 import { toApiError, invalidInput } from '@/lib/api-error';
+import { checkRateLimit, clientKey } from '@/lib/rate-limit';
 
 const query = z.object({
   serviceId: z.string().uuid('serviceId inválido'),
@@ -13,6 +14,19 @@ const query = z.object({
 
 export async function GET(req: Request, { params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
+
+  const limite = await checkRateLimit(db, {
+    key: clientKey(req, `avail:${slug}`),
+    limit: 120,
+    windowSeconds: 60,
+  });
+  if (!limite.allowed) {
+    return NextResponse.json(
+      { error: 'RATE_LIMITED', message: 'Muitas consultas. Espere um instante e tente de novo.' },
+      { status: 429 },
+    );
+  }
+
   const url = new URL(req.url);
   const parsed = query.safeParse({
     serviceId: url.searchParams.get('serviceId') ?? undefined,

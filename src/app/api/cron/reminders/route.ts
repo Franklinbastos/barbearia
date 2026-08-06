@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { sql } from 'drizzle-orm';
 import { db } from '@/db/client';
 import { env } from '@/lib/env';
 import { selectDueReminders } from '@/domain/reminders/select-due';
@@ -34,5 +35,10 @@ export async function GET(req: Request) {
   }
 
   console.info(`Lembretes: ${enviados} enviados, ${pulados} pulados, ${falhas} falharam`);
+
+  await db.execute(
+    sql`DELETE FROM rate_limit_bucket WHERE window_start < now() - interval '1 day'`,
+  );
+
   return NextResponse.json({ enviados, pulados, falhas });
 }

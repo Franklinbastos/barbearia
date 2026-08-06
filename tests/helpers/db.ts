@@ -11,7 +11,7 @@ export async function withTestDb<T>(fn: (db: TestDb, sql: postgres.Sql) => Promi
   try {
     return await fn(db, sql);
   } finally {
-    await sql`TRUNCATE notification_log, appointment, customer, staff_service, time_off, working_hours, service, staff, barbershop RESTART IDENTITY CASCADE`;
+    await sql`TRUNCATE notification_log, appointment, customer, staff_service, time_off, working_hours, service, staff, barbershop, rate_limit_bucket RESTART IDENTITY CASCADE`;
     await sql.end();
   }
 }

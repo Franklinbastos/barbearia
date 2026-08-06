@@ -6,6 +6,7 @@ import { createAppointment } from '@/domain/booking';
 import { toApiError, invalidInput } from '@/lib/api-error';
 import { buildManageUrl } from '@/lib/tokens';
 import { notifyOnce, getSender } from '@/notifications';
+import { checkRateLimit, clientKey } from '@/lib/rate-limit';
 
 const body = z.object({
   serviceId: z.string().uuid('Serviço inválido'),
@@ -32,6 +33,19 @@ export async function POST(req: Request, { params }: { params: Promise<{ slug: s
   const loja = await findBarbershopBySlug(db, slug);
   if (!loja) {
     return NextResponse.json({ error: 'NOT_FOUND', message: 'Barbearia não encontrada' }, { status: 404 });
+  }
+
+  const porIp = await checkRateLimit(db, {
+    key: clientKey(req, `book:${slug}`), limit: 10, windowSeconds: 600,
+  });
+  const porTelefone = await checkRateLimit(db, {
+    key: `phone:${dados.phone}:${slug}`, limit: 5, windowSeconds: 3600,
+  });
+  if (!porIp.allowed || !porTelefone.allowed) {
+    return NextResponse.json(
+      { error: 'RATE_LIMITED', message: 'Você já fez vários agendamentos agora há pouco. Fale com a barbearia.' },
+      { status: 429 },
+    );
   }
 
   try {

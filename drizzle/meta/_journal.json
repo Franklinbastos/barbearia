@@ -22,6 +22,13 @@
       "when": 1785969760513,
       "tag": "0002_tricky_dark_beast",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1785985890048,
+      "tag": "0003_worthless_landau",
+      "breakpoints": true
     }
   ]
 }
