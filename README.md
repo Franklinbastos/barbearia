@@ -25,6 +25,20 @@ Abrir `http://localhost:3000/signup` para criar a primeira barbearia.
 
 ## Testes
 
+A suíte roda contra um **banco dedicado**, nunca contra o banco de
+desenvolvimento: cada `withTestDb` faz `TRUNCATE` de todas as tabelas —
+inclusive `user`, `session`, `account` e `verification` — e apagaria seus dados.
+Criar uma vez:
+
+```bash
+docker exec barbearia-postgres psql -U barbearia -d postgres \
+  -c "CREATE DATABASE barbearia_test"
+DATABASE_URL=postgres://barbearia:barbearia@localhost:5433/barbearia_test \
+  npm run db:migrate
+```
+
+Depois disso:
+
 ```bash
 npm test              # unit + integração (Vitest, Postgres real)
 npm run test:cov       # com cobertura
@@ -33,8 +47,18 @@ npm run lint
 npm run build
 ```
 
-Os testes de integração truncam as tabelas de negócio a cada `withTestDb` —
-rodam contra o mesmo Postgres do `docker compose`, não um banco separado.
+`vitest.setup.ts` sobrescreve `DATABASE_URL` com o valor de `DATABASE_URL_TEST`
+antes de qualquer import de banco; sem essa variável ele usa
+`postgres://barbearia:barbearia@localhost:5433/barbearia_test`. Se a URL final
+apontar para o banco `barbearia`, a suíte aborta com mensagem explicando o que
+fazer. Para rodar contra outro banco (agentes em paralelo, CI):
+
+```bash
+DATABASE_URL_TEST=postgres://barbearia:barbearia@localhost:5433/barbearia_test_ci npm test
+```
+
+O `npm run test:e2e` é a exceção: o Playwright sobe `npm run dev`, que usa o
+`DATABASE_URL` do `.env` — ou seja, o banco de desenvolvimento.
 
 ## Estrutura
 

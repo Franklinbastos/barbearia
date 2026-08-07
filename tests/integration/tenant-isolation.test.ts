@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import { eq } from 'drizzle-orm';
 import { withTestDb, type TestDb } from '../helpers/db';
 import { barbershop, staff, service, customer } from '@/db/schema';
 import {
@@ -57,12 +58,15 @@ describe('isolamento entre barbearias', () => {
 
   it('atualiza o nome do cliente existente sem criar duplicata', async () => {
     await withTestDb(async (db) => {
-      const { a } = await semearDuasLojas(db);
+      const { a, b } = await semearDuasLojas(db);
+      // Cliente de outra barbearia, mesmo telefone: a contagem abaixo tem que
+      // enxergar só a loja A, senão qualquer escrita externa derruba o teste.
+      await upsertCustomer(db, b.id, { name: 'Zé da Loja B', phone: '11988887777' });
       const primeiro = await upsertCustomer(db, a.id, { name: 'Zé', phone: '11988887777' });
       const segundo = await upsertCustomer(db, a.id, { name: 'José', phone: '11988887777' });
       expect(segundo.id).toBe(primeiro.id);
       expect(segundo.name).toBe('José');
-      const todos = await db.select().from(customer);
+      const todos = await db.select().from(customer).where(eq(customer.barbershopId, a.id));
       expect(todos).toHaveLength(1);
     });
   });

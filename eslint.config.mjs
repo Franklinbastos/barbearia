@@ -14,6 +14,23 @@ const eslintConfig = defineConfig([
     "next-env.d.ts",
     "coverage/**",
   ]),
+  {
+    rules: {
+      // Prefixo _ marca argumento ou variável que existe por contrato de assinatura
+      // mas não é usado — server action que recebe prevState, mock de fetch, destructuring
+      // que descarta um campo. Sem isso o lint acusa código correto.
+      "@typescript-eslint/no-unused-vars": [
+        "warn",
+        {
+          argsIgnorePattern: "^_",
+          varsIgnorePattern: "^_",
+          caughtErrorsIgnorePattern: "^_",
+          destructuredArrayIgnorePattern: "^_",
+          ignoreRestSiblings: true,
+        },
+      ],
+    },
+  },
 ]);
 
 export default eslintConfig;
