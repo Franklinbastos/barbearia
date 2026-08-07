@@ -1,12 +1,9 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { formatDayLabel, formatTime } from '@/lib/format';
+import { formatDayLabel, formatTime, isoDateInZone } from '@/lib/format';
+import { carregarHorarios } from '@/components/availability';
 import type { AvailabilitySlot } from '../types';
-
-function isoDateInZone(date: Date, timeZone: string): string {
-  return new Intl.DateTimeFormat('en-CA', { timeZone }).format(date);
-}
 
 function diasCandidatos(timeZone: string, maxAdvanceDays: number): string[] {
   const hoje = new Date();
@@ -36,27 +33,24 @@ export function SlotStep({
   const [dia, setDia] = useState(dias[0]);
   const [slots, setSlots] = useState<AvailabilitySlot[] | null>(null);
   const [erro, setErro] = useState<string | null>(null);
-
-  async function carregar() {
-    setSlots(null);
-    setErro(null);
-    try {
-      const params = new URLSearchParams({ serviceId, date: dia });
-      if (staffId) params.set('staffId', staffId);
-      const res = await fetch(`/api/public/${slug}/availability?${params}`);
-      if (!res.ok) throw new Error('Não foi possível carregar os horários');
-      const bodyJson = await res.json();
-      setSlots(bodyJson.slots);
-    } catch {
-      setErro('Não foi possível carregar os horários.');
-    }
-  }
+  const [tentativa, setTentativa] = useState(0);
 
   useEffect(() => {
+    const controlador = new AbortController();
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    carregar();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dia, serviceId, staffId]);
+    setSlots(null);
+    setErro(null);
+
+    // A resposta de um dia que o usuário já abandonou é descartada dentro de
+    // `carregarHorarios` — ver o AbortSignal.
+    void carregarHorarios(
+      { slug, serviceId, staffId, date: dia },
+      controlador.signal,
+      { aoReceber: setSlots, aoFalhar: setErro },
+    );
+
+    return () => controlador.abort();
+  }, [slug, dia, serviceId, staffId, tentativa]);
 
   return (
     <div>
@@ -67,6 +61,7 @@ export function SlotStep({
           <button
             key={d}
             type="button"
+            aria-pressed={d === dia}
             onClick={() => setDia(d)}
             style={{ fontWeight: d === dia ? 'bold' : 'normal' }}
           >
@@ -79,7 +74,7 @@ export function SlotStep({
       {erro ? (
         <div>
           <p role="alert">{erro}</p>
-          <button type="button" onClick={carregar}>Tentar de novo</button>
+          <button type="button" onClick={() => setTentativa((n) => n + 1)}>Tentar de novo</button>
         </div>
       ) : null}
       {slots && slots.length === 0 ? <p>Nenhum horário livre neste dia.</p> : null}

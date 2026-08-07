@@ -72,11 +72,23 @@ export function ContactStep({
       <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
         <label>
           Seu nome
-          <input value={name} onChange={(e) => setName(e.target.value)} required minLength={2} />
+          <input
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            autoComplete="name"
+            required
+            minLength={2}
+            maxLength={80}
+          />
         </label>
         <label>
           Telefone
+          {/* A página pública é de celular: sem `type`/`inputMode` de telefone o
+              teclado abre alfabético e o cliente digita número letra por letra. */}
           <input
+            type="tel"
+            inputMode="tel"
+            autoComplete="tel"
             value={phone}
             onChange={(e) => setPhone(aplicarMascaraTelefone(e.target.value))}
             placeholder="(00) 00000-0000"

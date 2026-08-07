@@ -1,7 +1,8 @@
 import { notFound } from 'next/navigation';
 import { requireSession } from '@/lib/session';
 import { db } from '@/db/client';
-import { findCustomerById, listCustomerHistory } from '@/db/repositories';
+import { findBarbershopById, findCustomerById, listCustomerHistory } from '@/db/repositories';
+import { formatDateTime, formatAppointmentStatus, type AppointmentStatus } from '@/lib/format';
 import { NotesForm } from './notes-form';
 import { AnonymizeButton } from './anonymize-button';
 
@@ -20,7 +21,11 @@ export default async function CustomerDetailPage({
   const cliente = await findCustomerById(db, sessao.barbershopId, customerId);
   if (!cliente) notFound();
 
-  const historico = await listCustomerHistory(db, sessao.barbershopId, customerId);
+  const [loja, historico] = await Promise.all([
+    findBarbershopById(db, sessao.barbershopId),
+    listCustomerHistory(db, sessao.barbershopId, customerId),
+  ]);
+  const timeZone = loja?.timeZone ?? 'America/Sao_Paulo';
 
   return (
     <div>
@@ -31,7 +36,8 @@ export default async function CustomerDetailPage({
       <ul>
         {historico.map((h) => (
           <li key={h.id}>
-            {h.startAt.toLocaleString('pt-BR')} — {h.serviceName} — {formatarPreco(h.priceCents)} — {h.status}
+            {formatDateTime(h.startAt, timeZone)} — {h.serviceName} — {formatarPreco(h.priceCents)} —{' '}
+            {formatAppointmentStatus(h.status as AppointmentStatus)}
           </li>
         ))}
         {historico.length === 0 ? <li>Nenhum atendimento ainda.</li> : null}
