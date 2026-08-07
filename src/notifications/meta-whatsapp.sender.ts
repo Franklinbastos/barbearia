@@ -1,5 +1,6 @@
 import { env } from '@/lib/env';
 import type { NotificationSender, RenderedMessage } from './sender';
+import { toWhatsAppNumber } from './phone';
 
 const API = 'https://graph.facebook.com/v21.0';
 
@@ -9,6 +10,8 @@ export class MetaWhatsAppSender implements NotificationSender {
       throw new Error('WhatsApp não configurado');
     }
 
+    const destino = toWhatsAppNumber(to);
+
     const resposta = await fetch(`${API}/${env.WHATSAPP_PHONE_NUMBER_ID}/messages`, {
       method: 'POST',
       headers: {
@@ -17,7 +20,7 @@ export class MetaWhatsAppSender implements NotificationSender {
       },
       body: JSON.stringify({
         messaging_product: 'whatsapp',
-        to: `55${to}`,
+        to: destino,
         type: 'template',
         template: {
           name: message.templateName,

@@ -2,6 +2,13 @@ import { and, eq, gt, lte, sql } from 'drizzle-orm';
 import { appointment, notificationLog } from '@/db/schema';
 import type { Db } from '@/db/repositories';
 
+/**
+ * Teto de lembretes por execução. Cada um é uma chamada HTTP à Meta e a rota
+ * tem `maxDuration = 60`: 100 em lotes cabem com folga, 500 em série não cabem.
+ * Quem sobra fica para a execução seguinte do cron.
+ */
+export const TETO_LEMBRETES = 100;
+
 export async function selectDueReminders(
   db: Db,
   args: { now: Date; windowMinutes: number },
@@ -24,7 +31,7 @@ export async function selectDueReminders(
         )`,
       ),
     )
-    .limit(500);
+    .limit(TETO_LEMBRETES);
 
   return linhas;
 }

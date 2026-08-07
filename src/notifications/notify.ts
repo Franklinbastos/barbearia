@@ -13,23 +13,58 @@ const renderizadores = {
   CANCELLATION: renderCancellation,
 } as const;
 
+/**
+ * Reserva a linha de `notification_log` ANTES do envio, usando a unique
+ * `(appointmentId, type)` como trava.
+ *
+ * - Ninguém pegou ainda: o INSERT ganha e devolve a linha.
+ * - Alguém já pegou e deu certo: o INSERT conflita, o UPDATE não acha linha
+ *   `FAILED` e a reserva falha — o chamador devolve `SKIPPED`.
+ * - A tentativa anterior falhou: o UPDATE retoma a linha. Dois cron retomando
+ *   ao mesmo tempo não passam os dois: o segundo espera o lock e, quando olha
+ *   de novo, o status já não é `FAILED`.
+ *
+ * A linha reservada nasce como `SENT` sem `providerMessageId`: é o estado
+ * "meu, estou mandando". Quem morre no meio do envio deixa a notificação sem
+ * reenvio — de propósito, porque mandar duas mensagens pelo WhatsApp da
+ * barbearia é pior que não mandar a segunda.
+ */
+async function reservar(
+  db: Db,
+  args: { barbershopId: string; appointmentId: string; type: NotificationType },
+): Promise<boolean> {
+  const [novo] = await db
+    .insert(notificationLog)
+    .values({
+      barbershopId: args.barbershopId,
+      appointmentId: args.appointmentId,
+      type: args.type,
+      status: 'SENT',
+    })
+    .onConflictDoNothing({ target: [notificationLog.appointmentId, notificationLog.type] })
+    .returning({ id: notificationLog.id });
+  if (novo) return true;
+
+  const [retomado] = await db
+    .update(notificationLog)
+    .set({ status: 'SENT', providerMessageId: null, error: null, sentAt: new Date() })
+    .where(
+      and(
+        eq(notificationLog.barbershopId, args.barbershopId),
+        eq(notificationLog.appointmentId, args.appointmentId),
+        eq(notificationLog.type, args.type),
+        eq(notificationLog.status, 'FAILED'),
+      ),
+    )
+    .returning({ id: notificationLog.id });
+
+  return Boolean(retomado);
+}
+
 export async function notifyOnce(
   db: Db,
   args: { barbershopId: string; appointmentId: string; type: NotificationType; sender: NotificationSender },
 ): Promise<'SENT' | 'SKIPPED' | 'FAILED'> {
-  const [jaEnviado] = await db
-    .select({ id: notificationLog.id })
-    .from(notificationLog)
-    .where(
-      and(
-        eq(notificationLog.appointmentId, args.appointmentId),
-        eq(notificationLog.type, args.type),
-        eq(notificationLog.status, 'SENT'),
-      ),
-    )
-    .limit(1);
-  if (jaEnviado) return 'SKIPPED';
-
   const [dados] = await db
     .select({
       startAt: appointment.startAt,
@@ -56,31 +91,35 @@ export async function notifyOnce(
     manageUrl: buildManageUrl(args.appointmentId),
   });
 
-  async function registrar(valores: {
+  if (!(await reservar(db, args))) return 'SKIPPED';
+
+  async function concluir(valores: {
     status: 'SENT' | 'FAILED';
-    providerMessageId?: string;
-    error?: string;
+    providerMessageId?: string | null;
+    error?: string | null;
   }) {
     await db
-      .insert(notificationLog)
-      .values({
-        barbershopId: args.barbershopId,
-        appointmentId: args.appointmentId,
-        type: args.type,
-        ...valores,
-      })
-      .onConflictDoUpdate({
-        target: [notificationLog.appointmentId, notificationLog.type],
-        set: { ...valores, sentAt: new Date() },
-      });
+      .update(notificationLog)
+      .set({ ...valores, sentAt: new Date() })
+      .where(
+        and(
+          eq(notificationLog.barbershopId, args.barbershopId),
+          eq(notificationLog.appointmentId, args.appointmentId),
+          eq(notificationLog.type, args.type),
+        ),
+      );
   }
 
   try {
     const { providerMessageId } = await args.sender.send(dados.customerPhone, mensagem);
-    await registrar({ status: 'SENT', providerMessageId });
+    await concluir({ status: 'SENT', providerMessageId, error: null });
     return 'SENT';
   } catch (erro) {
-    await registrar({ status: 'FAILED', error: erro instanceof Error ? erro.message : String(erro) });
+    await concluir({
+      status: 'FAILED',
+      providerMessageId: null,
+      error: erro instanceof Error ? erro.message : String(erro),
+    });
     return 'FAILED';
   }
 }

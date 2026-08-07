@@ -1,14 +1,16 @@
 import { describe, it, expect } from 'vitest';
 import { eq } from 'drizzle-orm';
 import { withTestDb, type TestDb } from '../helpers/db';
-import { barbershop, staff, service, staffService, workingHours, notificationLog, appointment } from '@/db/schema';
+import {
+  barbershop, staff, service, staffService, workingHours, notificationLog, appointment, customer,
+} from '@/db/schema';
 import { createAppointment, cancelAppointment } from '@/domain/booking';
 import { selectDueReminders } from '@/domain/reminders/select-due';
 
 async function semear(db: TestDb) {
   const [loja] = await db
     .insert(barbershop)
-    .values({ slug: 'teste', name: 'Teste', minLeadMinutes: 0 })
+    .values({ slug: 'teste', name: 'Teste', minLeadMinutes: 0, maxAdvanceDays: 3650 })
     .returning();
   const [joao] = await db.insert(staff).values({ barbershopId: loja.id, name: 'João', role: 'OWNER' }).returning();
   const [corte] = await db
@@ -30,6 +32,28 @@ async function agendar(db: TestDb, ctx: Awaited<ReturnType<typeof semear>>, star
 }
 
 const AGORA = new Date('2026-09-07T12:00:00Z'); // 09:00 em São Paulo
+
+/** Fila grande, escrita direto no banco: o que interessa aqui é o teto do SELECT. */
+async function encherAFila(db: TestDb, ctx: Awaited<ReturnType<typeof semear>>, quantos: number) {
+  const [cliente] = await db
+    .insert(customer)
+    .values({ barbershopId: ctx.loja.id, name: 'Cliente', phone: '11900000000' })
+    .returning();
+
+  const base = AGORA.getTime() + 60 * 60_000;
+  await db.insert(appointment).values(
+    Array.from({ length: quantos }, (_, i) => ({
+      barbershopId: ctx.loja.id,
+      staffId: ctx.joao.id,
+      customerId: cliente.id,
+      serviceNameSnapshot: 'Corte',
+      servicePriceCentsSnapshot: 4000,
+      serviceDurationMinutesSnapshot: 30,
+      startAt: new Date(base + i * 60_000),
+      endAt: new Date(base + i * 60_000 + 30_000),
+    })),
+  );
+}
 
 describe('selectDueReminders', () => {
   it('pega agendamento dentro da janela', async () => {
@@ -76,6 +100,17 @@ describe('selectDueReminders', () => {
         type: 'REMINDER', status: 'SENT', providerMessageId: 'x',
       });
       expect(await selectDueReminders(db, { now: AGORA, windowMinutes: 240 })).toHaveLength(0);
+    });
+  });
+
+  it('para no teto que cabe no orçamento de tempo do cron', async () => {
+    await withTestDb(async (db) => {
+      const ctx = await semear(db);
+      await encherAFila(db, ctx, 120);
+
+      // 500 chamadas HTTP em série não cabem nos 60s de `maxDuration`.
+      const devidos = await selectDueReminders(db, { now: AGORA, windowMinutes: 240 });
+      expect(devidos).toHaveLength(100);
     });
   });
 
