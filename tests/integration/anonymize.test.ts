@@ -8,7 +8,9 @@ import { anonymizeCustomer } from '@/domain/privacy/anonymize-customer';
 async function semearComCliente(db: TestDb) {
   const [loja] = await db
     .insert(barbershop)
-    .values({ slug: 'teste', name: 'Teste', minLeadMinutes: 0 })
+    // maxAdvanceDays largo de propósito: este arquivo testa anonimização, não a
+    // janela de agendamento, e a data fixa de 2026-09-07 passaria do padrão de 30 dias.
+    .values({ slug: 'teste', name: 'Teste', minLeadMinutes: 0, maxAdvanceDays: 3650 })
     .returning();
   const [joao] = await db.insert(staff).values({ barbershopId: loja.id, name: 'João', role: 'OWNER' }).returning();
   const [corte] = await db

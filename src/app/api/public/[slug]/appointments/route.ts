@@ -5,16 +5,27 @@ import { findBarbershopBySlug, listActiveStaff } from '@/db/repositories';
 import { createAppointment } from '@/domain/booking';
 import { toApiError, invalidInput } from '@/lib/api-error';
 import { buildManageUrl } from '@/lib/tokens';
-import { notifyOnce, getSender } from '@/notifications';
+import { notifyOnce, getSender, afterResponse } from '@/notifications';
 import { checkRateLimit, clientKey } from '@/lib/rate-limit';
 
 export const dynamic = 'force-dynamic';
+
+/** Controle, formatação invisível e afins — nada disso é nome de gente. */
+const CARACTERE_DE_CONTROLE = /\p{C}/u;
+/** O nome vai dentro da mensagem de WhatsApp da barbearia: link, nunca. */
+const PARECE_LINK = /(https?:\/\/|www\.|@|\S+\.(com|net|org|br|io|me|co|xyz|link|app)\b)/i;
 
 const body = z.object({
   serviceId: z.string().uuid('Serviço inválido'),
   staffId: z.string().uuid().optional(),
   startAt: z.string().datetime('Horário inválido'),
-  name: z.string().trim().min(2, 'Informe seu nome'),
+  name: z
+    .string()
+    .trim()
+    .min(2, 'Informe seu nome')
+    .max(80, 'Nome muito longo')
+    .refine((v) => !CARACTERE_DE_CONTROLE.test(v), 'Nome com caracteres inválidos')
+    .refine((v) => !PARECE_LINK.test(v), 'Informe só o seu nome, sem links'),
   phone: z
     .string()
     .transform((v) => v.replace(/\D/g, ''))
@@ -63,12 +74,16 @@ export async function POST(req: Request, { params }: { params: Promise<{ slug: s
     const equipe = await listActiveStaff(db, loja.id);
     const barbeiro = equipe.find((b) => b.id === criado.staffId);
 
-    void notifyOnce(db, {
-      barbershopId: loja.id,
-      appointmentId: criado.appointmentId,
-      type: 'CONFIRMATION',
-      sender: getSender(),
-    }).catch((erro) => console.error('Falha ao notificar confirmação', erro));
+    afterResponse(
+      () =>
+        notifyOnce(db, {
+          barbershopId: loja.id,
+          appointmentId: criado.appointmentId,
+          type: 'CONFIRMATION',
+          sender: getSender(),
+        }),
+      'Falha ao notificar confirmação',
+    );
 
     return NextResponse.json(
       {

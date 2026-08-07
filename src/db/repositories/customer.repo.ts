@@ -1,18 +1,33 @@
-import { and, eq, ilike, or, desc, asc } from 'drizzle-orm';
+import { and, eq, ilike, or, desc, asc, sql } from 'drizzle-orm';
 import { customer, appointment } from '@/db/schema';
 import type { Db } from './types';
 
+/** Transação aberta por `db.transaction`, aceita onde um `Db` é aceito. */
+export type Tx = Parameters<Parameters<Db['transaction']>[0]>[0];
+export type DbOrTx = Db | Tx;
+
+/**
+ * Política de escrita do nome. A superfície pública é anônima e o nome do
+ * cliente vira parâmetro do template de WhatsApp disparado pelo número
+ * verificado da barbearia — quem sabe o telefone de alguém não pode reescrever
+ * o cadastro dessa pessoa. Só o painel (autenticado) corrige nome.
+ */
+export type CustomerNamePolicy = { atualizarNome: boolean };
+
 export async function upsertCustomer(
-  db: Db,
+  db: DbOrTx,
   barbershopId: string,
   dados: { name: string; phone: string },
+  politica: CustomerNamePolicy = { atualizarNome: true },
 ) {
   const [linha] = await db
     .insert(customer)
     .values({ barbershopId, name: dados.name, phone: dados.phone })
     .onConflictDoUpdate({
       target: [customer.barbershopId, customer.phone],
-      set: { name: dados.name },
+      // Sem permissão de renomear, o SET reatribui o nome que já está lá: a
+      // linha existente volta em RETURNING sem ser alterada.
+      set: politica.atualizarNome ? { name: dados.name } : { name: sql`${customer.name}` },
     })
     .returning();
   return linha;
