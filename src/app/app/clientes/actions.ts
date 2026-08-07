@@ -2,7 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { and, eq } from 'drizzle-orm';
-import { requireSession } from '@/lib/session';
+import { requireSession, requireOwner } from '@/lib/session';
 import { db } from '@/db/client';
 import { customer } from '@/db/schema';
 import { anonymizeCustomer } from '@/domain/privacy/anonymize-customer';
@@ -13,8 +13,10 @@ export async function anonymizeCustomerAction(
   customerId: string,
   _prev: AnonymizeState,
 ): Promise<AnonymizeState> {
-  const sessao = await requireSession();
-  if (sessao.role !== 'OWNER') return { erro: 'Só o dono pode remover dados de cliente' };
+  // Apagar dado pessoal é irreversível: fica com o dono, não com o barbeiro.
+  const acesso = await requireOwner();
+  if (!acesso.ok) return { erro: acesso.erro };
+  const sessao = acesso.sessao;
 
   try {
     await anonymizeCustomer(db, sessao.barbershopId, customerId);
@@ -34,6 +36,8 @@ export async function saveCustomerNotesAction(
   _prev: NotesState,
   formData: FormData,
 ): Promise<NotesState> {
+  // Anotação de atendimento ("gosta de máquina 2") é trabalho de quem corta:
+  // OWNER e BARBER escrevem. Ver a política em `requireOwner`.
   const sessao = await requireSession();
   const notes = String(formData.get('notes') ?? '').trim() || null;
 

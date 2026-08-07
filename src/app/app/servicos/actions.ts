@@ -4,7 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { and, eq } from 'drizzle-orm';
 import { db } from '@/db/client';
 import { service } from '@/db/schema';
-import { requireSession } from '@/lib/session';
+import { requireOwner } from '@/lib/session';
 import { findBarbershopById } from '@/db/repositories';
 import { validateServiceInput } from '@/domain/catalog/service-rules';
 
@@ -14,7 +14,10 @@ export async function saveServiceAction(
   _prev: ServiceFormState,
   formData: FormData,
 ): Promise<ServiceFormState> {
-  const sessao = await requireSession();
+  const acesso = await requireOwner();
+  if (!acesso.ok) return { erro: acesso.erro };
+  const sessao = acesso.sessao;
+
   const loja = await findBarbershopById(db, sessao.barbershopId);
   if (!loja) return { erro: 'Barbearia não encontrada' };
 
@@ -39,11 +42,16 @@ export async function saveServiceAction(
   return { ok: true };
 }
 
-export async function toggleServiceAction(id: string, active: boolean) {
-  const sessao = await requireSession();
+export async function toggleServiceAction(
+  id: string,
+  active: boolean,
+): Promise<ServiceFormState | undefined> {
+  const acesso = await requireOwner();
+  if (!acesso.ok) return { erro: acesso.erro };
+
   await db
     .update(service)
     .set({ active })
-    .where(and(eq(service.barbershopId, sessao.barbershopId), eq(service.id, id)));
+    .where(and(eq(service.barbershopId, acesso.sessao.barbershopId), eq(service.id, id)));
   revalidatePath('/app/servicos');
 }

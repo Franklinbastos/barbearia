@@ -17,18 +17,6 @@ const query = z.object({
 export async function GET(req: Request, { params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
 
-  const limite = await checkRateLimit(db, {
-    key: clientKey(req, `avail:${slug}`),
-    limit: 120,
-    windowSeconds: 60,
-  });
-  if (!limite.allowed) {
-    return NextResponse.json(
-      { error: 'RATE_LIMITED', message: 'Muitas consultas. Espere um instante e tente de novo.' },
-      { status: 429 },
-    );
-  }
-
   const url = new URL(req.url);
   const parsed = query.safeParse({
     serviceId: url.searchParams.get('serviceId') ?? undefined,
@@ -37,9 +25,24 @@ export async function GET(req: Request, { params }: { params: Promise<{ slug: st
   });
   if (!parsed.success) return invalidInput(parsed.error.issues[0].message);
 
+  // O slug é resolvido ANTES de contar. Com a contagem na frente e o slug cru
+  // dentro da chave, um laço com slugs aleatórios criava uma chave nova por
+  // requisição: o limite nunca disparava e o balde crescia sem teto.
   const loja = await findBarbershopBySlug(db, slug);
   if (!loja) {
     return NextResponse.json({ error: 'NOT_FOUND', message: 'Barbearia não encontrada' }, { status: 404 });
+  }
+
+  const limite = await checkRateLimit(db, {
+    key: clientKey(req, `avail:${loja.id}`),
+    limit: 120,
+    windowSeconds: 60,
+  });
+  if (!limite.allowed) {
+    return NextResponse.json(
+      { error: 'RATE_LIMITED', message: 'Muitas consultas. Espere um instante e tente de novo.' },
+      { status: 429 },
+    );
   }
 
   try {

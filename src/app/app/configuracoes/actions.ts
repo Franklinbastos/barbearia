@@ -4,7 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { eq } from 'drizzle-orm';
 import { db } from '@/db/client';
 import { barbershop } from '@/db/schema';
-import { requireSession } from '@/lib/session';
+import { requireOwner } from '@/lib/session';
 import { validateShopSettings } from '@/domain/catalog/shop-settings';
 
 export type SettingsState = { erro?: string; ok?: boolean };
@@ -13,8 +13,9 @@ export async function saveSettingsAction(
   _prev: SettingsState,
   formData: FormData,
 ): Promise<SettingsState> {
-  const sessao = await requireSession();
-  if (sessao.role !== 'OWNER') return { erro: 'Só o dono pode mudar as configurações' };
+  const acesso = await requireOwner();
+  if (!acesso.ok) return { erro: acesso.erro };
+  const sessao = acesso.sessao;
 
   let dados;
   try {
