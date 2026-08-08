@@ -4,6 +4,8 @@ import {
   formatDuration,
   formatTime,
   formatDayLabel,
+  formatDayParts,
+  formatDayLabelLong,
   isoDateInZone,
   formatDayLabelFromInstant,
   formatDateTime,
@@ -46,6 +48,23 @@ describe('formatDayLabel', () => {
   it('rotula o dia em pt-BR', () => {
     expect(formatDayLabel('2026-09-07', 'America/Sao_Paulo')).toMatch(/seg/i);
     expect(formatDayLabel('2026-09-07', 'America/Sao_Paulo')).toMatch(/7/);
+  });
+});
+
+describe('formatDayParts', () => {
+  it('quebra a data nas partes que a tira de dias precisa', () => {
+    expect(formatDayParts('2026-08-10', 'America/Sao_Paulo')).toEqual({
+      diaSemana: 'SEG', dia: '10', mes: 'ago',
+    });
+  });
+  it('usa o fuso da barbearia, não o do servidor', () => {
+    expect(formatDayParts('2026-08-10', 'America/Sao_Paulo').dia).toBe('10');
+  });
+});
+
+describe('formatDayLabelLong', () => {
+  it('escreve o dia por extenso em pt-BR', () => {
+    expect(formatDayLabelLong('2026-08-14', 'America/Sao_Paulo')).toBe('sexta, 14 de agosto');
   });
 });
 

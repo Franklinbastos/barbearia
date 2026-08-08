@@ -24,7 +24,10 @@ describe('ErroDeAcao', () => {
   it('anuncia a falha para leitor de tela', () => {
     const elemento = ErroDeAcao({ mensagem: 'Não foi possível concluir.' });
     expect(elemento).not.toBeNull();
-    expect((elemento!.props as { role?: string }).role).toBe('alert');
+    // A pele é o <Bloco>, que transforma `papel` em `role="alert"`.
+    const props = elemento!.props as { papel?: string; tom?: string };
+    expect(props.papel).toBe('alert');
+    expect(props.tom).toBe('perigo');
     expect(textoDe(elemento)).toBe('Não foi possível concluir.');
   });
 });
@@ -37,7 +40,9 @@ describe('ErroDeAcao', () => {
 const RAIZ = fileURLToPath(new URL('../', import.meta.url));
 
 const BOTOES_DE_ACAO = [
-  'app/app/agenda/day-grid.tsx',
+  // Os botões de "Compareceu"/"Não veio"/"Desfazer" saíram de day-grid.tsx na
+  // reforma de UI e moraram no cartão. A guarda segue o código.
+  'app/app/agenda/cartao-da-agenda.tsx',
   'app/app/servicos/toggle-button.tsx',
   'app/app/equipe/toggle-staff-button.tsx',
   'app/app/equipe/[staffId]/time-off-section.tsx',

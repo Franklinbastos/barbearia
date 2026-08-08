@@ -1,26 +1,254 @@
 @import "tailwindcss";
 
+/* ============================================================
+   1. TOKENS CRUS — o tema claro é a referência de design
+   ============================================================ */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
+  /* color-scheme é OBRIGATÓRIO e hoje não existe: sem ele o seletor nativo de
+     input[type=date] e input[type=time] — o coração da barra de data do painel
+     e do encaixe — fica branco sobre fundo preto no tema escuro. */
+  color-scheme: light dark;
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-  --font-mono: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  /* superfícies */
+  --bg:           #FFFFFF; /* chão da página, fundo de campo, linha BOOKED */
+  --superficie:   #F4F5F7; /* bloco informativo, cabeçalho de hora, linha cancelada */
+  --superficie-2: #E7E9ED; /* ficha em repouso, prefixo "R$", esqueleto, :active */
+  --linha:        #8A9099; /* divisória e borda de campo — 3,2:1 sobre branco */
+  --linha-suave:  #D3D7DD; /* só separação decorativa interna (meia hora tracejada) */
+
+  /* tinta */
+  --tinta:   #0B0D10; /* texto principal (19:1) e preenchimento do botão primário */
+  --tinta-2: #454B54; /* texto secundário (8,8:1) — duração, preço, linha 2 do cartão */
+  --tinta-3: #646A74; /* micro-rótulo e hora de fim (5,4:1 no branco, 4,9:1 no cinza).
+                         PROIBIDO em duração e preço — ver P2. */
+  --acao:       var(--tinta);
+  --acao-tinta: #FFFFFF;
+
+  /* estados — cada par funciona como texto sobre a página E como preenchimento
+     sob texto branco. Substituem os três vermelhos de hoje (crimson, #b00020,
+     darkorange), que aparecem em 11 arquivos. */
+  --ok:     #14663B;  --ok-bg:     #DCF5E7; /* compareceu, confirmado */
+  --perigo: #A4132A;  --perigo-bg: #FDE4E7; /* não veio, cancelado, erro */
+  --alerta: #8A4B00;  --alerta-bg: #FFEFD2; /* encaixe, fora da grade, conflito 409 */
+  --agora:  #0B4FD1;  --agora-bg:  #E1EBFF; /* acontecendo agora, régua do relógio */
+
+  /* marca da loja — sobrescrita inline pelo Server Component quando a loja tem
+     matiz. O padrão É o preto: loja sem configuração fica exatamente como a
+     direção desenhou, sem cor nenhuma. Ver §3.4. */
+  --marca:       var(--tinta);
+  --marca-suave: var(--superficie-2);
+  --sobre-marca: #FFFFFF;
+
+  /* espaçamento — base 4px. A escala do Tailwind já é a nossa; estes tokens
+     existem para o CSS das classes de componente. Nada fora da escala. */
+  --e0: 2px;  --e1: 4px;  --e2: 8px;  --e3: 12px;
+  --e4: 16px; --e5: 20px; --e6: 24px; --e7: 32px; --e8: 48px;
+
+  /* alvo de toque */
+  --tap-min: 44px; /* SÓ afordância inline dentro de um bloco maior */
+  --tap:     48px; /* piso de qualquer alvo que carregue decisão */
+  --tap-md:  52px; /* campo de formulário, verbo da agenda */
+  --tap-lg:  56px; /* ação principal da tela */
+  --tap-xl:  64px; /* ficha de horário */
+
+  /* forma */
+  --r:       4px;  /* absolutamente tudo */
+  --r-folha: 6px;  /* só os dois cantos de cima da folha inferior */
+
+  /* elevação — só duas no produto inteiro */
+  --sombra-barra: 0 -8px 24px rgb(0 0 0 / .10);
+  --sombra-folha: 0 -8px 24px rgb(0 0 0 / .18);
+
+  /* foco — inegociável; funciona sobre branco, sobre cinza e sobre o botão preto,
+     e nunca se confunde com cor de estado */
+  --anel: 0 0 0 2px var(--bg), 0 0 0 5px var(--tinta);
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    color-scheme: dark;
+    --bg:           #0A0C0F;
+    --superficie:   #14181D;
+    --superficie-2: #1E242B;
+    --linha:        #5A6673; /* 3,3:1 sobre o fundo */
+    --linha-suave:  #2A313A;
+    --tinta:        #F2F5F8;
+    --tinta-2:      #B7C0CA;
+    --tinta-3:      #8B96A3;
+    --acao:         #F2F5F8;
+    --acao-tinta:   #0A0C0F;
+    --ok:     #58D89B; --ok-bg:     #0E2E1E;
+    --perigo: #FF8A99; --perigo-bg: #38121A;
+    --alerta: #FFC163; --alerta-bg: #3A2708;
+    --agora:  #7FB0FF; --agora-bg:  #10233F;
+    --marca:       var(--tinta);
+    --marca-suave: var(--superficie-2);
+    --sobre-marca: #0A0C0F;
+    --sombra-barra: 0 -8px 24px rgb(0 0 0 / .45);
+    --sombra-folha: 0 -8px 24px rgb(0 0 0 / .55);
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+/* ============================================================
+   2. PONTE PARA O TAILWIND v4
+   ============================================================ */
+@theme inline {
+  --color-bg:           var(--bg);
+  --color-superficie:   var(--superficie);
+  --color-superficie-2: var(--superficie-2);
+  --color-linha:        var(--linha);
+  --color-linha-suave:  var(--linha-suave);
+  --color-tinta:        var(--tinta);
+  --color-tinta-2:      var(--tinta-2);
+  --color-tinta-3:      var(--tinta-3);
+  --color-ok:           var(--ok);
+  --color-ok-bg:        var(--ok-bg);
+  --color-perigo:       var(--perigo);
+  --color-perigo-bg:    var(--perigo-bg);
+  --color-alerta:       var(--alerta);
+  --color-alerta-bg:    var(--alerta-bg);
+  --color-agora:        var(--agora);
+  --color-agora-bg:     var(--agora-bg);
+  --color-marca:        var(--marca);
+  --color-marca-suave:  var(--marca-suave);
+
+  --font-sans: var(--fonte-inter), ui-sans-serif, system-ui, sans-serif;
+
+  --radius-cx:    var(--r);
+  --radius-folha: var(--r-folha);
+}
+
+/* ============================================================
+   3. CAMADA BASE — repõe o que o preflight do Tailwind v4 apagou.
+   Sem isto, nada nas seções seguintes funciona: o preflight zera fundo, borda
+   e padding de button/input (preflight.css:11-16, :92-96) e a cor de a[href]
+   (:243-257), e os ~60 botões do app viram texto solto de 24px de altura.
+   Referência do padrão: /home/franklin/dev/bdsolutions/src/app/globals.css:22-38
+   ============================================================ */
+@layer base {
+  body {
+    background: var(--bg);
+    color: var(--tinta);
+    font-family: var(--font-sans);
+    font-variant-numeric: tabular-nums;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  button, input, select, textarea { font: inherit; color: inherit; }
+
+  button, [type="button"], [type="submit"], [type="reset"],
+  a[href], select, summary, [role="button"] { cursor: pointer; }
+
+  a { color: var(--tinta); text-decoration: underline; text-underline-offset: 3px; }
+
+  :focus-visible { outline: none; box-shadow: var(--anel); border-radius: var(--r); }
+
+  h1, h2, h3 { text-wrap: balance; }
+
+  /* o seletor nativo de data/hora precisa herdar a tinta no escuro */
+  input[type="date"], input[type="time"] { color-scheme: inherit; }
+}
+
+/* ============================================================
+   4. CLASSES DE IMPLEMENTAÇÃO
+   Elas existem para os componentes da §4 usarem por dentro. Tela de produto
+   escreve <Botao>/<Campo>/<Bloco>, nunca .btn/.campo/.bloco na mão (P3).
+   ============================================================ */
+@layer components {
+  /* ---- botão ---- */
+  .btn {
+    display: inline-flex; align-items: center; justify-content: center;
+    gap: var(--e2);
+    min-height: var(--tap-md);
+    padding: 0 var(--e4);
+    border: 1px solid transparent;
+    border-radius: var(--r);
+    background: var(--acao);
+    color: var(--acao-tinta);
+    font-size: 16px; line-height: 24px; font-weight: 700;
+    text-decoration: none;
+    transition: background-color 120ms linear;
+  }
+  .btn--lg  { min-height: var(--tap-lg); font-size: 18px; }
+  .btn--tot { width: 100%; }
+  .btn--sec { background: transparent; color: var(--tinta); border-color: var(--linha); }
+  .btn--ok  { background: var(--ok); color: #FFFFFF; border-color: var(--ok); }
+  .btn--perigo-vazado { background: transparent; color: var(--perigo);
+                        border: 2px solid var(--perigo); }
+  .btn--perigo { background: var(--perigo); color: #FFFFFF; border-color: var(--perigo); }
+  .btn--texto  { background: transparent; color: var(--tinta); text-decoration: underline;
+                 padding: 0 var(--e2); font-weight: 400; }
+  .btn:disabled { background: var(--superficie-2); color: var(--tinta-3);
+                  border-color: transparent; cursor: default; }
+  .btn:active:not(:disabled) { filter: brightness(1.25); }
+  @media (hover: hover) { .btn--sec:hover { background: var(--superficie); } }
+
+  /* ---- campo: o <label> É o contêiner. O rótulo continua IMPLÍCITO por
+     aninhamento, que é do que getByLabel() dos e2e depende. ---- */
+  .campo { display: flex; flex-direction: column; gap: 6px; }
+  .campo > span { font-size: 14px; line-height: 20px; font-weight: 700; color: var(--tinta-2); }
+  .campo > input, .campo > select, .campo > textarea {
+    min-height: var(--tap-md);
+    padding: 0 var(--e3);
+    background: var(--bg);
+    border: 1px solid var(--linha);
+    border-radius: var(--r);
+    font-size: 16px; /* 16px impede o iOS de dar zoom ao focar. Nunca baixar. */
+    line-height: 24px;
+  }
+  .campo--erro > input, .campo--erro > select { border: 2px solid var(--perigo); }
+  .campo > small { font-size: 14px; line-height: 20px; color: var(--tinta-3); }
+
+  /* select nativo padronizado — o painel continua cheio deles fora do encaixe */
+  .campo > select {
+    appearance: none;
+    padding-right: 40px;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 8'><path d='M1 1l5 5 5-5' fill='none' stroke='%23646A74' stroke-width='2'/></svg>");
+    background-repeat: no-repeat;
+    background-position: right 14px center;
+    background-size: 12px 8px;
+  }
+
+  /* ---- bloco informativo ---- */
+  .bloco {
+    padding: var(--e4);
+    border: 1px solid var(--linha);
+    border-left-width: 4px;
+    border-left-color: var(--linha);
+    border-radius: var(--r);
+    background: var(--superficie);
+    font-size: 16px; line-height: 24px;
+  }
+  .bloco--ok     { background: var(--ok-bg);     border-color: var(--ok);     color: var(--tinta); }
+  .bloco--perigo { background: var(--perigo-bg); border-color: var(--perigo); color: var(--tinta); }
+  .bloco--alerta { background: var(--alerta-bg); border-color: var(--alerta); color: var(--tinta); }
+  .bloco--agora  { background: var(--agora-bg);  border-color: var(--agora);  color: var(--tinta); }
+  .bloco--compacto { padding: 8px 10px; font-size: 14px; line-height: 20px; }
+
+  /* ---- lista de divisórias: o padrão de lista do produto inteiro ---- */
+  .lista { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--linha); }
+  .lista > li { border-bottom: 1px solid var(--linha); }
+  .lista-btn {
+    display: grid; align-items: center;
+    width: 100%; min-height: 72px;
+    padding: 14px 12px;
+    text-align: left;
+    background: transparent; border: 0;
+  }
+  .lista-btn:active { background: var(--superficie-2); }
+  @media (hover: hover) { .lista-btn:hover { background: var(--superficie); } }
+
+  /* ---- barra indeterminada: a ÚNICA animação do produto ---- */
+  .barra-busca { height: 2px; background: var(--superficie-2); overflow: hidden; }
+  .barra-busca::after {
+    content: ""; display: block; height: 2px; width: 40%;
+    background: var(--tinta); animation: desliza 1.1s linear infinite;
+  }
+  @keyframes desliza { from { transform: translateX(-100%) } to { transform: translateX(350%) } }
+  @media (prefers-reduced-motion: reduce) {
+    .barra-busca::after { animation: none; width: 100%; opacity: .4; }
+  }
+
+  /* ---- esqueleto: sem pulso, sem shimmer, sempre na altura final ---- */
+  .esqueleto { background: var(--superficie-2); border-radius: var(--r); }
 }

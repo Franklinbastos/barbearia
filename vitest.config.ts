@@ -5,7 +5,10 @@ export default defineConfig({
   test: {
     environment: 'node',
     setupFiles: ['./vitest.setup.ts'],
-    include: ['src/**/*.test.ts', 'tests/**/*.test.ts'],
+    // `.tsx` entra por causa dos testes de componente. Eles não ganham um
+    // projeto próprio: cada um declara `// @vitest-environment jsdom` no topo,
+    // que é uma linha contra um segundo projeto inteiro no config.
+    include: ['src/**/*.test.ts', 'src/**/*.test.tsx', 'tests/**/*.test.ts', 'tests/**/*.test.tsx'],
     // Testes de integração compartilham um Postgres real e o helper de teste
     // faz TRUNCATE ao final de cada teste — arquivos rodando em paralelo se pisam.
     fileParallelism: false,

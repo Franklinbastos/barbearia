@@ -46,3 +46,18 @@ export function resolveTestDatabaseUrl(fonte: FonteDeEnv = process.env): string 
 // URL de teste. `dotenv` não sobrescreve variável já definida, então esta
 // atribuição sobrevive a qualquer `import 'dotenv/config'` posterior.
 process.env.DATABASE_URL = resolveTestDatabaseUrl();
+
+/**
+ * Desmontagem entre casos nos testes de componente.
+ *
+ * Só rodam em jsdom (`// @vitest-environment jsdom` no topo do arquivo), e sem
+ * isto o segundo `render()` de um `describe` deixa o primeiro na página — a
+ * busca por papel acha dois botões e o caso falha por um motivo que não é o
+ * dele. A @testing-library registra o `cleanup` sozinha quando `globals` está
+ * ligado; ligar globals na suíte inteira por causa de uma linha é caro demais.
+ */
+if (typeof document !== 'undefined') {
+  const { afterEach } = await import('vitest');
+  const { cleanup } = await import('@testing-library/react');
+  afterEach(cleanup);
+}

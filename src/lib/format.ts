@@ -32,6 +32,42 @@ export function formatDayLabel(isoDate: string, timeZone: string): string {
 }
 
 /**
+ * As três partes do dia que a tira de dias mostra empilhadas: `SEG` / `10` /
+ * `ago`. Separadas porque a tira usa três tamanhos de tipo, não uma frase.
+ */
+export function formatDayParts(
+  isoDate: string,
+  timeZone: string,
+): { diaSemana: string; dia: string; mes: string } {
+  const data = new Date(`${isoDate}T12:00:00Z`);
+  const partes = new Intl.DateTimeFormat('pt-BR', {
+    timeZone, weekday: 'short', day: '2-digit', month: 'short',
+  }).formatToParts(data);
+
+  const pegar = (tipo: Intl.DateTimeFormatPartTypes) =>
+    partes.find((p) => p.type === tipo)?.value.replace(/\.$/, '') ?? '';
+
+  return {
+    diaSemana: pegar('weekday').toUpperCase(),
+    dia: pegar('day'),
+    mes: pegar('month'),
+  };
+}
+
+/**
+ * Dia por extenso — "sexta, 14 de agosto". Sem o "-feira": o cabeçalho da grade
+ * de horários é estreito e "sexta-feira" empurra a data para a segunda linha.
+ */
+export function formatDayLabelLong(isoDate: string, timeZone: string): string {
+  const data = new Date(`${isoDate}T12:00:00Z`);
+  return new Intl.DateTimeFormat('pt-BR', {
+    timeZone, weekday: 'long', day: 'numeric', month: 'long',
+  })
+    .format(data)
+    .replace('-feira', '');
+}
+
+/**
  * Dia civil (`YYYY-MM-DD`) do instante **no fuso da barbearia**.
  *
  * É o substituto de `iso.slice(0, 10)`: aquele corte lê a data em UTC, então
