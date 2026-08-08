@@ -1,5 +1,8 @@
 'use client';
 
+import { Bloco } from '@/components/ui/bloco';
+import { Botao } from '@/components/ui/botao';
+
 /**
  * Rede de segurança da página pública.
  *
@@ -19,17 +22,22 @@ export default function ErroGlobal({
   retry: () => void;
 }) {
   return (
-    <main style={{ padding: '2rem', maxWidth: '32rem', margin: '0 auto' }}>
-      <h1>Alguma coisa deu errado</h1>
-      <p>Não conseguimos carregar esta página agora. Tente de novo em instantes.</p>
-      <p>Se continuar assim, fale com a barbearia pelo WhatsApp.</p>
-      <button type="button" onClick={() => retry()}>
-        Tentar de novo
-      </button>
+    <main className="mx-auto w-full max-w-[480px] px-4 py-8">
+      <h1 className="mb-4 text-[22px] leading-7 font-bold">Alguma coisa deu errado</h1>
+
+      <Bloco tom="perigo" papel="alert">
+        <p>Não conseguimos carregar esta página agora. Tente de novo em instantes.</p>
+        <p className="mt-2">Se continuar assim, fale com a barbearia pelo WhatsApp.</p>
+      </Bloco>
+
+      <div className="mt-4">
+        <Botao type="button" onClick={() => retry()}>
+          Tentar de novo
+        </Botao>
+      </div>
+
       {error.digest ? (
-        <p>
-          <small>Código do erro: {error.digest}</small>
-        </p>
+        <p className="mt-4 text-sm leading-5 text-tinta-3">Código do erro: {error.digest}</p>
       ) : null}
     </main>
   );
