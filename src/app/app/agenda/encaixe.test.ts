@@ -1,5 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import { avisoDeHorarioLivre, resolverInicioDoEncaixe } from './encaixe';
+import {
+  avisoDeHorarioLivre,
+  deslocarHora,
+  horaDeAgoraArredondada,
+  resolverInicioDoEncaixe,
+} from './encaixe';
 
 const TZ = 'America/Sao_Paulo';
 const DIA = '2026-09-07';
@@ -70,5 +75,44 @@ describe('avisoDeHorarioLivre', () => {
 
   it('avisa quando a grade não carregou nenhum horário', () => {
     expect(avisoDeHorarioLivre('14:05', [], TZ)).toMatch(/fora da grade/i);
+  });
+});
+
+describe('horaDeAgoraArredondada', () => {
+  it('arredonda para baixo em 5 minutos, no fuso da barbearia', () => {
+    // 17:07 UTC é 14:07 em São Paulo — o mostrador do balcão mostra 14:05.
+    expect(horaDeAgoraArredondada(new Date('2026-09-07T17:07:00Z'), TZ)).toBe('14:05');
+  });
+
+  it('hora cheia continua hora cheia', () => {
+    expect(horaDeAgoraArredondada(new Date('2026-09-07T17:00:00Z'), TZ)).toBe('14:00');
+  });
+
+  it('nunca arredonda para cima — 14:09 não vira 14:10', () => {
+    expect(horaDeAgoraArredondada(new Date('2026-09-07T17:09:59Z'), TZ)).toBe('14:05');
+  });
+});
+
+describe('deslocarHora', () => {
+  it('anda cinco minutos para frente e para trás', () => {
+    expect(deslocarHora('14:05', 5)).toBe('14:10');
+    expect(deslocarHora('14:05', -5)).toBe('14:00');
+  });
+
+  it('vira a hora sem estragar o relógio', () => {
+    expect(deslocarHora('13:55', 5)).toBe('14:00');
+    expect(deslocarHora('14:00', -5)).toBe('13:55');
+  });
+
+  it('para nas pontas do dia em vez de pular para o dia seguinte', () => {
+    // O encaixe é sempre no dia mostrado: virar a meia-noite marcaria o cliente
+    // no dia errado sem o atendente perceber.
+    expect(deslocarHora('23:55', 5)).toBe('23:55');
+    expect(deslocarHora('00:00', -5)).toBe('00:00');
+  });
+
+  it('devolve o que recebeu quando a hora não é hora', () => {
+    expect(deslocarHora('', 5)).toBe('');
+    expect(deslocarHora('99:99', 5)).toBe('99:99');
   });
 });

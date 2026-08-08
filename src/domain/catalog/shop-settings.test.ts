@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { validateShopSettings } from './shop-settings';
+import { validateShopSettings, MATIZES_PERMITIDOS } from './shop-settings';
 
 const valido = {
   name: 'Barbearia Teste',
@@ -33,5 +33,28 @@ describe('validateShopSettings', () => {
 
   it('recusa fuso inexistente', () => {
     expect(() => validateShopSettings({ ...valido, timeZone: 'Marte/Olimpo' })).toThrow(/fuso/i);
+  });
+
+  it('aceita os 12 matizes da paleta', () => {
+    expect(validateShopSettings({ ...valido, accentHue: '210' }).accentHue).toBe(210);
+  });
+
+  it('aceita ausência de matiz — o padrão é preto', () => {
+    expect(validateShopSettings({ ...valido, accentHue: '' }).accentHue).toBeNull();
+  });
+
+  it('recusa matiz fora da paleta', () => {
+    expect(() => validateShopSettings({ ...valido, accentHue: '77' })).toThrow(/cor/i);
+  });
+
+  it('a paleta tem exatamente doze matizes e todos passam', () => {
+    expect(MATIZES_PERMITIDOS).toHaveLength(12);
+    for (const matiz of MATIZES_PERMITIDOS) {
+      expect(validateShopSettings({ ...valido, accentHue: String(matiz) }).accentHue).toBe(matiz);
+    }
+  });
+
+  it('sem o campo no formulário o matiz continua nulo, não vira erro', () => {
+    expect(validateShopSettings(valido).accentHue).toBeNull();
   });
 });

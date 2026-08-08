@@ -1,0 +1,1 @@
+ALTER TABLE "barbershop" ADD COLUMN "accent_hue" integer;

@@ -20,6 +20,43 @@ export function normalizarHora(hora: string): string | null {
   return casou ? `${casou[1]}:${casou[2]}` : null;
 }
 
+/**
+ * A hora de agora, arredondada **para baixo** no passo do mostrador (§5.8).
+ *
+ * Para baixo, sempre: o cliente já sentou. Arredondar para cima marcaria o
+ * atendimento para um instante que ainda não chegou e deixaria um buraco de
+ * quatro minutos na agenda por puro efeito de conta.
+ */
+export function horaDeAgoraArredondada(agora: Date, timeZone: string, passo = 5): string {
+  const instante = DateTime.fromJSDate(agora).setZone(timeZone);
+  const minuto = Math.floor(instante.minute / passo) * passo;
+  return instante.set({ minute: minuto, second: 0, millisecond: 0 }).toFormat('HH:mm');
+}
+
+/** Minutos num dia — o teto dos botões −5/+5. */
+const MINUTOS_DO_DIA = 24 * 60;
+
+/**
+ * Os botões "−5" e "+5" do mostrador.
+ *
+ * **Não** viram o dia: o encaixe é sempre no dia mostrado na agenda, e passar
+ * da meia-noite marcaria o cliente na data errada sem ninguém perceber. Nas
+ * pontas o valor simplesmente para. Hora inválida volta como veio — quem avisa
+ * é a validação, não um pulo silencioso.
+ */
+export function deslocarHora(hora: string, minutos: number): string {
+  const normalizada = normalizarHora(hora);
+  if (!normalizada) return hora;
+
+  const [h, m] = normalizada.split(':').map(Number);
+  const total = h * 60 + m + minutos;
+  if (total < 0 || total > MINUTOS_DO_DIA - 5) return normalizada;
+
+  const hh = String(Math.floor(total / 60)).padStart(2, '0');
+  const mm = String(total % 60).padStart(2, '0');
+  return `${hh}:${mm}`;
+}
+
 export type EscolhaDeHorario = {
   /** Instante ISO vindo do `<select>` da grade. */
   startAt?: string;

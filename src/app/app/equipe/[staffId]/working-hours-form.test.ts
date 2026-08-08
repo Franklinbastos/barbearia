@@ -59,6 +59,18 @@ describe('WorkingHoursForm', () => {
     expect(html).toContain('aria-label="Terça — início do bloco 3"');
   });
 
+  it('empilha os seis campos em duas linhas de três, não numa linha só', () => {
+    // Seis `input[type=time]` lado a lado em 360px é o pior caso do painel hoje:
+    // a linha passa de 600px e a tela inteira rola de lado, sete vezes seguidas.
+    const grade = html.match(/<div class="([^"]*grid[^"]*)"/g) ?? [];
+    expect(grade.some((c) => /grid-cols-3/.test(c) && /grid-rows-2/.test(c))).toBe(true);
+  });
+
+  it('não sobrou o flex inline que punha tudo numa linha só', () => {
+    expect(html).not.toMatch(/<form[^>]*style="/);
+    expect(html).not.toMatch(/style="[^"]*flex-wrap/);
+  });
+
   it('confirma o salvamento na tela', () => {
     const fonte = readFileSync(fileURLToPath(new URL('./working-hours-form.tsx', import.meta.url)), 'utf8');
     expect(fonte).toContain('state.ok');

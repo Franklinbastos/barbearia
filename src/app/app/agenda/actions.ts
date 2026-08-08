@@ -1,12 +1,14 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { and, eq } from 'drizzle-orm';
+import { and, eq, inArray } from 'drizzle-orm';
+import { DateTime } from 'luxon';
 import { db } from '@/db/client';
 import { appointment } from '@/db/schema';
-import { findBarbershopById } from '@/db/repositories';
+import { findBarbershopById, listBusyRanges, listStaffForService } from '@/db/repositories';
 import { requireSession } from '@/lib/session';
 import { cancelAppointment, createWalkInAppointment } from '@/domain/booking';
+import { countAppointmentsByStaff } from '@/domain/booking/staff-load';
 import { resolverInicioDoEncaixe } from './encaixe';
 
 export async function setAppointmentStatusAction(
@@ -31,6 +33,41 @@ export async function setAppointmentStatusAction(
   revalidatePath('/app/agenda');
 }
 
+/**
+ * O "Desfazer" da agenda: volta um atendimento fechado para `BOOKED`.
+ *
+ * `CANCELED` **nunca** entra. Cancelar libera o horário na grade pública, e
+ * entre o cancelamento e o arrependimento o slot pode já ter sido revendido —
+ * reabrir por cima criaria dois clientes na mesma cadeira. Para esse caso a
+ * tela oferece "Reagendar", não "Reabrir".
+ *
+ * O filtro de status vai no `WHERE` junto com o `barbershopId`: assim a decisão
+ * é do banco, numa instrução só, e não sobra janela entre ler e escrever.
+ */
+export async function reopenAppointmentAction(
+  appointmentId: string,
+): Promise<{ erro: string } | undefined> {
+  const sessao = await requireSession();
+
+  const reabertos = await db
+    .update(appointment)
+    .set({ status: 'BOOKED' })
+    .where(
+      and(
+        eq(appointment.barbershopId, sessao.barbershopId),
+        eq(appointment.id, appointmentId),
+        inArray(appointment.status, ['DONE', 'NO_SHOW']),
+      ),
+    )
+    .returning({ id: appointment.id });
+
+  if (reabertos.length === 0) {
+    return { erro: 'Não foi possível reabrir este horário. Agendamento cancelado não volta — use o encaixe para remarcar.' };
+  }
+
+  revalidatePath('/app/agenda');
+}
+
 export type ManualBookingState = { erro?: string; ok?: boolean };
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -38,6 +75,52 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 function texto(formData: FormData, campo: string): string {
   const valor = formData.get(campo);
   return typeof valor === 'string' ? valor.trim() : '';
+}
+
+/**
+ * "Primeiro que vagar" (§5.8): o balcão manda `staffId` vazio e o servidor
+ * desempata.
+ *
+ * O critério é o mesmo do "Qualquer barbeiro" da página pública — entre os que
+ * estão de fato livres naquele instante, fica com quem tem menos atendimentos
+ * no dia —, só que sem passar pela grade: o encaixe existe justamente para
+ * horários que a grade não tem.
+ *
+ * Empate mantém a ordem alfabética que `listStaffForService` já devolve:
+ * resultado estável, sem sorteio.
+ */
+async function escolherBarbeiroDoEncaixe(
+  barbershopId: string,
+  serviceId: string,
+  inicio: Date,
+  timeZone: string,
+): Promise<string | null> {
+  const candidatos = await listStaffForService(db, barbershopId, serviceId);
+
+  const livres: { id: string }[] = [];
+  for (const candidato of candidatos) {
+    const duracao = Number(candidato.effectiveDurationMinutes);
+    if (!Number.isFinite(duracao) || duracao <= 0) continue;
+    const fim = new Date(inicio.getTime() + duracao * 60_000);
+    const ocupado = await listBusyRanges(db, barbershopId, candidato.id, inicio, fim);
+    if (ocupado.length === 0) livres.push({ id: candidato.id });
+  }
+
+  if (livres.length === 0) return null;
+  if (livres.length === 1) return livres[0].id;
+
+  const dia = DateTime.fromJSDate(inicio).setZone(timeZone);
+  const carga = await countAppointmentsByStaff(
+    db,
+    barbershopId,
+    livres.map((c) => c.id),
+    dia.startOf('day').toJSDate(),
+    dia.plus({ days: 1 }).startOf('day').toJSDate(),
+  );
+
+  return livres.reduce((melhor, atual) =>
+    (carga.get(atual.id) ?? 0) < (carga.get(melhor.id) ?? 0) ? atual : melhor,
+  ).id;
 }
 
 export async function createManualAppointmentAction(
@@ -53,7 +136,9 @@ export async function createManualAppointmentAction(
   const serviceId = texto(formData, 'serviceId');
   const staffId = texto(formData, 'staffId');
   if (!UUID.test(serviceId)) return { erro: 'Escolha um serviço.' };
-  if (!UUID.test(staffId)) return { erro: 'Escolha um barbeiro.' };
+  // Vazio é a ficha "Primeiro que vagar", e não campo esquecido: o servidor já
+  // sabe desempatar por carga, e o painel jogava isso fora.
+  if (staffId !== '' && !UUID.test(staffId)) return { erro: 'Escolha um barbeiro.' };
 
   const startAt = resolverInicioDoEncaixe({
     startAt: texto(formData, 'startAt'),
@@ -62,6 +147,12 @@ export async function createManualAppointmentAction(
     timeZone: loja.timeZone,
   });
   if (!startAt) return { erro: 'Informe um horário válido para o encaixe.' };
+
+  const barbeiro =
+    staffId !== ''
+      ? staffId
+      : await escolherBarbeiroDoEncaixe(sessao.barbershopId, serviceId, startAt, loja.timeZone);
+  if (!barbeiro) return { erro: 'Nenhum barbeiro livre nesse horário. Escolha outro horário.' };
 
   const name = texto(formData, 'name');
   if (name.length < 2 || name.length > 80) return { erro: 'Informe o nome do cliente.' };
@@ -75,7 +166,7 @@ export async function createManualAppointmentAction(
     await createWalkInAppointment(db, {
       barbershopId: sessao.barbershopId,
       serviceId,
-      staffId,
+      staffId: barbeiro,
       startAt,
       customer: { name, phone },
     });

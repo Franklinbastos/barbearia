@@ -1,6 +1,9 @@
 'use client';
 
-import { useActionState, useRef, useEffect } from 'react';
+import { useActionState, useRef, useEffect, useState } from 'react';
+import { ErroDeAcao } from '@/components/erro-de-acao';
+import { Botao } from '@/components/ui/botao';
+import { Campo } from '@/components/ui/campo';
 import { createStaffAction, type StaffFormState } from './actions';
 
 const ESTADO_INICIAL: StaffFormState = {};
@@ -8,21 +11,50 @@ const ESTADO_INICIAL: StaffFormState = {};
 export function StaffForm() {
   const [state, formAction, pending] = useActionState(createStaffAction, ESTADO_INICIAL);
   const formRef = useRef<HTMLFormElement>(null);
+  const [aberto, setAberto] = useState(false);
 
   useEffect(() => {
     if (state.ok) formRef.current?.reset();
-  }, [state.ok]);
+  }, [state]);
+
+  if (!aberto) {
+    return (
+      <Botao
+        type="button"
+        variante="secundario"
+        largura="total"
+        onClick={() => setAberto(true)}
+        className="md:w-auto"
+      >
+        Adicionar barbeiro
+      </Botao>
+    );
+  }
 
   return (
-    <form ref={formRef} action={formAction} style={{ display: 'flex', gap: '0.5rem', alignItems: 'end' }}>
-      <label>
-        Nome do barbeiro
-        <input name="name" required minLength={2} />
-      </label>
-      {state.erro ? <p role="alert" style={{ color: 'crimson' }}>{state.erro}</p> : null}
-      <button type="submit" disabled={pending}>
-        {pending ? 'Salvando…' : 'Adicionar barbeiro'}
-      </button>
+    <form
+      ref={formRef}
+      action={formAction}
+      className="flex max-w-[520px] flex-col gap-3 rounded-cx border border-linha bg-superficie p-3"
+    >
+      <Campo rotulo="Nome do barbeiro" dica="O expediente padrão da loja já entra pronto.">
+        <input name="name" required minLength={2} autoComplete="off" />
+      </Campo>
+
+      <ErroDeAcao mensagem={state.erro} />
+
+      <Botao type="submit" largura="total" pendente={pending} rotuloPendente="Salvando…">
+        Adicionar barbeiro
+      </Botao>
+
+      <Botao
+        type="button"
+        variante="texto"
+        className="min-h-12 self-center"
+        onClick={() => setAberto(false)}
+      >
+        Fechar
+      </Botao>
     </form>
   );
 }

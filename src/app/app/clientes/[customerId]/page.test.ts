@@ -11,14 +11,20 @@ vi.mock('@/lib/session', () => ({ requireSession: vi.fn() }));
 import { requireSession } from '@/lib/session';
 import CustomerDetailPage from './page';
 
-/** Concatena o texto de uma árvore de elementos React, sem precisar de DOM. */
+/**
+ * Concatena o texto de uma árvore de elementos React, sem precisar de DOM.
+ *
+ * `titulo` e `descricao` entram junto porque o `<CabecalhoDePagina>` recebe o
+ * nome e o telefone do cliente por prop, não por filho — sem isso a ficha
+ * pareceria vazia para este teste sem estar vazia na tela.
+ */
 function textoDe(no: ReactNode): string {
   if (no === null || no === undefined || typeof no === 'boolean') return '';
   if (typeof no === 'string' || typeof no === 'number') return String(no);
   if (Array.isArray(no)) return no.map(textoDe).join('');
   if (isValidElement(no)) {
-    const props = no.props as { children?: ReactNode };
-    return textoDe(props.children);
+    const props = no.props as { children?: ReactNode; titulo?: ReactNode; descricao?: ReactNode };
+    return [props.titulo, props.descricao, props.children].map(textoDe).join(' ');
   }
   return '';
 }

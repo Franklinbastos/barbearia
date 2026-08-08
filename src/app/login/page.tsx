@@ -1,8 +1,12 @@
 'use client';
 
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { authClient } from '@/lib/auth-client';
+import { ErroDeAcao } from '@/components/erro-de-acao';
+import { Botao } from '@/components/ui/botao';
+import { Campo } from '@/components/ui/campo';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -29,22 +33,33 @@ export default function LoginPage() {
   }
 
   return (
-    <main style={{ maxWidth: 420, margin: '0 auto', padding: '2rem 1rem' }}>
-      <h1>Entrar</h1>
-      <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-        <label>
-          E-mail
-          <input name="email" type="email" required />
-        </label>
-        <label>
-          Senha
-          <input name="password" type="password" required />
-        </label>
-        {erro ? <p role="alert" style={{ color: 'crimson' }}>{erro}</p> : null}
-        <button type="submit" disabled={pending}>
-          {pending ? 'Entrando…' : 'Entrar'}
-        </button>
+    <main className="mx-auto w-full max-w-[360px] px-4 py-8">
+      <h1 className="mb-6 text-[22px] leading-7 font-bold">Entrar</h1>
+
+      <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+        <Campo rotulo="E-mail">
+          <input name="email" type="email" required autoComplete="email" />
+        </Campo>
+        <Campo rotulo="Senha">
+          <input name="password" type="password" required autoComplete="current-password" />
+        </Campo>
+
+        <ErroDeAcao mensagem={erro} />
+
+        <Botao
+          type="submit"
+          tamanho="lg"
+          largura="total"
+          pendente={pending}
+          rotuloPendente="Entrando…"
+        >
+          Entrar
+        </Botao>
       </form>
+
+      <p className="mt-6 text-center text-base leading-6 text-tinta-2">
+        Ainda não tem conta? <Link href="/signup">Cadastre sua barbearia</Link>
+      </p>
     </main>
   );
 }

@@ -2,6 +2,10 @@ import Link from 'next/link';
 import { requireSession } from '@/lib/session';
 import { db } from '@/db/client';
 import { listAllStaff } from '@/db/repositories';
+import { ErroDeAcao } from '@/components/erro-de-acao';
+import { Bloco } from '@/components/ui/bloco';
+import { CabecalhoDePagina } from '@/components/ui/cabecalho-de-pagina';
+import { Monograma } from '@/components/ui/monograma';
 import { StaffForm } from './staff-form';
 import { ToggleStaffButton } from './toggle-staff-button';
 import type { CodigoErroEquipe } from './actions';
@@ -32,53 +36,74 @@ export default async function EquipePage({
   const ehDono = sessao.role === 'OWNER';
 
   return (
-    <div>
-      <h1>Equipe</h1>
+    <div className="flex flex-col gap-4">
+      <CabecalhoDePagina titulo="Equipe" descricao="Quem atende, o expediente de cada um e quem está de fora." />
 
-      {erro ? (
-        <p role="alert" style={{ color: '#b00020', margin: '0.75rem 0' }}>
-          {erro}
-        </p>
-      ) : null}
+      <ErroDeAcao mensagem={erro} />
 
       {ehDono ? (
         <StaffForm />
       ) : (
-        <p>Só o dono da barbearia cadastra e desativa membros da equipe.</p>
+        <Bloco>Só o dono da barbearia cadastra e desativa membros da equipe.</Bloco>
       )}
 
-      <table style={{ marginTop: '1.5rem', width: '100%', borderCollapse: 'collapse' }}>
-        <thead>
-          <tr>
-            <th style={{ textAlign: 'left' }}>Nome</th>
-            <th style={{ textAlign: 'left' }}>Papel</th>
-            <th style={{ textAlign: 'left' }}>Status</th>
-            <th />
-            <th />
-          </tr>
-        </thead>
-        <tbody>
+      <div className="max-w-[720px]">
+        <ul className="lista">
           {equipe.map((membro) => (
-            <tr key={membro.id}>
-              <td>{membro.name}</td>
-              <td>{membro.role === 'OWNER' ? 'Dono' : 'Barbeiro'}</td>
-              <td>{membro.active ? 'Ativo' : 'Inativo'}</td>
-              <td>
-                <Link href={`/app/equipe/${membro.id}`}>Configurar</Link>
-              </td>
-              <td>
-                {/* Desativar a si mesmo é o clique que trancava o dono fora do
-                    painel — o servidor recusa, e aqui o botão nem aparece. */}
-                {membro.id === sessao.staffId ? (
-                  <span>Você</span>
-                ) : ehDono ? (
-                  <ToggleStaffButton id={membro.id} active={membro.active} />
-                ) : null}
-              </td>
-            </tr>
+            <li key={membro.id} className={membro.active ? undefined : 'bg-superficie'}>
+              <div className="grid min-h-[72px] grid-cols-[1fr_auto] items-center gap-3 p-3">
+                {/* A linha inteira leva ao detalhe: "Configurar" era um link de
+                    texto de 20px de altura no meio de uma tabela. */}
+                <Link
+                  href={`/app/equipe/${membro.id}`}
+                  className="flex min-w-0 items-center gap-3 no-underline"
+                >
+                  <Monograma nome={membro.name} />
+                  <span className="flex min-w-0 flex-col gap-1">
+                    <span className="flex flex-wrap items-center gap-2">
+                      <span
+                        className={`text-[17px] leading-[22px] font-bold ${
+                          membro.active ? '' : 'text-tinta-3'
+                        }`}
+                      >
+                        {membro.name}
+                      </span>
+                      {membro.active ? null : (
+                        <span className="border border-linha bg-superficie-2 px-1.5 text-[11px] leading-[14px] font-bold text-tinta-2">
+                          INATIVO
+                        </span>
+                      )}
+                    </span>
+                    <span className="text-sm leading-5 text-tinta-2">
+                      {membro.role === 'OWNER' ? 'Dono' : 'Barbeiro'}
+                    </span>
+                  </span>
+                  <svg
+                    aria-hidden="true"
+                    viewBox="0 0 8 12"
+                    className="ml-auto h-3 w-2 shrink-0"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                  >
+                    <path d="M1.5 1l5 5-5 5" />
+                  </svg>
+                </Link>
+
+                <div>
+                  {/* Desativar a si mesmo é o clique que trancava o dono fora do
+                      painel — o servidor recusa, e aqui o botão nem aparece. */}
+                  {membro.id === sessao.staffId ? (
+                    <span className="text-sm leading-5 font-bold text-tinta-3">Você</span>
+                  ) : ehDono ? (
+                    <ToggleStaffButton id={membro.id} active={membro.active} />
+                  ) : null}
+                </div>
+              </div>
+            </li>
           ))}
-        </tbody>
-      </table>
+        </ul>
+      </div>
     </div>
   );
 }

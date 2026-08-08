@@ -29,6 +29,13 @@
       "when": 1785985890048,
       "tag": "0003_worthless_landau",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1786217649830,
+      "tag": "0004_melodic_paladin",
+      "breakpoints": true
     }
   ]
 }

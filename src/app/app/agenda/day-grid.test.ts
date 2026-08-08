@@ -85,8 +85,16 @@ describe('DayGrid', () => {
     agendamento({ id: 'a1', staffId: 'st-joao', hora: '13:00', customerName: 'Bruno' }),
     agendamento({ id: 'a3', staffId: 'st-joao', hora: '18:00', status: 'CANCELED', customerName: 'Caio' }),
   ];
+  /** O dia mostrado é 2026-09-09 e "hoje" é outro: sem régua do agora no meio. */
+  const CONTEXTO = {
+    staffList: EQUIPE,
+    timeZone: TZ,
+    dataISO: '2026-09-09',
+    hojeISO: '2026-09-01',
+    agoraISO: '2026-09-01T12:00:00.000Z',
+  };
   const html = renderToStaticMarkup(
-    createElement(DayGrid, { appointments: marcacoes, staffList: EQUIPE, timeZone: TZ }),
+    createElement(DayGrid, { appointments: marcacoes, ...CONTEXTO }),
   );
 
   it('mostra o nome do barbeiro em cada cartão', () => {
@@ -102,9 +110,21 @@ describe('DayGrid', () => {
   it('não empilha uma coluna por barbeiro', () => {
     // A lista é o próprio container do dia: sem título por barbeiro e sem
     // coluna de largura fixa que vira pilha no celular.
-    expect(html.startsWith('<ul')).toBe(true);
+    expect(html).toContain('<ol');
     expect(html).not.toContain('<h3>');
     expect(html).not.toContain('1 1 260px');
+  });
+
+  it('o cancelado troca de tinta em vez de perder opacidade', () => {
+    // `opacity: 0.5` apagava o telefone junto com o resto, e o telefone é o que
+    // se procura justamente num horário que deu errado.
+    expect(html).not.toContain('opacity');
+    expect(html).toContain('--superficie');
+  });
+
+  it('deixa "Compareceu" na linha e tira "Cancelar" de perto dele', () => {
+    expect(html).toContain('Compareceu');
+    expect(html).not.toContain('>Cancelar<');
   });
 
   it('traduz o estado do agendamento em vez de mostrar o enum do banco', () => {
@@ -118,9 +138,7 @@ describe('DayGrid', () => {
   });
 
   it('avisa quando o dia está vazio', () => {
-    const vazio = renderToStaticMarkup(
-      createElement(DayGrid, { appointments: [], staffList: EQUIPE, timeZone: TZ }),
-    );
+    const vazio = renderToStaticMarkup(createElement(DayGrid, { appointments: [], ...CONTEXTO }));
     expect(vazio).toContain('Nenhum agendamento');
   });
 });

@@ -13,7 +13,7 @@ const { ManualBookingForm } = await import('./manual-booking-form');
 const html = renderToStaticMarkup(
   createElement(ManualBookingForm, {
     slug: 'barbearia',
-    services: [{ id: 'sv-1', name: 'Barba' }],
+    services: [{ id: 'sv-1', name: 'Barba', durationMinutes: 20 }],
     staffList: [{ id: 'st-1', name: 'João' }],
     defaultDate: '2026-09-07',
     timeZone: 'America/Sao_Paulo',
@@ -21,29 +21,20 @@ const html = renderToStaticMarkup(
 );
 
 describe('ManualBookingForm', () => {
-  it('manda o dia junto com o formulário, e não só na consulta da grade', () => {
-    expect(html).toMatch(/name="date"/);
+  it('o que fica na agenda é a barra fixa "Encaixe", não um formulário de oito campos', () => {
+    // A folha nasce fechada: sem ela aberta, o formulário inteiro não existe no
+    // documento — nada de oito controles pendurados no fim da página.
+    expect(html).toContain('Encaixe');
+    expect(html).not.toMatch(/name="name"/);
+    expect(html).not.toMatch(/name="phone"/);
   });
 
-  it('deixa digitar um horário livre, além de escolher um da grade', () => {
-    expect(html).toMatch(/name="horaLivre"/);
-    expect(html).toMatch(/type="time"/);
-    expect(html).toMatch(/name="startAt"/);
+  it('a barra fixa carrega a confirmação para o leitor de tela, fora da folha', () => {
+    // "Encaixe agendado." precisa ser ouvido depois de a folha fechar.
+    expect(html).toMatch(/role="status"/);
   });
 
-  it('explica em pt-BR que o horário digitado é encaixe fora da grade', () => {
-    expect(html.toLowerCase()).toContain('fora da grade');
-  });
-
-  /** A tag inteira que contém o atributo — React não garante ordem de atributo. */
-  function tagCom(atributo: string): string {
-    const onde = html.indexOf(atributo);
-    expect(onde, `atributo ${atributo}`).toBeGreaterThan(-1);
-    return html.slice(html.lastIndexOf('<', onde), html.indexOf('>', onde) + 1);
-  }
-
-  it('começa na grade normal, com o campo de hora livre desligado', () => {
-    expect(tagCom('name="horaLivre"')).toContain('disabled');
-    expect(tagCom('name="startAt"')).not.toContain('disabled');
+  it('reserva a altura da barra fixa para ela não cobrir o último cartão', () => {
+    expect(html).toMatch(/height:64px/);
   });
 });

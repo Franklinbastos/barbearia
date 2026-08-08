@@ -2,6 +2,8 @@ import { DateTime } from 'luxon';
 import { requireSession } from '@/lib/session';
 import { db } from '@/db/client';
 import { findBarbershopById, listActiveStaff, listActiveServices, listAppointmentsBetween } from '@/db/repositories';
+import { formatDayLabelLong } from '@/lib/format';
+import { BarraDeData } from './barra-de-data';
 import { DayGrid } from './day-grid';
 import { ManualBookingForm } from './manual-booking-form';
 
@@ -16,9 +18,10 @@ export default async function AgendaPage({
   const loja = await findBarbershopById(db, sessao.barbershopId);
   const timeZone = loja?.timeZone ?? 'America/Sao_Paulo';
 
+  const agora = DateTime.now().setZone(timeZone);
   const dia = data && DateTime.fromISO(data, { zone: timeZone }).isValid
     ? DateTime.fromISO(data, { zone: timeZone })
-    : DateTime.now().setZone(timeZone).startOf('day');
+    : agora.startOf('day');
 
   const inicio = dia.startOf('day').toJSDate();
   const fim = dia.plus({ days: 1 }).startOf('day').toJSDate();
@@ -30,29 +33,35 @@ export default async function AgendaPage({
   ]);
 
   const dataISO = dia.toISODate()!;
-  const ontem = dia.minus({ days: 1 }).toISODate();
-  const amanha = dia.plus({ days: 1 }).toISODate();
+  const hojeISO = agora.toISODate()!;
+
+  // "8 no dia" não conta cancelado: o horário voltou para a grade e não é mais
+  // trabalho do dia. "A atender" é só o que ainda está agendado.
+  const contagens = {
+    total: appointments.filter((a) => a.status !== 'CANCELED').length,
+    aAtender: appointments.filter((a) => a.status === 'BOOKED').length,
+  };
 
   return (
     <div>
-      <h1>Agenda — {dia.setLocale('pt-BR').toFormat("cccc, d 'de' LLLL")}</h1>
-      <nav style={{ display: 'flex', gap: '0.5rem' }}>
-        <a href={`/app/agenda?data=${ontem}`}>Ontem</a>
-        <a href={`/app/agenda?data=${DateTime.now().setZone(timeZone).toISODate()}`}>Hoje</a>
-        <a href={`/app/agenda?data=${amanha}`}>Amanhã</a>
-        <form action="/app/agenda" method="get">
-          <input type="date" name="data" defaultValue={dataISO} />
-          <button type="submit">Ir</button>
-        </form>
-      </nav>
+      {/* O título não ocupa altura na primeira dobra — a barra de data já diz
+          que dia é este, e 40px de cabeçalho custam meia linha da lista. Fica
+          para o leitor de tela e para a estrutura do documento. */}
+      <h1 className="sr-only">Agenda — {formatDayLabelLong(dataISO, timeZone)}</h1>
+
+      <BarraDeData dataISO={dataISO} hojeISO={hojeISO} contagens={contagens} />
 
       <DayGrid
         appointments={appointments}
         staffList={staffList}
         timeZone={timeZone}
+        dataISO={dataISO}
+        hojeISO={hojeISO}
+        agoraISO={agora.toJSDate().toISOString()}
       />
 
-      <h2>Encaixe manual</h2>
+      {/* O encaixe deixou de ser um formulário pendurado no fim da página: o
+          que fica na tela é a barra fixa de "Encaixe", e a folha abre nela. */}
       {loja ? (
         <ManualBookingForm
           slug={loja.slug}

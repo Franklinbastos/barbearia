@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { requireSession } from '@/lib/session';
 import { db } from '@/db/client';
@@ -9,11 +10,14 @@ import {
   listWorkingHoursForStaff,
   listTimeOffForStaff,
 } from '@/db/repositories';
+import { CabecalhoDePagina } from '@/components/ui/cabecalho-de-pagina';
 import { ServicesForm } from './services-form';
 import { WorkingHoursForm } from './working-hours-form';
 import { TimeOffSection } from './time-off-section';
 
 const DIAS_SEMANA = [1, 2, 3, 4, 5, 6, 7];
+
+const TITULO_DE_SECAO = 'text-lg leading-6 font-bold';
 
 export default async function StaffDetailPage({
   params,
@@ -34,24 +38,46 @@ export default async function StaffDetailPage({
   const bloqueios = await listTimeOffForStaff(db, sessao.barbershopId, staffId, new Date());
 
   return (
-    <div>
-      <h1>{barbeiro.name}</h1>
-
-      <h2>Serviços</h2>
-      <ServicesForm staffId={staffId} servicos={servicos} selecionados={selecionados} />
-
-      <h2>Expediente</h2>
-      {DIAS_SEMANA.map((weekday) => (
-        <WorkingHoursForm
-          key={weekday}
-          staffId={staffId}
-          weekday={weekday}
-          blocos={expediente.filter((b) => b.weekday === weekday)}
+    <div className="flex flex-col gap-6">
+      <div className="flex flex-col gap-2">
+        <Link href="/app/equipe" className="text-sm leading-5">
+          ← Equipe
+        </Link>
+        <CabecalhoDePagina
+          titulo={barbeiro.name}
+          descricao={barbeiro.role === 'OWNER' ? 'Dono' : 'Barbeiro'}
         />
-      ))}
+      </div>
 
-      <h2>Bloqueios</h2>
-      <TimeOffSection staffId={staffId} bloqueios={bloqueios} timeZone={loja?.timeZone ?? 'America/Sao_Paulo'} />
+      <section className="flex flex-col gap-3">
+        <h2 className={TITULO_DE_SECAO}>Serviços</h2>
+        <ServicesForm staffId={staffId} servicos={servicos} selecionados={selecionados} />
+      </section>
+
+      <section className="flex flex-col gap-3">
+        <h2 className={TITULO_DE_SECAO}>Expediente</h2>
+        {/* Sete formulários irmãos, um por dia: cada um salva sozinho e diz qual
+            dia salvou. Em ≥768px cabem dois por linha sem apertar as horas. */}
+        <div className="grid max-w-[720px] gap-3 md:grid-cols-2">
+          {DIAS_SEMANA.map((weekday) => (
+            <WorkingHoursForm
+              key={weekday}
+              staffId={staffId}
+              weekday={weekday}
+              blocos={expediente.filter((b) => b.weekday === weekday)}
+            />
+          ))}
+        </div>
+      </section>
+
+      <section className="flex flex-col gap-3">
+        <h2 className={TITULO_DE_SECAO}>Bloqueios</h2>
+        <TimeOffSection
+          staffId={staffId}
+          bloqueios={bloqueios}
+          timeZone={loja?.timeZone ?? 'America/Sao_Paulo'}
+        />
+      </section>
     </div>
   );
 }

@@ -3,6 +3,9 @@
 import { useActionState, useRef, useEffect, useState, useTransition } from 'react';
 import { executarAcao } from '@/components/action-error';
 import { ErroDeAcao } from '@/components/erro-de-acao';
+import { Bloco } from '@/components/ui/bloco';
+import { Botao } from '@/components/ui/botao';
+import { Campo } from '@/components/ui/campo';
 import { formatDateTime } from '@/lib/format';
 import { createTimeOffAction, deleteTimeOffAction, type FormState } from './actions';
 
@@ -27,53 +30,78 @@ export function TimeOffSection({
 
   useEffect(() => {
     if (state.ok) formRef.current?.reset();
-  }, [state.ok]);
+  }, [state]);
 
   return (
-    <div>
-      <ul>
-        {bloqueios.map((b) => (
-          <li key={b.id}>
-            {formatDateTime(b.startAt, timeZone)} até {formatDateTime(b.endAt, timeZone)}
-            {b.reason ? ` — ${b.reason}` : ''}{' '}
-            <button
-              type="button"
-              disabled={excluindoPending}
-              onClick={() => {
-                setErroAoExcluir(null);
-                startExcluindo(() =>
-                  executarAcao(() => deleteTimeOffAction(staffId, b.id), setErroAoExcluir),
-                );
-              }}
-            >
-              Remover
-            </button>
-          </li>
-        ))}
-        {bloqueios.length === 0 ? <li>Nenhum bloqueio futuro.</li> : null}
-      </ul>
+    <div className="flex max-w-[720px] flex-col gap-3">
+      {bloqueios.length === 0 ? (
+        <Bloco>Nenhum bloqueio futuro.</Bloco>
+      ) : (
+        <ul className="lista">
+          {bloqueios.map((b) => (
+            <li key={b.id}>
+              <div className="grid min-h-[72px] grid-cols-[1fr_auto] items-center gap-3 p-3">
+                <div className="flex min-w-0 flex-col gap-1">
+                  <span className="text-[17px] leading-[22px] font-bold">
+                    {formatDateTime(b.startAt, timeZone)}
+                  </span>
+                  <span className="text-sm leading-5 text-tinta-2">
+                    até {formatDateTime(b.endAt, timeZone)}
+                    {b.reason ? ` — ${b.reason}` : ''}
+                  </span>
+                </div>
+                <Botao
+                  type="button"
+                  variante="secundario"
+                  pendente={excluindoPending}
+                  aria-label={`Remover bloqueio de ${formatDateTime(b.startAt, timeZone)}`}
+                  onClick={() => {
+                    setErroAoExcluir(null);
+                    startExcluindo(() =>
+                      executarAcao(() => deleteTimeOffAction(staffId, b.id), setErroAoExcluir),
+                    );
+                  }}
+                  className="min-h-11 min-w-22"
+                >
+                  Remover
+                </Botao>
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+
       <ErroDeAcao mensagem={erroAoExcluir} />
-      <form ref={formRef} action={formAction} style={{ display: 'flex', gap: '0.5rem', alignItems: 'end', flexWrap: 'wrap' }}>
-        <label>
-          Data
+
+      <form
+        ref={formRef}
+        action={formAction}
+        className="flex max-w-[520px] flex-col gap-3 rounded-cx border border-linha bg-superficie p-3"
+      >
+        <Campo rotulo="Data">
           <input type="date" name="date" required />
-        </label>
-        <label>
-          Início
-          <input type="time" name="startTime" required />
-        </label>
-        <label>
-          Fim
-          <input type="time" name="endTime" required />
-        </label>
-        <label>
-          Motivo
-          <input name="reason" placeholder="opcional" />
-        </label>
-        {state.erro ? <p role="alert" style={{ color: 'crimson' }}>{state.erro}</p> : null}
-        <button type="submit" disabled={pending}>
-          {pending ? 'Salvando…' : 'Bloquear horário'}
-        </button>
+        </Campo>
+
+        {/* Início e fim lado a lado: são duas horas do mesmo intervalo e cabem
+            em 2 colunas mesmo em 360px. */}
+        <div className="grid grid-cols-2 gap-2">
+          <Campo rotulo="Início">
+            <input type="time" name="startTime" required />
+          </Campo>
+          <Campo rotulo="Fim">
+            <input type="time" name="endTime" required />
+          </Campo>
+        </div>
+
+        <Campo rotulo="Motivo" dica="Opcional — aparece só para a equipe.">
+          <input name="reason" autoComplete="off" />
+        </Campo>
+
+        <ErroDeAcao mensagem={state.erro} />
+
+        <Botao type="submit" largura="total" pendente={pending} rotuloPendente="Salvando…">
+          Bloquear horário
+        </Botao>
       </form>
     </div>
   );
