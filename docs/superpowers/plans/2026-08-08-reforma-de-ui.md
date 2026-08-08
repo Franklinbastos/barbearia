@@ -94,8 +94,8 @@ describe('globals.css — camada base', () => {
   });
 
   it('define o alvo de toque mínimo como custom property', () => {
-    expect(css).toMatch(/--toque-min:\s*44px/);
-    expect(css).toMatch(/--toque-balcao:\s*52px/);
+    expect(css).toMatch(/--tap-min:\s*44px/);
+    expect(css).toMatch(/--tap-md:\s*52px/);
   });
 
   it('define foco visível para navegação por teclado', () => {

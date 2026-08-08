@@ -18,9 +18,11 @@ vi.mock('@/domain/onboarding/create-barbershop', async (importOriginal) => {
   };
 });
 
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { eq } from 'drizzle-orm';
 import { withTestDb, type TestDb } from '../helpers/db';
-import { barbershop, staff, user } from '@/db/schema';
+import { barbershop, session, staff, user } from '@/db/schema';
 import { closeDb } from '@/db/client';
 import { auth } from '@/lib/auth';
 import { signupAction } from '@/app/signup/actions';
@@ -203,6 +205,40 @@ describe('signupAction — conta órfã recuperável (achado 17)', () => {
       expect(invasor.erro).toBeTruthy();
       expect(invasor.redirecionou).toBe(false);
       expect(await db.select().from(barbershop)).toHaveLength(0);
+    });
+  });
+});
+
+/**
+ * Guarda de regressão: o dono termina o cadastro e tem que entrar no painel.
+ * Sem o plugin `nextCookies`, `auth.api.signUpEmail` cria usuário e sessão no
+ * banco e não grava o cookie — o cadastro "funciona" e joga a pessoa no login.
+ */
+describe('cadastro autentica de verdade', () => {
+  it('a configuração do auth carrega o plugin de cookie do Next', async () => {
+    const fonte = readFileSync(resolve(process.cwd(), 'src/lib/auth.ts'), 'utf8');
+    expect(fonte).toContain("from 'better-auth/next-js'");
+    expect(fonte).toMatch(/plugins:\s*\[[^\]]*nextCookies\(\)/);
+  });
+
+  it('grava sessão no banco para o usuário recém-cadastrado', async () => {
+    await withTestDb(async (db: TestDb) => {
+      const fd = new FormData();
+      fd.set('ownerName', 'Dona Zi');
+      fd.set('email', `zi-${Date.now()}@example.com`);
+      fd.set('password', 'senha-bem-comprida');
+      fd.set('shopName', 'Barbearia da Zi');
+      fd.set('slug', 'barbearia-da-zi');
+      fd.set('timeZone', 'America/Sao_Paulo');
+
+      await signupAction({}, fd).catch((e: unknown) => {
+        // redirect() do Next lança de propósito; qualquer outra coisa é falha
+        const digest = (e as { digest?: string })?.digest ?? '';
+        if (!digest.startsWith('NEXT_REDIRECT')) throw e;
+      });
+
+      const sessoes = await db.select().from(session);
+      expect(sessoes.length).toBeGreaterThan(0);
     });
   });
 });

@@ -19,9 +19,19 @@ vi.mock('@/lib/auth', () => ({
 
 import { eq } from 'drizzle-orm';
 import { withTestDb, type TestDb } from '../helpers/db';
-import { barbershop, staff, service, staffService, timeOff, workingHours } from '@/db/schema';
+import {
+  appointment,
+  barbershop,
+  customer,
+  service,
+  staff,
+  staffService,
+  timeOff,
+  workingHours,
+} from '@/db/schema';
 import { closeDb } from '@/db/client';
 import { createStaffAction, toggleStaffAction } from '@/app/app/equipe/actions';
+import { reopenAppointmentAction } from '@/app/app/agenda/actions';
 
 const ESTADO_INICIAL = {};
 
@@ -453,6 +463,105 @@ describe('serviços do barbeiro — achados 7 e 18', () => {
 
       expect(estado.erro).toMatch(/dono/i);
       expect(await db.select().from(staffService)).toHaveLength(0);
+    });
+  });
+});
+
+describe('reopenAppointmentAction — o "Desfazer" da agenda', () => {
+  /**
+   * Um atendimento pronto para ter o status mexido, sem passar pelo domínio:
+   * o que está em teste é a regra da action, não a criação do agendamento.
+   */
+  async function semearAtendimento(
+    db: TestDb,
+    status: 'BOOKED' | 'DONE' | 'CANCELED' | 'NO_SHOW',
+    barbershopId?: string,
+  ) {
+    const base = await semear(db);
+    const lojaId = barbershopId ?? base.loja.id;
+    const [barbeiro] =
+      barbershopId === undefined
+        ? [base.barbeiro]
+        : await db
+            .insert(staff)
+            .values({ barbershopId: lojaId, name: 'Alheio', role: 'BARBER' })
+            .returning();
+    const [corte] = await db
+      .insert(service)
+      .values({ barbershopId: lojaId, name: 'Corte', durationMinutes: 30, priceCents: 4000 })
+      .returning();
+    const [cliente] = await db
+      .insert(customer)
+      .values({ barbershopId: lojaId, name: 'Cliente', phone: '11999998888' })
+      .returning();
+    const [linha] = await db
+      .insert(appointment)
+      .values({
+        barbershopId: lojaId,
+        staffId: barbeiro.id,
+        customerId: cliente.id,
+        serviceId: corte.id,
+        serviceNameSnapshot: corte.name,
+        servicePriceCentsSnapshot: corte.priceCents,
+        serviceDurationMinutesSnapshot: corte.durationMinutes,
+        startAt: new Date('2026-09-07T12:00:00Z'),
+        endAt: new Date('2026-09-07T12:30:00Z'),
+        status,
+      })
+      .returning();
+    return { ...base, atendimento: linha };
+  }
+
+  async function statusDe(db: TestDb, id: string): Promise<string> {
+    const [linha] = await db.select().from(appointment).where(eq(appointment.id, id));
+    return linha.status;
+  }
+
+  it('reabre atendimento marcado como não veio', async () => {
+    await withTestDb(async (db) => {
+      const { atendimento } = await semearAtendimento(db, 'NO_SHOW');
+      sessaoFalsa.userId = 'u-dono';
+
+      expect(await reopenAppointmentAction(atendimento.id)).toBeUndefined();
+      expect(await statusDe(db, atendimento.id)).toBe('BOOKED');
+    });
+  });
+
+  it('reabre atendimento marcado como compareceu', async () => {
+    await withTestDb(async (db) => {
+      const { atendimento } = await semearAtendimento(db, 'DONE');
+      sessaoFalsa.userId = 'u-barbeiro';
+
+      expect(await reopenAppointmentAction(atendimento.id)).toBeUndefined();
+      expect(await statusDe(db, atendimento.id)).toBe('BOOKED');
+    });
+  });
+
+  it('recusa reabrir agendamento cancelado', async () => {
+    await withTestDb(async (db) => {
+      const { atendimento } = await semearAtendimento(db, 'CANCELED');
+      sessaoFalsa.userId = 'u-dono';
+
+      const retorno = await reopenAppointmentAction(atendimento.id);
+
+      expect(retorno?.erro).toBeTruthy();
+      expect(await statusDe(db, atendimento.id)).toBe('CANCELED');
+    });
+  });
+
+  it('não reabre agendamento de outra barbearia', async () => {
+    await withTestDb(async (db) => {
+      const [outra] = await db
+        .insert(barbershop)
+        .values({ slug: 'outra-b', name: 'Outra' })
+        .returning();
+      const { atendimento } = await semearAtendimento(db, 'NO_SHOW', outra.id);
+      sessaoFalsa.userId = 'u-dono';
+
+      const retorno = await reopenAppointmentAction(atendimento.id);
+
+      expect(retorno?.erro).toBeTruthy();
+      expect(await statusDe(db, atendimento.id)).toBe('NO_SHOW');
     });
   });
 });

@@ -504,6 +504,95 @@ describe('createManualAppointmentAction — encaixe pelo painel', () => {
       expect(await db.select().from(appointment)).toHaveLength(0);
     });
   });
+  it('aceita "primeiro que vagar" e escolhe quem tem menos atendimentos no dia', async () => {
+    await withTestDb(async (db) => {
+      const { loja, joao, pedro, barba } = await semear(db);
+      // Os dois fazem barba; o desempate tem de ser a carga do dia, não a ordem
+      // alfabética — senão João lota e Pedro fica parado.
+      await db
+        .insert(staffService)
+        .values({ barbershopId: loja.id, staffId: pedro.id, serviceId: barba.id });
+      for (const hora of ['09:00', '10:00']) {
+        await createWalkInAppointment(db, {
+          barbershopId: loja.id, serviceId: barba.id, staffId: joao.id,
+          startAt: em(hora), customer: { name: `Cliente ${hora}`, phone: `1190000${hora.slice(0, 2)}0` },
+        });
+      }
+      sessaoFalsa.userId = 'u-dono';
+
+      const estado = await createManualAppointmentAction(
+        ESTADO_INICIAL,
+        formulario({
+          serviceId: barba.id,
+          staffId: '', // vazio = "primeiro que vagar"
+          date: SEGUNDA,
+          horaLivre: '14:35',
+          name: CLIENTE.name,
+          phone: CLIENTE.phone,
+        }),
+      );
+
+      expect(estado.erro).toBeUndefined();
+      expect(estado.ok).toBe(true);
+      const [encaixe] = (await linhas(db, loja.id)).filter(
+        (l) => l.startAt.getTime() === em('14:35').getTime(),
+      );
+      expect(encaixe.staffId).toBe(pedro.id);
+    });
+  });
+
+  it('com "primeiro que vagar", pula quem já está ocupado naquele horário', async () => {
+    await withTestDb(async (db) => {
+      const { loja, joao, pedro, barba } = await semear(db);
+      await db
+        .insert(staffService)
+        .values({ barbershopId: loja.id, staffId: pedro.id, serviceId: barba.id });
+      // Pedro está com a agenda vazia no dia, mas ocupado exatamente às 14:35.
+      await createWalkInAppointment(db, {
+        barbershopId: loja.id, serviceId: barba.id, staffId: pedro.id,
+        startAt: em('14:30'), customer: { name: 'Na cadeira', phone: '11900001111' },
+      });
+      sessaoFalsa.userId = 'u-dono';
+
+      const estado = await createManualAppointmentAction(
+        ESTADO_INICIAL,
+        formulario({
+          serviceId: barba.id, staffId: '', date: SEGUNDA, horaLivre: '14:35',
+          name: CLIENTE.name, phone: CLIENTE.phone,
+        }),
+      );
+
+      expect(estado.erro).toBeUndefined();
+      const [encaixe] = (await linhas(db, loja.id)).filter(
+        (l) => l.startAt.getTime() === em('14:35').getTime(),
+      );
+      expect(encaixe.staffId).toBe(joao.id);
+    });
+  });
+
+  it('com "primeiro que vagar" e ninguém livre, avisa em vez de agendar', async () => {
+    await withTestDb(async (db) => {
+      const { loja, joao, barba } = await semear(db);
+      await createWalkInAppointment(db, {
+        barbershopId: loja.id, serviceId: barba.id, staffId: joao.id,
+        startAt: em('14:30'), customer: { name: 'Na cadeira', phone: '11900001111' },
+      });
+      sessaoFalsa.userId = 'u-dono';
+
+      const estado = await createManualAppointmentAction(
+        ESTADO_INICIAL,
+        formulario({
+          serviceId: barba.id, staffId: '', date: SEGUNDA, horaLivre: '14:35',
+          name: CLIENTE.name, phone: CLIENTE.phone,
+        }),
+      );
+
+      expect(estado.ok).toBeUndefined();
+      expect(estado.erro).toMatch(/livre/i);
+      expect(await linhas(db, loja.id)).toHaveLength(1);
+    });
+  });
+
   it('recusa encaixe com data absurda, que é erro de digitação e não encaixe', async () => {
     await withTestDb(async (db) => {
       const { loja, joao, barba } = await semear(db);
