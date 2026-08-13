@@ -317,3 +317,26 @@
   /* ---- esqueleto: sem pulso, sem shimmer, sempre na altura final ---- */
   .esqueleto { background: var(--superficie-2); border-radius: var(--r); }
 }
+
+/* ============================================================
+   5. VÉU DA FOLHA INFERIOR — fora de camada, de propósito
+
+   O `drawer` do base-nova pinta o backdrop com `bg-black/10` e
+   `supports-backdrop-filter:backdrop-blur-xs`, os dois utilitários. Utilitário
+   vence `@layer components` inteira e o `DrawerContent` do shadcn não expõe
+   `className` do backdrop, então o único jeito de repor o véu da §4.3 — preto a
+   45%, sem desfoque, como sempre foi — é uma regra fora de qualquer `@layer`:
+   CSS sem camada ganha de todas elas, independente de especificidade.
+
+   O gancho é o `data-slot`, que é exatamente para isto: o CLI pode regerar o
+   `drawer.tsx` quantas vezes quiser que esta regra continua valendo.
+   ============================================================ */
+[data-slot="drawer-overlay"] {
+  background: rgb(0 0 0 / .45);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-slot="drawer-overlay"] { transition: none; }
+}

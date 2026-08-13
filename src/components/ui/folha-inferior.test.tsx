@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi } from 'vitest';
+import * as React from 'react';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { FolhaInferior } from './folha-inferior';
@@ -44,5 +45,39 @@ describe('FolhaInferior', () => {
   it('fechada não renderiza nada', () => {
     render(<FolhaInferior aberta={false} titulo="X" aoFechar={vi.fn()}><button>Y</button></FolhaInferior>);
     expect(screen.queryByRole('dialog')).toBeNull();
+  });
+
+  it('devolve o foco ao disparador quando fecha', async () => {
+    function Cena() {
+      const [aberta, setAberta] = React.useState(false);
+      return (
+        <>
+          <button onClick={() => setAberta(true)}>Encaixe</button>
+          <FolhaInferior aberta={aberta} titulo="Encaixe" aoFechar={() => setAberta(false)}>
+            <button>Dentro</button>
+          </FolhaInferior>
+        </>
+      );
+    }
+    render(<Cena />);
+    const disparador = screen.getByRole('button', { name: 'Encaixe' });
+    await userEvent.click(disparador);
+    await userEvent.keyboard('{Escape}');
+    expect(document.activeElement).toBe(disparador);
+  });
+
+  it('o conteúdo de fora fica inerte enquanto aberta', () => {
+    render(
+      <>
+        <main><button>Fora</button></main>
+        <FolhaInferior aberta titulo="Encaixe" aoFechar={() => {}}>
+          <button>Dentro</button>
+        </FolhaInferior>
+      </>,
+    );
+    // com a folha aberta, o botão de fora não pode ser alcançável
+    expect(screen.getByRole('button', { name: 'Dentro' })).toBeDefined();
+    const fora = screen.queryByRole('button', { name: 'Fora' });
+    expect(fora === null || fora.closest('[inert]') !== null).toBe(true);
   });
 });
