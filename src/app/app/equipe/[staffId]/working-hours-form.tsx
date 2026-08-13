@@ -3,6 +3,7 @@
 import { Fragment, useActionState } from 'react';
 import { ErroDeAcao } from '@/components/erro-de-acao';
 import { Botao } from '@/components/ui/botao';
+import { Card, CardContent } from '@/components/ui/card';
 import { saveWorkingHoursAction, type FormState } from './actions';
 
 const ESTADO_INICIAL: FormState = {};
@@ -74,58 +75,61 @@ export function WorkingHoursForm({
   );
 
   return (
-    <form
-      action={formAction}
-      className="flex flex-col gap-3 rounded-cx border border-linha bg-superficie p-3"
-    >
-      <input type="hidden" name="weekday" value={weekday} />
+    // Um card por dia da semana: são sete caixas empilhadas, e o anel do card
+    // separa melhor do que a borda dura que estava aqui.
+    <Card>
+      <CardContent>
+        <form action={formAction} className="flex flex-col gap-3">
+          <input type="hidden" name="weekday" value={weekday} />
 
-      <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
-        <strong className="text-[17px] leading-[22px] font-bold">{NOMES_DIA[weekday]}</strong>
-        {/* Redundante para o leitor de tela — cada campo já diz "início do bloco
-            2" —, mas é o que explica a grade para quem enxerga. */}
-        <span aria-hidden="true" className="text-xs leading-4 text-tinta-3">
-          início em cima, fim embaixo
-        </span>
-      </div>
+          <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+            <strong className="text-[17px] leading-[22px] font-bold">{NOMES_DIA[weekday]}</strong>
+            {/* Redundante para o leitor de tela — cada campo já diz "início do bloco
+                2" —, mas é o que explica a grade para quem enxerga. */}
+            <span aria-hidden="true" className="text-xs leading-4 text-tinta-3">
+              início em cima, fim embaixo
+            </span>
+          </div>
 
-      <div className="grid grid-flow-col grid-cols-3 grid-rows-2 gap-2">
-        {slots.map((bloco, i) => (
-          <Fragment key={i}>
-            <input
-              type="time"
-              name={`block${i + 1}_start`}
-              aria-label={rotuloDoCampoDeHora(weekday, i, 'start')}
-              defaultValue={paraHoraInput(bloco.startTime)}
-              className={CAMPO_DE_HORA}
-            />
-            <input
-              type="time"
-              name={`block${i + 1}_end`}
-              aria-label={rotuloDoCampoDeHora(weekday, i, 'end')}
-              defaultValue={paraHoraInput(bloco.endTime)}
-              className={CAMPO_DE_HORA}
-            />
-          </Fragment>
-        ))}
-      </div>
+          <div className="grid grid-flow-col grid-cols-3 grid-rows-2 gap-2">
+            {slots.map((bloco, i) => (
+              <Fragment key={i}>
+                <input
+                  type="time"
+                  name={`block${i + 1}_start`}
+                  aria-label={rotuloDoCampoDeHora(weekday, i, 'start')}
+                  defaultValue={paraHoraInput(bloco.startTime)}
+                  className={CAMPO_DE_HORA}
+                />
+                <input
+                  type="time"
+                  name={`block${i + 1}_end`}
+                  aria-label={rotuloDoCampoDeHora(weekday, i, 'end')}
+                  defaultValue={paraHoraInput(bloco.endTime)}
+                  className={CAMPO_DE_HORA}
+                />
+              </Fragment>
+            ))}
+          </div>
 
-      <ErroDeAcao mensagem={state.erro} />
-      {state.ok ? (
-        <p role="status" className="text-sm leading-5 text-ok">
-          {mensagemDeExpedienteSalvo(weekday)}
-        </p>
-      ) : null}
+          <ErroDeAcao mensagem={state.erro} />
+          {state.ok ? (
+            <p role="status" className="text-sm leading-5 text-ok">
+              {mensagemDeExpedienteSalvo(weekday)}
+            </p>
+          ) : null}
 
-      <Botao
-        type="submit"
-        variante="secundario"
-        pendente={pending}
-        rotuloPendente="Salvando…"
-        className="self-end"
-      >
-        Salvar
-      </Botao>
-    </form>
+          <Botao
+            type="submit"
+            variante="secundario"
+            pendente={pending}
+            rotuloPendente="Salvando…"
+            className="self-end"
+          >
+            Salvar
+          </Botao>
+        </form>
+      </CardContent>
+    </Card>
   );
 }

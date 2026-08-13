@@ -6,6 +6,7 @@ import { listAllStaff } from '@/db/repositories';
 import { ErroDeAcao } from '@/components/erro-de-acao';
 import { Bloco } from '@/components/ui/bloco';
 import { CabecalhoDePagina } from '@/components/ui/cabecalho-de-pagina';
+import { Card } from '@/components/ui/card';
 import { Monograma } from '@/components/ui/monograma';
 import { StaffForm } from './staff-form';
 import { ToggleStaffButton } from './toggle-staff-button';
@@ -48,10 +49,14 @@ export default async function EquipePage({
         <Bloco>Só o dono da barbearia cadastra e desativa membros da equipe.</Bloco>
       )}
 
-      <div className="max-w-[720px]">
-        <ul className="lista">
+      {/* `gap-0 py-0`: o recheio do card cairia fora das divisórias, e a linha de
+          72px já tem o seu. Do card fica a moldura — anel, raio e fundo. */}
+      <Card className="max-w-[720px] gap-0 py-0">
+        <ul className="lista border-t-0 [&>li:last-child]:border-b-0">
           {equipe.map((membro) => (
-            <li key={membro.id} className={membro.active ? undefined : 'bg-superficie'}>
+            // `--superficie-2` porque o fundo do card já é `--superficie`: sem
+            // isso o membro inativo ficaria igual ao ativo.
+            <li key={membro.id} className={membro.active ? undefined : 'bg-superficie-2'}>
               <div className="grid min-h-[72px] grid-cols-[1fr_auto] items-center gap-3 p-3">
                 {/* A linha inteira leva ao detalhe: "Configurar" era um link de
                     texto de 20px de altura no meio de uma tabela. */}
@@ -70,7 +75,7 @@ export default async function EquipePage({
                         {membro.name}
                       </span>
                       {membro.active ? null : (
-                        <span className="border border-linha bg-superficie-2 px-1.5 text-[11px] leading-[14px] font-bold text-tinta-2">
+                        <span className="border border-linha bg-bg px-1.5 text-[11px] leading-[14px] font-bold text-tinta-2">
                           INATIVO
                         </span>
                       )}
@@ -104,7 +109,7 @@ export default async function EquipePage({
             </li>
           ))}
         </ul>
-      </div>
+      </Card>
     </div>
   );
 }

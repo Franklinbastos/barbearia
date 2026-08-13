@@ -5,6 +5,7 @@ import { formatDayLabelLong, formatDayParts, isoDateInZone } from '@/lib/format'
 import { carregarHorarios } from '@/components/availability';
 import { Botao } from '@/components/ui/botao';
 import { Bloco } from '@/components/ui/bloco';
+import { Card, CardContent } from '@/components/ui/card';
 import { TiraDeDias, type DiaDaTira } from '@/components/ui/tira-de-dias';
 import { GradeDeHorarios, type EscolhaDeHorario } from '@/components/ui/grade-de-horarios';
 import type { AvailabilitySlot } from '../types';
@@ -263,12 +264,19 @@ export function SlotStep({
       ) : null}
 
       {slots && slots.length > 0 ? (
-        <GradeDeHorarios
-          slots={slots}
-          timeZone={timeZone}
-          barbeiroEscolhido={Boolean(staffId)}
-          aoEscolher={onSelect}
-        />
+        // Os grupos de horário viram uma caixa de conteúdo só. `size="sm"` põe o
+        // recheio em 12px em vez de 16: em 360px a diferença é a ficha de
+        // horário ficar com 96px em vez de 93, e é ela que carrega o número.
+        <Card size="sm" className="mt-1">
+          <CardContent>
+            <GradeDeHorarios
+              slots={slots}
+              timeZone={timeZone}
+              barbeiroEscolhido={Boolean(staffId)}
+              aoEscolher={onSelect}
+            />
+          </CardContent>
+        </Card>
       ) : null}
     </section>
   );

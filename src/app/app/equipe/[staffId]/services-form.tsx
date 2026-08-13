@@ -4,6 +4,7 @@ import { useActionState } from 'react';
 import { ErroDeAcao } from '@/components/erro-de-acao';
 import { Botao } from '@/components/ui/botao';
 import { Campo } from '@/components/ui/campo';
+import { Card } from '@/components/ui/card';
 import { formatDuration } from '@/lib/format';
 import { saveStaffServicesAction, type FormState } from './actions';
 
@@ -35,48 +36,54 @@ export function ServicesForm({
 
   return (
     <form action={formAction} className="flex max-w-[720px] flex-col gap-3">
-      <ul className="lista">
-        {servicos.map((s) => {
-          const marcado = selecionados.has(s.id);
-          const override = selecionados.get(s.id);
-          return (
-            <li key={s.id}>
-              <div className="flex flex-col gap-3 p-3">
-                <label className="flex min-h-11 cursor-pointer items-center gap-3">
-                  <input
-                    type="checkbox"
-                    name="serviceIds"
-                    value={s.id}
-                    defaultChecked={marcado}
-                    className="h-6 w-6 shrink-0"
-                  />
-                  <span className="flex flex-col gap-1">
-                    <span className="text-[17px] leading-[22px] font-bold">{s.name}</span>
-                    <span className="text-sm leading-5 text-tinta-2">
-                      padrão {formatDuration(s.durationMinutes)}
+      {/* `gap-0 py-0`: cada linha já traz o próprio recheio, e o do card
+          empurraria as divisórias para dentro. */}
+      <Card className="gap-0 py-0">
+        <ul className="lista border-t-0 [&>li:last-child]:border-b-0">
+          {servicos.map((s) => {
+            const marcado = selecionados.has(s.id);
+            const override = selecionados.get(s.id);
+            return (
+              <li key={s.id}>
+                <div className="flex flex-col gap-3 p-3">
+                  <label className="flex min-h-11 cursor-pointer items-center gap-3">
+                    <input
+                      type="checkbox"
+                      name="serviceIds"
+                      value={s.id}
+                      defaultChecked={marcado}
+                      className="h-6 w-6 shrink-0"
+                    />
+                    <span className="flex flex-col gap-1">
+                      <span className="text-[17px] leading-[22px] font-bold">{s.name}</span>
+                      <span className="text-sm leading-5 text-tinta-2">
+                        padrão {formatDuration(s.durationMinutes)}
+                      </span>
                     </span>
-                  </span>
-                </label>
+                  </label>
 
-                <Campo rotulo="Duração própria (min)" dica="Vazio usa o padrão do serviço.">
-                  <input
-                    type="number"
-                    name={`duration_${s.id}`}
-                    aria-label={rotuloDaDuracaoPropria(s.name)}
-                    inputMode="numeric"
-                    min={1}
-                    defaultValue={override ?? ''}
-                    placeholder="usa o padrão"
-                  />
-                </Campo>
-              </div>
+                  <Campo rotulo="Duração própria (min)" dica="Vazio usa o padrão do serviço.">
+                    <input
+                      type="number"
+                      name={`duration_${s.id}`}
+                      aria-label={rotuloDaDuracaoPropria(s.name)}
+                      inputMode="numeric"
+                      min={1}
+                      defaultValue={override ?? ''}
+                      placeholder="usa o padrão"
+                    />
+                  </Campo>
+                </div>
+              </li>
+            );
+          })}
+          {servicos.length === 0 ? (
+            <li className="p-3 text-base leading-6 text-tinta-2">
+              Nenhum serviço ativo para vincular.
             </li>
-          );
-        })}
-        {servicos.length === 0 ? (
-          <li className="p-3 text-tinta-2">Nenhum serviço ativo para vincular.</li>
-        ) : null}
-      </ul>
+          ) : null}
+        </ul>
+      </Card>
 
       <ErroDeAcao mensagem={state.erro} />
 

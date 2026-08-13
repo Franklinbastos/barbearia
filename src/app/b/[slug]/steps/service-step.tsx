@@ -1,5 +1,6 @@
 import { formatDuration, formatPrice } from '@/lib/format';
 import { Bloco } from '@/components/ui/bloco';
+import { Card } from '@/components/ui/card';
 import type { CatalogService } from '../types';
 
 /**
@@ -33,40 +34,49 @@ export function ServiceStep({
           A agenda desta barbearia ainda não está disponível. Volte em breve.
         </Bloco>
       ) : (
-        <ul className="lista">
-          {servicos.map((servico) => {
-            const preco = formatPrice(servico.priceCents);
-            const gratis = servico.priceCents === 0;
+        // `gap-0 py-0`: a linha de 72px já tem o próprio recheio, e o do card
+        // encolheria a largura útil dela em 360px sem nada em troca.
+        <Card className="gap-0 py-0">
+          <ul className="lista border-t-0 [&>li:last-child]:border-b-0">
+            {servicos.map((servico) => {
+              const preco = formatPrice(servico.priceCents);
+              const gratis = servico.priceCents === 0;
 
-            return (
-              <li key={servico.id}>
-                <button
-                  type="button"
-                  onClick={() => aoEscolher(servico)}
-                  className="lista-btn grid-cols-[1fr_auto] gap-x-3 md:min-h-16 md:grid-cols-[1fr_120px]"
-                >
-                  <span className="flex flex-col gap-0.5">
-                    <span className="text-lg leading-6 font-semibold text-tinta">{servico.name}</span>
-                    {/* --tinta-2, nunca --tinta-3: duração e preço são informação
-                        de decisão, não enfeite (P2 da direção). */}
-                    <span className="text-sm leading-5 text-tinta-2">
-                      {formatDuration(servico.durationMinutes)}
-                    </span>
-                  </span>
-                  <span
-                    className={
-                      gratis
-                        ? 'text-right text-base leading-6 font-bold text-ok'
-                        : 'text-right text-lg leading-6 font-bold text-tinta'
-                    }
+              return (
+                <li key={servico.id}>
+                  <button
+                    type="button"
+                    onClick={() => aoEscolher(servico)}
+                    // `hover:bg-superficie-2` porque o `:hover` de `.lista-btn` é
+                    // `--superficie`, que virou o fundo do próprio card: sem isto
+                    // o realce sumiria no mouse.
+                    className="lista-btn grid-cols-[1fr_auto] gap-x-3 hover:bg-superficie-2 md:min-h-16 md:grid-cols-[1fr_120px]"
                   >
-                    {preco}
-                  </span>
-                </button>
-              </li>
-            );
-          })}
-        </ul>
+                    <span className="flex flex-col gap-0.5">
+                      <span className="text-lg leading-6 font-semibold text-tinta">
+                        {servico.name}
+                      </span>
+                      {/* --tinta-2, nunca --tinta-3: duração e preço são
+                          informação de decisão, não enfeite (P2 da direção). */}
+                      <span className="text-sm leading-5 text-tinta-2">
+                        {formatDuration(servico.durationMinutes)}
+                      </span>
+                    </span>
+                    <span
+                      className={
+                        gratis
+                          ? 'text-right text-base leading-6 font-bold text-ok'
+                          : 'text-right text-lg leading-6 font-bold text-tinta'
+                      }
+                    >
+                      {preco}
+                    </span>
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        </Card>
       )}
     </section>
   );

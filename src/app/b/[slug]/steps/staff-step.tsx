@@ -1,5 +1,6 @@
 import { Botao } from '@/components/ui/botao';
 import { Bloco } from '@/components/ui/bloco';
+import { Card } from '@/components/ui/card';
 import { Monograma } from '@/components/ui/monograma';
 import type { CatalogStaff } from '../types';
 
@@ -67,20 +68,28 @@ export function StaffStep({
             Ou escolha quem vai te atender
           </p>
 
-          <ul className="lista">
-            {atendem.map((barbeiro) => (
-              <li key={barbeiro.id}>
-                <button
-                  type="button"
-                  onClick={() => aoEscolher(barbeiro.id, barbeiro.name)}
-                  className="lista-btn grid-cols-[40px_1fr] gap-x-3 md:min-h-16"
-                >
-                  <Monograma nome={barbeiro.name} />
-                  <span className="text-lg leading-6 font-semibold text-tinta">{barbeiro.name}</span>
-                </button>
-              </li>
-            ))}
-          </ul>
+          {/* `gap-0 py-0`: a linha já tem recheio próprio; do card fica só a
+              moldura, que é o que não come largura em 360px. */}
+          <Card className="gap-0 py-0">
+            <ul className="lista border-t-0 [&>li:last-child]:border-b-0">
+              {atendem.map((barbeiro) => (
+                <li key={barbeiro.id}>
+                  <button
+                    type="button"
+                    onClick={() => aoEscolher(barbeiro.id, barbeiro.name)}
+                    // O `:hover` de `.lista-btn` é `--superficie`, o mesmo fundo
+                    // do card — sem `hover:bg-superficie-2` o realce some.
+                    className="lista-btn grid-cols-[40px_1fr] gap-x-3 hover:bg-superficie-2 md:min-h-16"
+                  >
+                    <Monograma nome={barbeiro.name} />
+                    <span className="text-lg leading-6 font-semibold text-tinta">
+                      {barbeiro.name}
+                    </span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </Card>
         </>
       )}
     </section>

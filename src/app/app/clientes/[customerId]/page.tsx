@@ -11,6 +11,7 @@ import {
 } from '@/lib/format';
 import { Bloco } from '@/components/ui/bloco';
 import { CabecalhoDePagina } from '@/components/ui/cabecalho-de-pagina';
+import { Card } from '@/components/ui/card';
 import { NotesForm } from './notes-form';
 import { AnonymizeButton } from './anonymize-button';
 
@@ -55,30 +56,34 @@ export default async function CustomerDetailPage({
         {historico.length === 0 ? (
           <Bloco>Nenhum atendimento ainda.</Bloco>
         ) : (
-          <ul className="lista">
-            {historico.map((h) => {
-              const estado = h.status as AppointmentStatus;
-              return (
-                <li key={h.id}>
-                  <div className="grid min-h-[72px] grid-cols-[1fr_auto] items-center gap-3 p-3">
-                    <div className="flex min-w-0 flex-col gap-1">
-                      <span className="text-[17px] leading-[22px] font-bold">
-                        {formatDateTime(h.startAt, timeZone)}
-                      </span>
-                      <span className="text-sm leading-5 text-tinta-2">
-                        {h.serviceName} · {formatPrice(h.priceCents)}
+          // O histórico é caixa de conteúdo, então vira card; o "Nenhum
+          // atendimento ainda" acima continua sendo `Bloco`, que é mensagem.
+          <Card className="gap-0 py-0">
+            <ul className="lista border-t-0 [&>li:last-child]:border-b-0">
+              {historico.map((h) => {
+                const estado = h.status as AppointmentStatus;
+                return (
+                  <li key={h.id}>
+                    <div className="grid min-h-[72px] grid-cols-[1fr_auto] items-center gap-3 p-3">
+                      <div className="flex min-w-0 flex-col gap-1">
+                        <span className="text-[17px] leading-[22px] font-bold">
+                          {formatDateTime(h.startAt, timeZone)}
+                        </span>
+                        <span className="text-sm leading-5 text-tinta-2">
+                          {h.serviceName} · {formatPrice(h.priceCents)}
+                        </span>
+                      </div>
+                      <span
+                        className={`border px-1.5 py-0.5 text-[11px] leading-[14px] font-bold ${TOM_DO_ESTADO[estado]}`}
+                      >
+                        {formatAppointmentStatus(estado)}
                       </span>
                     </div>
-                    <span
-                      className={`border px-1.5 py-0.5 text-[11px] leading-[14px] font-bold ${TOM_DO_ESTADO[estado]}`}
-                    >
-                      {formatAppointmentStatus(estado)}
-                    </span>
-                  </div>
-                </li>
-              );
-            })}
-          </ul>
+                  </li>
+                );
+              })}
+            </ul>
+          </Card>
         )}
       </section>
 

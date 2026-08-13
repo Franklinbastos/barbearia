@@ -4,6 +4,7 @@ import { listAllServices } from '@/db/repositories';
 import { formatPrice, formatDuration } from '@/lib/format';
 import { CabecalhoDePagina } from '@/components/ui/cabecalho-de-pagina';
 import { Bloco } from '@/components/ui/bloco';
+import { Card } from '@/components/ui/card';
 import { ServicoForm } from './servico-form';
 import { ToggleButton } from './toggle-button';
 
@@ -34,19 +35,25 @@ export default async function ServicosPage() {
           <p className="mt-1 text-tinta-2">Comece pelo corte simples: nome, duração e preço.</p>
         </Bloco>
       ) : (
-        <div className="max-w-[720px]">
-          <div className="hidden h-8 grid-cols-[1fr_120px_120px_120px] items-center gap-3 px-3 text-xs leading-4 font-bold text-tinta-3 uppercase md:grid">
+        // `gap-0 py-0` e a lista de ponta a ponta: o recheio do card ficaria por
+        // fora das divisórias e a linha de 72px já tem o seu. O que o card traz
+        // aqui é a moldura — anel, raio e fundo —, não mais margem.
+        <Card className="max-w-[720px] gap-0 py-0">
+          <div className="hidden h-9 grid-cols-[1fr_120px_120px_120px] items-center gap-3 border-b border-linha px-3 text-xs leading-4 font-bold text-tinta-3 uppercase md:grid">
             <span>Nome</span>
             <span className="text-right">Duração</span>
             <span className="text-right">Preço</span>
             <span />
           </div>
 
-          <ul className="lista">
+          {/* A borda de cima e a de baixo saem: quem fecha a caixa agora é o
+              anel do card. */}
+          <ul className="lista border-t-0 [&>li:last-child]:border-b-0">
             {servicos.map((s) => (
               // Serviço inativo muda de fundo e ganha etiqueta — nunca opacidade,
-              // que apaga o contraste do texto junto com a ênfase.
-              <li key={s.id} className={s.active ? undefined : 'bg-superficie'}>
+              // que apaga o contraste do texto junto com a ênfase. É
+              // `--superficie-2` porque o fundo do card já é `--superficie`.
+              <li key={s.id} className={s.active ? undefined : 'bg-superficie-2'}>
                 <div className="grid min-h-[72px] grid-cols-[1fr_auto] items-center gap-3 p-3 md:grid-cols-[1fr_120px_120px_120px]">
                   <div className="flex min-w-0 flex-col gap-1">
                     <span className="flex flex-wrap items-center gap-2">
@@ -58,7 +65,7 @@ export default async function ServicosPage() {
                         {s.name}
                       </span>
                       {s.active ? null : (
-                        <span className="border border-linha bg-superficie-2 px-1.5 text-[11px] leading-[14px] font-bold text-tinta-2">
+                        <span className="border border-linha bg-bg px-1.5 text-[11px] leading-[14px] font-bold text-tinta-2">
                           INATIVO
                         </span>
                       )}
@@ -82,7 +89,7 @@ export default async function ServicosPage() {
               </li>
             ))}
           </ul>
-        </div>
+        </Card>
       )}
     </div>
   );

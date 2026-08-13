@@ -2,8 +2,8 @@ import { requireSession } from '@/lib/session';
 import { db } from '@/db/client';
 import { findBarbershopById } from '@/db/repositories';
 import { env } from '@/lib/env';
-import { Bloco } from '@/components/ui/bloco';
 import { CabecalhoDePagina } from '@/components/ui/cabecalho-de-pagina';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { SettingsForm } from './settings-form';
 
 export default async function ConfiguracoesPage() {
@@ -20,14 +20,18 @@ export default async function ConfiguracoesPage() {
         descricao="O endereço público da loja e as regras da agenda."
       />
 
-      <div className="max-w-[520px]">
-        <Bloco>
-          <p className="text-sm leading-5 font-bold text-tinta-2">Endereço público</p>
+      {/* Era `Bloco`, mas nunca foi mensagem: é o endereço da loja parado na
+          tela, ou seja, conteúdo. Card com cabeçalho é exatamente essa forma. */}
+      <Card className="max-w-[520px]">
+        <CardHeader>
+          <CardTitle>Endereço público</CardTitle>
+        </CardHeader>
+        <CardContent>
           {/* `break-all` porque o slug pode ser longo e em 360px o endereço é a
               única coisa da tela que não tem onde quebrar. */}
-          <code className="mt-1 block break-all">{linkPublico}</code>
-        </Bloco>
-      </div>
+          <code className="block break-all text-base leading-6">{linkPublico}</code>
+        </CardContent>
+      </Card>
 
       <SettingsForm loja={loja} />
     </div>

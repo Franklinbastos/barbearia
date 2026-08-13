@@ -4,6 +4,7 @@ import { useActionState, useRef, useEffect, useState } from 'react';
 import { ErroDeAcao } from '@/components/erro-de-acao';
 import { Botao } from '@/components/ui/botao';
 import { Campo } from '@/components/ui/campo';
+import { Card, CardContent } from '@/components/ui/card';
 import { createStaffAction, type StaffFormState } from './actions';
 
 const ESTADO_INICIAL: StaffFormState = {};
@@ -32,29 +33,31 @@ export function StaffForm() {
   }
 
   return (
-    <form
-      ref={formRef}
-      action={formAction}
-      className="flex max-w-[520px] flex-col gap-3 rounded-cx border border-linha bg-superficie p-3"
-    >
-      <Campo rotulo="Nome do barbeiro" dica="O expediente padrão da loja já entra pronto.">
-        <input name="name" required minLength={2} autoComplete="off" />
-      </Campo>
+    // Mesma troca da lista logo abaixo: a caixa do formulário passa a ser o card
+    // da lib em vez da borda desenhada à mão.
+    <Card className="max-w-[520px]">
+      <CardContent>
+        <form ref={formRef} action={formAction} className="flex flex-col gap-3">
+          <Campo rotulo="Nome do barbeiro" dica="O expediente padrão da loja já entra pronto.">
+            <input name="name" required minLength={2} autoComplete="off" />
+          </Campo>
 
-      <ErroDeAcao mensagem={state.erro} />
+          <ErroDeAcao mensagem={state.erro} />
 
-      <Botao type="submit" largura="total" pendente={pending} rotuloPendente="Salvando…">
-        Adicionar barbeiro
-      </Botao>
+          <Botao type="submit" largura="total" pendente={pending} rotuloPendente="Salvando…">
+            Adicionar barbeiro
+          </Botao>
 
-      <Botao
-        type="button"
-        variante="texto"
-        className="min-h-12 self-center"
-        onClick={() => setAberto(false)}
-      >
-        Fechar
-      </Botao>
-    </form>
+          <Botao
+            type="button"
+            variante="texto"
+            className="min-h-12 self-center"
+            onClick={() => setAberto(false)}
+          >
+            Fechar
+          </Botao>
+        </form>
+      </CardContent>
+    </Card>
   );
 }

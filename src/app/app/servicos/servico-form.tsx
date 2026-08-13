@@ -4,6 +4,7 @@ import { useActionState, useRef, useEffect, useState } from 'react';
 import { ErroDeAcao } from '@/components/erro-de-acao';
 import { Botao } from '@/components/ui/botao';
 import { Campo } from '@/components/ui/campo';
+import { Card, CardContent } from '@/components/ui/card';
 import { saveServiceAction, type ServiceFormState } from './actions';
 
 const ESTADO_INICIAL: ServiceFormState = {};
@@ -54,70 +55,73 @@ export function ServicoForm() {
   }
 
   return (
-    <form
-      ref={formRef}
-      action={formAction}
-      className="flex max-w-[520px] flex-col gap-3 rounded-cx border border-linha bg-superficie p-3"
-    >
-      <Campo rotulo="Nome">
-        <input name="name" required minLength={2} autoComplete="off" />
-      </Campo>
+    // A caixa do formulário já era um card desenhado à mão — mesmo fundo, mesmo
+    // raio. Vira o card da lib para não conviver com a lista logo abaixo tendo
+    // borda dura enquanto ela tem anel.
+    <Card className="max-w-[520px]">
+      <CardContent>
+        <form ref={formRef} action={formAction} className="flex flex-col gap-3">
+          <Campo rotulo="Nome">
+            <input name="name" required minLength={2} autoComplete="off" />
+          </Campo>
 
-      <div className="flex flex-col gap-1.5">
-        <div role="group" aria-label="Durações mais usadas" className="flex flex-wrap gap-2">
-          {DURACOES_COMUNS.map((minutos) => {
-            const escolhida = duracao === String(minutos);
-            return (
-              <Botao
-                key={minutos}
-                type="button"
-                variante="secundario"
-                aria-pressed={escolhida}
-                aria-label={`${minutos} min`}
-                onClick={() => setDuracao(String(minutos))}
-                // 48px é a medida da ficha na §3.6; a altura de 52px do botão é
-                // do verbo da tela, e ficha não é verbo.
-                className={`min-h-12 min-w-16 ${escolhida ? 'border-2 border-tinta font-bold' : ''}`}
-              >
-                {minutos}
-              </Botao>
-            );
-          })}
-        </div>
+          <div className="flex flex-col gap-1.5">
+            <div role="group" aria-label="Durações mais usadas" className="flex flex-wrap gap-2">
+              {DURACOES_COMUNS.map((minutos) => {
+                const escolhida = duracao === String(minutos);
+                return (
+                  <Botao
+                    key={minutos}
+                    type="button"
+                    variante="secundario"
+                    aria-pressed={escolhida}
+                    aria-label={`${minutos} min`}
+                    onClick={() => setDuracao(String(minutos))}
+                    // 48px é a medida da ficha na §3.6; a altura de 52px do botão é
+                    // do verbo da tela, e ficha não é verbo.
+                    className={`min-h-12 min-w-16 ${escolhida ? 'border-2 border-tinta font-bold' : ''}`}
+                  >
+                    {minutos}
+                  </Botao>
+                );
+              })}
+            </div>
 
-        <Campo rotulo="Duração (min)">
-          <input
-            name="durationMinutes"
-            type="number"
-            inputMode="numeric"
-            required
-            min={1}
-            value={duracao}
-            onChange={(e) => setDuracao(e.target.value)}
-          />
-        </Campo>
-      </div>
+            <Campo rotulo="Duração (min)">
+              <input
+                name="durationMinutes"
+                type="number"
+                inputMode="numeric"
+                required
+                min={1}
+                value={duracao}
+                onChange={(e) => setDuracao(e.target.value)}
+              />
+            </Campo>
+          </div>
 
-      <Campo rotulo="Preço" prefixo="R$">
-        <input name="priceCents" required inputMode="decimal" placeholder="40,00" />
-      </Campo>
+          <Campo rotulo="Preço" prefixo="R$">
+            <input name="priceCents" required inputMode="decimal" placeholder="40,00" />
+          </Campo>
 
-      <ErroDeAcao mensagem={state.erro} />
+          <ErroDeAcao mensagem={state.erro} />
 
-      <Botao type="submit" largura="total" pendente={pending} rotuloPendente="Salvando…">
-        Adicionar serviço
-      </Botao>
+          <Botao type="submit" largura="total" pendente={pending} rotuloPendente="Salvando…">
+            Adicionar serviço
+          </Botao>
 
-      {/* "Fechar", nunca "Cancelar": neste produto cancelar é desmarcar o
-          horário de um cliente, e a palavra não pode significar duas coisas. */}
-      <Botao
-        type="button"
-        variante="texto"
-        className="min-h-12 self-center"
-        onClick={() => setAberto(false)}
-      >
-        Fechar
-      </Botao>
-    </form>
+          {/* "Fechar", nunca "Cancelar": neste produto cancelar é desmarcar o
+              horário de um cliente, e a palavra não pode significar duas coisas. */}
+          <Botao
+            type="button"
+            variante="texto"
+            className="min-h-12 self-center"
+            onClick={() => setAberto(false)}
+          >
+            Fechar
+          </Botao>
+        </form>
+      </CardContent>
+    </Card>
   );
 }

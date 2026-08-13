@@ -7,6 +7,7 @@ import { Bloco } from '@/components/ui/bloco';
 import { Botao } from '@/components/ui/botao';
 import { CabecalhoDePagina } from '@/components/ui/cabecalho-de-pagina';
 import { Campo } from '@/components/ui/campo';
+import { Card } from '@/components/ui/card';
 import { Monograma } from '@/components/ui/monograma';
 
 export default async function ClientesPage({
@@ -40,8 +41,10 @@ export default async function ClientesPage({
       {clientes.length === 0 ? (
         <Bloco>Nenhum cliente encontrado.</Bloco>
       ) : (
-        <div className="max-w-[720px]">
-          <ul className="lista">
+        // `gap-0 py-0` e lista de ponta a ponta: o recheio do card duplicaria o
+        // da linha e afastaria as divisórias das bordas.
+        <Card className="max-w-[720px] gap-0 py-0">
+          <ul className="lista border-t-0 [&>li:last-child]:border-b-0">
             {clientes.map((c) => (
               <li key={c.id}>
                 <Link
@@ -64,7 +67,7 @@ export default async function ClientesPage({
               </li>
             ))}
           </ul>
-        </div>
+        </Card>
       )}
 
       {clientes.length === 200 ? (
