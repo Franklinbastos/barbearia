@@ -3,6 +3,7 @@ import { db } from '@/db/client';
 import { listAllServices } from '@/db/repositories';
 import { formatPrice, formatDuration } from '@/lib/format';
 import { CabecalhoDePagina } from '@/components/ui/cabecalho-de-pagina';
+import { Badge } from '@/components/ui/badge';
 import { Bloco } from '@/components/ui/bloco';
 import { Card } from '@/components/ui/card';
 import { ServicoForm } from './servico-form';
@@ -64,11 +65,11 @@ export default async function ServicosPage() {
                       >
                         {s.name}
                       </span>
-                      {s.active ? null : (
-                        <span className="border border-linha bg-bg px-1.5 text-[11px] leading-[14px] font-bold text-tinta-2">
-                          INATIVO
-                        </span>
-                      )}
+                      {/* `outline` é a variante que a lib tem para etiqueta
+                          neutra de borda — a linha do serviço desligado já
+                          mudou de fundo, e uma etiqueta cheia por cima seria a
+                          segunda ênfase na mesma informação. */}
+                      {s.active ? null : <Badge variant="outline">INATIVO</Badge>}
                     </span>
                     <span className="text-sm leading-5 text-tinta-2 md:hidden">
                       {formatDuration(s.durationMinutes)} · {formatPrice(s.priceCents)}

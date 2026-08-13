@@ -9,21 +9,15 @@ import {
   formatPrice,
   type AppointmentStatus,
 } from '@/lib/format';
+import { Badge } from '@/components/ui/badge';
 import { Bloco } from '@/components/ui/bloco';
 import { CabecalhoDePagina } from '@/components/ui/cabecalho-de-pagina';
 import { Card } from '@/components/ui/card';
+import { VARIANTE_DO_ESTADO } from '../../tom-do-estado';
 import { NotesForm } from './notes-form';
 import { AnonymizeButton } from './anonymize-button';
 
 const TITULO_DE_SECAO = 'text-lg leading-6 font-bold';
-
-/** Estado do atendimento como tom de etiqueta — cor nunca é o único portador. */
-const TOM_DO_ESTADO: Record<AppointmentStatus, string> = {
-  BOOKED: 'border-linha bg-superficie-2 text-tinta-2',
-  DONE: 'border-ok bg-ok-bg text-tinta',
-  CANCELED: 'border-perigo bg-perigo-bg text-tinta',
-  NO_SHOW: 'border-alerta bg-alerta-bg text-tinta',
-};
 
 export default async function CustomerDetailPage({
   params,
@@ -73,11 +67,13 @@ export default async function CustomerDetailPage({
                           {h.serviceName} · {formatPrice(h.priceCents)}
                         </span>
                       </div>
-                      <span
-                        className={`border px-1.5 py-0.5 text-[11px] leading-[14px] font-bold ${TOM_DO_ESTADO[estado]}`}
-                      >
+                      {/* O `TOM_DO_ESTADO` de quatro tons desenhados à mão saiu:
+                          a variante agora vem de `tom-do-estado.ts`, que o
+                          cartão da agenda também lê — as duas telas discordavam
+                          sobre o "Não veio". */}
+                      <Badge variant={VARIANTE_DO_ESTADO[estado]}>
                         {formatAppointmentStatus(estado)}
-                      </span>
+                      </Badge>
                     </div>
                   </li>
                 );

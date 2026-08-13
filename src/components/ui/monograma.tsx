@@ -1,40 +1,54 @@
 import { cva } from 'class-variance-authority';
 
 import { cn } from '@/lib/utils';
+import { Avatar, AvatarFallback } from './avatar';
 
 /**
  * Iniciais no lugar da foto que não existe: `staff.photoUrl` é `null` em 100%
  * das linhas, e uma lista de barbeiros sem nenhuma âncora visual é só texto.
  *
- * Quadrado de canto reto, como todo o resto do produto — círculo lê como
- * aplicativo de loja. Fica `aria-hidden`: o nome está sempre escrito ao lado, e
- * o leitor de tela não precisa ouvir as iniciais duas vezes.
+ * Fica `aria-hidden`: o nome está sempre escrito ao lado, e o leitor de tela não
+ * precisa ouvir as iniciais duas vezes.
  *
- * **Por que não usa o `avatar` do shadcn.** Ele é `'use client'`, e os quatro
- * chamadores são Server Components — `/app/equipe` e `/app/clientes` são listas
- * inteiras de servidor. Trazer uma fronteira de cliente para desenhar duas
- * letras é JS a mais sem nada em troca: o avatar do base-nova é redondo, tem
- * 32px e desenha um anel de 1px no `::after`, então seriam seis decisões
- * desfeitas para sobrar um `<span>` com iniciais. Quando a foto existir, aqui
- * entra um `<img>` com fallback — não uma dependência.
+ * **Decisão revertida em 13/08/2026.** Até aqui este arquivo era implementação
+ * própria, e o comentário dizia por quê: o `avatar` do shadcn é `'use client'`,
+ * os chamadores de `/app/equipe` e `/app/clientes` são Server Components, e
+ * adotar a lib custaria uma fronteira de cliente mais seis decisões desfeitas
+ * (o avatar de lá é redondo, tem 32px e desenha um anel de 1px no `::after`)
+ * para sobrar um `<span>` com duas letras.
  *
- * A anatomia segue o padrão da casa: `cva` para variante, `cn` para compor e
- * `data-slot` nas partes.
+ * O dono trocou o critério: fidelidade à biblioteca vale mais que economia de
+ * JS e mais que a direção de UI antiga. Então o quadrado de canto reto virou o
+ * círculo com anel do base-nova, e as três decisões que sustentavam a
+ * implementação própria caíram junto:
+ *
+ * - a fronteira de cliente **deixou de ser objeção** — o `<Avatar>` atravessa a
+ *   fronteira sozinho, e este arquivo continua sem `'use client'`, então quem
+ *   renderiza do servidor segue renderizando do servidor;
+ * - o tamanho 40 **deixou de precisar de ajuste**: é exatamente o `size="lg"` da
+ *   lib, e o `40` daqui virou o nome do tamanho de lá;
+ * - o `AvatarFallback` é o lugar onde a foto entra quando existir — o `<img>`
+ *   com fallback que o comentário antigo prometia escrever à mão já está pronto
+ *   em `<AvatarImage>`.
+ *
+ * O que sobrou de nosso é o tamanho 56, que a lib não tem, e a regra de compor
+ * as iniciais.
  */
 export type MonogramaProps = { nome: string; tamanho?: 40 | 56 };
 
-const monogramaVariants = cva(
-  'inline-flex shrink-0 items-center justify-center rounded-[var(--r)] bg-muted font-bold text-muted-foreground select-none',
-  {
-    variants: {
-      tamanho: {
-        40: 'size-10 text-base',
-        56: 'size-14 text-lg',
-      },
+/**
+ * `40` não acrescenta classe nenhuma de propósito: é o `size="lg"` do avatar da
+ * lib, na vírgula. Só o `56` precisa de utilitário, porque não existe lá.
+ */
+export const monogramaVariants = cva('', {
+  variants: {
+    tamanho: {
+      40: '',
+      56: 'size-14',
     },
-    defaultVariants: { tamanho: 40 },
   },
-);
+  defaultVariants: { tamanho: 40 },
+});
 
 export function iniciaisDe(nome: string): string {
   const palavras = nome.trim().split(/\s+/).filter(Boolean);
@@ -46,12 +60,10 @@ export function iniciaisDe(nome: string): string {
 
 export function Monograma({ nome, tamanho = 40 }: MonogramaProps) {
   return (
-    <span
-      data-slot="monograma"
-      aria-hidden="true"
-      className={cn(monogramaVariants({ tamanho }))}
-    >
-      {iniciaisDe(nome)}
-    </span>
+    <Avatar aria-hidden="true" size="lg" className={cn(monogramaVariants({ tamanho }))}>
+      <AvatarFallback className={cn(tamanho === 56 ? 'text-base' : undefined)}>
+        {iniciaisDe(nome)}
+      </AvatarFallback>
+    </Avatar>
   );
 }

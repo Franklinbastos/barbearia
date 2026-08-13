@@ -3,9 +3,16 @@
 import { useEffect, useRef, useState, useTransition } from 'react';
 import { executarAcao } from '@/components/action-error';
 import { ErroDeAcao } from '@/components/erro-de-acao';
+import { Badge } from '@/components/ui/badge';
 import { Botao } from '@/components/ui/botao';
 import { FolhaInferior } from '@/components/ui/folha-inferior';
-import { formatAppointmentStatus, formatPrice, formatTime } from '@/lib/format';
+import {
+  formatAppointmentStatus,
+  formatPrice,
+  formatTime,
+  type AppointmentStatus,
+} from '@/lib/format';
+import { VARIANTE_DO_ESTADO } from '../tom-do-estado';
 import { reopenAppointmentAction, setAppointmentStatusAction } from './actions';
 import type { AgendaItem } from './day-grid';
 
@@ -76,11 +83,14 @@ function peleDoEstado(item: AgendaItem, agora: Date, corDoBarbeiro: string): Pel
   }
 }
 
-const COR_DO_ESTADO: Record<string, { texto: string; fundo: string }> = {
-  DONE: { texto: 'var(--ok)', fundo: 'var(--bg)' },
-  NO_SHOW: { texto: 'var(--perigo)', fundo: 'var(--bg)' },
-  CANCELED: { texto: 'var(--tinta-3)', fundo: 'var(--bg)' },
-};
+/**
+ * "Agendado" não ganha etiqueta, e é de propósito: o cartão de um horário que
+ * ainda não aconteceu é a maioria do dia, e uma etiqueta em toda linha não
+ * distingue nada. Só os três desfechos aparecem.
+ */
+function estadoNaEtiquetaDe(status: AppointmentStatus) {
+  return status === 'BOOKED' ? null : status;
+}
 
 /**
  * Confirmação em dois tempos para o "Cancelar" da folha.
@@ -181,7 +191,7 @@ export function CartaoDaAgenda({ item, timeZone, corDoBarbeiro, agora }: CartaoD
   const finalizado = item.status === 'DONE' || item.status === 'NO_SHOW';
   const podeFaltar =
     agora.getTime() >= item.startAt.getTime() + MINUTOS_ATE_PODER_FALTAR * 60_000;
-  const corDoBadge = COR_DO_ESTADO[item.status];
+  const estadoNaEtiqueta = estadoNaEtiquetaDe(item.status);
 
   return (
     <li
@@ -213,31 +223,20 @@ export function CartaoDaAgenda({ item, timeZone, corDoBarbeiro, agora }: CartaoD
             >
               {item.customerName}
             </span>
+            {/* As duas etiquetas eram desenho à mão: 11px, peso 700, versal e
+                `borderRadius: var(--r)`. Com o raio em 10px elas viraram pílula
+                torta, e a lib já tem a forma certa — o `Badge` do base-nova é
+                `h-5`, `rounded-4xl` e `text-xs`, então aqui só entra o
+                `shrink-0` que a linha precisa para não espremer o nome. */}
             {item.origin === 'PANEL' ? (
-              <span
-                className="shrink-0 px-1 text-[11px] leading-[14px] font-bold uppercase"
-                style={{
-                  background: 'var(--alerta-bg)',
-                  border: '1px solid var(--alerta)',
-                  borderRadius: 'var(--r)',
-                  color: 'var(--tinta)',
-                }}
-              >
+              <Badge variant="secondary" className="shrink-0">
                 Encaixe
-              </span>
+              </Badge>
             ) : null}
-            {corDoBadge ? (
-              <span
-                className="shrink-0 px-1 text-[11px] leading-[14px] font-bold uppercase"
-                style={{
-                  background: corDoBadge.fundo,
-                  border: `1px solid ${corDoBadge.texto}`,
-                  borderRadius: 'var(--r)',
-                  color: corDoBadge.texto,
-                }}
-              >
-                {formatAppointmentStatus(item.status)}
-              </span>
+            {estadoNaEtiqueta ? (
+              <Badge variant={VARIANTE_DO_ESTADO[estadoNaEtiqueta]} className="shrink-0">
+                {formatAppointmentStatus(estadoNaEtiqueta)}
+              </Badge>
             ) : null}
           </div>
 

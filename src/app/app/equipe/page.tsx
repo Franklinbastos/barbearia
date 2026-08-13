@@ -4,6 +4,7 @@ import { requireSession } from '@/lib/session';
 import { db } from '@/db/client';
 import { listAllStaff } from '@/db/repositories';
 import { ErroDeAcao } from '@/components/erro-de-acao';
+import { Badge } from '@/components/ui/badge';
 import { Bloco } from '@/components/ui/bloco';
 import { CabecalhoDePagina } from '@/components/ui/cabecalho-de-pagina';
 import { Card } from '@/components/ui/card';
@@ -74,11 +75,9 @@ export default async function EquipePage({
                       >
                         {membro.name}
                       </span>
-                      {membro.active ? null : (
-                        <span className="border border-linha bg-bg px-1.5 text-[11px] leading-[14px] font-bold text-tinta-2">
-                          INATIVO
-                        </span>
-                      )}
+                      {/* Mesma etiqueta e mesma variante da lista de serviços —
+                          o "INATIVO" das duas telas é a mesma informação. */}
+                      {membro.active ? null : <Badge variant="outline">INATIVO</Badge>}
                     </span>
                     <span className="text-sm leading-5 text-tinta-2">
                       {membro.role === 'OWNER' ? 'Dono' : 'Barbeiro'}

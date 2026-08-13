@@ -4,6 +4,13 @@ import { useActionState, useState } from 'react';
 import { ErroDeAcao } from '@/components/erro-de-acao';
 import { Botao } from '@/components/ui/botao';
 import { Campo } from '@/components/ui/campo';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { saveSettingsAction, type SettingsState } from './actions';
 import { GRADES_PERMITIDAS, MATIZES_PERMITIDOS } from '@/domain/catalog/shop-settings';
 
@@ -18,6 +25,29 @@ const FUSOS_BRASIL = [
   'America/Porto_Velho',
   'America/Rio_Branco',
 ];
+
+/**
+ * As duas listas no formato que o `<Select.Root items>` da lib pede — é ele que
+ * faz o `<SelectValue>` mostrar o **rótulo** do item escolhido em vez do valor
+ * cru. Sem isso o disparador da grade escreveria "30" onde a lista escreve
+ * "30 min".
+ */
+const OPCOES_DE_FUSO = FUSOS_BRASIL.map((tz) => ({ label: tz, value: tz }));
+const OPCOES_DE_GRADE = GRADES_PERMITIDAS.map((g) => ({ label: `${g} min`, value: String(g) }));
+
+/**
+ * O disparador da lib nasce `w-fit` e `h-8`; aqui ele é um campo de formulário
+ * em coluna, ao lado de `<input>`s que o `.campo` mede em `--altura-controle`.
+ * Largura e altura são as duas únicas coisas ajustadas — o resto (borda, raio,
+ * tipografia, anel de foco, seta) é o do base-nova, sem uma linha desfeita.
+ *
+ * Elas vêm por aqui, e não do `<Campo>`: o `Campo` clona o filho com `id` e
+ * `className`, e o `Select.Root` só aceita o `id` (que ele repassa ao
+ * disparador, o que mantém o `htmlFor` do rótulo funcionando). O resto do que o
+ * `Campo` injeta cai no chão — **quem puser `dica` ou `erro` num destes dois
+ * campos precisa levar o `aria-describedby` até o `<SelectTrigger>` na mão.**
+ */
+const DISPARADOR = 'min-h-[var(--altura-controle)] w-full';
 
 /**
  * Nome de cada matiz da paleta (§3.4). O dono não escolhe um número: escolhe
@@ -62,24 +92,47 @@ export function SettingsForm({ loja }: { loja: Loja }) {
         <input name="name" defaultValue={loja.name} required minLength={2} />
       </Campo>
 
+      {/* Os dois `<select>` nativos viraram o `Select` do shadcn. O `name` fica
+          no `<Select>`, e **não** há campo oculto ao lado: o `Select.Root` do
+          base-ui já emite sozinho um `<input>` de verdade com esse `name` e o
+          valor serializado, então `Object.fromEntries(formData)` na server
+          action continua vendo `timeZone` e `slotMinutes` como antes. Repetir o
+          nome num `<input type="hidden">` mandaria o campo duas vezes — é o
+          mesmo defeito que `fichas-de-escolha.tsx` documenta no RadioGroup, e a
+          regra é a de lá: quem já emite o campo não ganha oculto. */}
       <Campo rotulo="Fuso horário">
-        <select name="timeZone" defaultValue={loja.timeZone} required>
-          {FUSOS_BRASIL.map((tz) => (
-            <option key={tz} value={tz}>
-              {tz}
-            </option>
-          ))}
-        </select>
+        <Select name="timeZone" items={OPCOES_DE_FUSO} defaultValue={loja.timeZone} required>
+          <SelectTrigger className={DISPARADOR}>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {OPCOES_DE_FUSO.map((opcao) => (
+              <SelectItem key={opcao.value} value={opcao.value}>
+                {opcao.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </Campo>
 
       <Campo rotulo="Grade de horários (minutos)">
-        <select name="slotMinutes" defaultValue={loja.slotMinutes} required>
-          {GRADES_PERMITIDAS.map((g) => (
-            <option key={g} value={g}>
-              {g} min
-            </option>
-          ))}
-        </select>
+        <Select
+          name="slotMinutes"
+          items={OPCOES_DE_GRADE}
+          defaultValue={String(loja.slotMinutes)}
+          required
+        >
+          <SelectTrigger className={DISPARADOR}>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {OPCOES_DE_GRADE.map((opcao) => (
+              <SelectItem key={opcao.value} value={opcao.value}>
+                {opcao.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </Campo>
 
       <Campo rotulo="Antecedência mínima (minutos)">

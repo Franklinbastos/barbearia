@@ -5,6 +5,7 @@ import { ErroDeAcao } from '@/components/erro-de-acao';
 import { Botao } from '@/components/ui/botao';
 import { Campo } from '@/components/ui/campo';
 import { Card } from '@/components/ui/card';
+import { Checkbox } from '@/components/ui/checkbox';
 import { formatDuration } from '@/lib/format';
 import { saveStaffServicesAction, type FormState } from './actions';
 
@@ -46,14 +47,20 @@ export function ServicesForm({
             return (
               <li key={s.id}>
                 <div className="flex flex-col gap-3 p-3">
+                  {/* O `<label>` por fora é a anatomia da própria lib (é assim
+                      que a documentação do checkbox do base-ui monta o exemplo),
+                      e é o que mantém a linha inteira clicável com 44px de alvo
+                      — o quadradinho da lib tem 16px, mas o `after:-inset` dele
+                      já estica a área de toque para fora do desenho. */}
                   <label className="flex min-h-11 cursor-pointer items-center gap-3">
-                    <input
-                      type="checkbox"
-                      name="serviceIds"
-                      value={s.id}
-                      defaultChecked={marcado}
-                      className="h-6 w-6 shrink-0"
-                    />
+                    {/* `name`/`value` vão no componente, não num campo oculto ao
+                        lado: o `Checkbox` do base-ui **já** emite o
+                        `<input type="checkbox" name value>` de verdade, e a
+                        server action continua lendo `getAll('serviceIds')` sem
+                        mudar uma linha. Um oculto aqui mandaria o id duas vezes,
+                        que é exatamente o defeito que `fichas-de-escolha.tsx`
+                        documenta no RadioGroup. */}
+                    <Checkbox name="serviceIds" value={s.id} defaultChecked={marcado} />
                     <span className="flex flex-col gap-1">
                       <span className="text-[17px] leading-[22px] font-bold">{s.name}</span>
                       <span className="text-sm leading-5 text-tinta-2">
