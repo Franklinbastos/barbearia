@@ -44,7 +44,9 @@ describe('ServicoForm', () => {
 
     const preco = screen.getByLabelText(/^Preço/) as HTMLInputElement;
     expect(preco.placeholder).toBe('40,00');
-    expect(preco.closest('label')?.textContent).toContain('R$');
+    // O contêiner do campo é `[data-slot=field]` desde que o `Campo` passou a
+    // usar a anatomia do shadcn; antes era o próprio `<label>` em volta de tudo.
+    expect(preco.closest('[data-slot=field]')?.textContent).toContain('R$');
   });
 
   it('fecha por "Fechar" — nunca "Cancelar", que já significa outra coisa aqui', async () => {

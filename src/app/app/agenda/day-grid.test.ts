@@ -118,7 +118,13 @@ describe('DayGrid', () => {
   it('o cancelado troca de tinta em vez de perder opacidade', () => {
     // `opacity: 0.5` apagava o telefone junto com o resto, e o telefone é o que
     // se procura justamente num horário que deu errado.
-    expect(html).not.toContain('opacity');
+    //
+    // A asserção procura opacidade *aplicada* — em `style` ou em utilitário
+    // `opacity-<n>` —, não a palavra solta: desde a migração para o shadcn o
+    // botão carrega `disabled:opacity-100`, que existe justamente para desfazer
+    // o `disabled:opacity-50` do base-nova e nunca desbota linha nenhuma.
+    expect(html).not.toMatch(/opacity\s*:/);
+    expect(html).not.toMatch(/\bopacity-(?!100\b)\d/);
     expect(html).toContain('--superficie');
   });
 
