@@ -1,6 +1,7 @@
 # Direção de UI — reforma de layout da Fase 1
 
-Data: 2026-08-07 · revisado em 2026-08-08 após o júri completo
+Data: 2026-08-07 · revisado em 2026-08-08 após o júri completo · **§4.1 revertida em 2026-08-13**
+(adoção do shadcn, decisão do dono — o resto do documento continua valendo palavra por palavra)
 Autor: direção de design
 Status: **decidido**. Esta é a fonte da verdade para o plano de implementação. Onde o documento
 der um número, o número é para ser usado. Onde der um texto entre aspas, o texto é literal — há
@@ -541,13 +542,149 @@ peso 700 na cor de tinta. Com mais de 8 barbeiros ativos as cores repetem — ac
 
 ### 4.1 Procedência
 
-**Nada vem do shadcn.** O `package.json` do barbearia não tem uma única dependência de UI — nem
-`class-variance-authority`, nem `lucide-react`, nem `radix`, nem `tw-animate-css` — e a restrição do
-produto proíbe acrescentar. Tudo é HTML + as classes da §3.1 + SVG embutido para os poucos glifos.
+> **Esta seção foi revertida em 13/08/2026.** Até essa data ela dizia, com todas as letras, que
+> "nada vem do shadcn", chamava isso de restrição do produto e fechava com "Do shadcn puro: nada.
+> Registrado explicitamente para encerrar a discussão". A decisão foi revertida pelo dono e a
+> migração aconteceu; o texto antigo virou mentira e mentira em documento é pior que documento
+> nenhum. O registro do que valia antes fica preservado abaixo, porque a razão antiga continua
+> sendo a razão de metade das exceções de hoje.
 
-**Do bdsolutions vem padrão, não código.** Aquele projeto depende de shadcn (`@import
-"shadcn/tailwind.css"` no globals dele) e do stack de server actions de lá; importar é impossível.
-O que se copia de verdade:
+#### O que valia até 12/08/2026, e por quê
+
+O `package.json` do barbearia não tinha **uma única** dependência de UI — nem
+`class-variance-authority`, nem `lucide-react`, nem `radix`, nem `tw-animate-css`. Tudo era HTML mais
+as classes da §3.1 mais SVG embutido para os poucos glifos. O júri manteve assim porque já era o
+estado do repositório: não havia dependência para tirar, e qualquer uma que entrasse teria que se
+pagar numa página que abre em 3G na porta da loja. Não foi gosto, foi o inventário virando regra —
+e é por isso que a regra caiu quando apareceu um motivo que ela não previa.
+
+#### O que vale desde 13/08/2026
+
+**Decisão do dono, e o motivo não é de tela: é de casa.** São três repositórios em manutenção
+simultânea. Barbearia e bdsolutions passam a falar shadcn no estilo `base-nova` — o mesmo
+`components.json`, `baseColor: neutral`, `cssVariables: true`, `iconLibrary: lucide`, `rsc: true` — e
+o de Angular fala Spartan UI, que é a mesma anatomia do outro lado da cerca. Quem abre qualquer um
+dos três encontra `cva` para variante, `cn()` para compor classe, `data-slot` para estilizar por
+fora e o CLI para trazer componente novo. Uma cabeça só para três bases vale mais que a contagem de
+dependências que a decisão anterior protegia.
+
+**O que a reversão não autorizou foi mudar a aparência.** Ver "O que a aparência manteve", abaixo:
+a migração é de estrutura, e tela que mudou de visual é defeito, não melhoria.
+
+#### O que passou a vir de fora
+
+Componente entra pelo CLI (`npx shadcn@latest add <nome>`), nunca copiado à mão do site: assim o
+`components.json` é a fonte e a próxima atualização é um comando.
+
+| Nosso componente | O que veio do shadcn |
+|---|---|
+| `Botao` | `button` |
+| `Campo` | `field` + `input` + `label` (o `field` importa `separator`, que veio junto) |
+| `Bloco` | `alert` |
+| `EsqueletoDeLinha` | `skeleton` |
+| `Segmentado` | `toggle-group` + `toggle` |
+| `FichasDeEscolha` | `radio-group` |
+| `FolhaInferior` | `drawer` |
+
+Dependências novas, cinco: `class-variance-authority`, `clsx`, `tailwind-merge`, `lucide-react` e
+`@base-ui/react`. As três primeiras são o `cn()` e o `cva`; o `lucide-react` aposenta os SVG
+desenhados à mão que a versão anterior desta seção mandava escrever. O `@base-ui/react` é o único
+primitivo de runtime: `button`, `input`, `radio-group`, `separator`, `toggle`, `toggle-group` e
+`drawer` do `base-nova` importam dele — e **o CLI gera o import sem instalar o pacote**, então
+`npm install @base-ui/react` é passo obrigatório de quem trouxer componente novo, ou o `tsc` acusa
+`TS2307`.
+
+A semântica de diálogo da folha inferior vem do `drawer` do base-ui. **Não existe `dialog.tsx` neste
+projeto e não deve passar a existir**: o P6 e a §4.3 continuam valendo, a folha inferior é a única
+superfície flutuante do produto e em ≥1024px ela continua sendo folha, não modal.
+
+#### O que continuou nosso, e por quê
+
+Esta é a parte que interessa a quem vier depois. Cada recusa aqui foi medida renderizando o
+componente, não lida do código, e a medição está repetida no comentário de cabeçalho de cada
+arquivo.
+
+**`Monograma` — o `avatar` foi recusado.** Ele é `'use client'`, e os quatro chamadores são Server
+Components (`/app/equipe` e `/app/clientes` são listas inteiras de servidor). Trazer uma fronteira de
+cliente para desenhar duas letras é JS a mais sem nada em troca. E a aparência não serve: o avatar do
+`base-nova` é redondo, tem 32px e desenha um anel de 1px no `::after` — seriam **seis decisões
+desfeitas para sobrar um `<span>` com duas letras**. Quando a foto existir, aqui entra um `<img>` com
+fallback, não uma dependência.
+
+**`BuscaDeCliente` — o `command` foi trazido, medido e devolvido.** O `cmdk` é uma paleta de
+comandos; a §5.10 é um campo de formulário com uma lista de links. Sete conflitos, todos
+verificados na tela:
+
+1. **o campo perde o nome acessível** — o `Command.Input` escreve `aria-labelledby` próprio,
+   apontando para o rótulo escondido do `cmdk`, e isso vence o `<label for>` do `Campo`;
+   `getByLabelText('Buscar cliente')` devolveu `null` nas duas montagens testadas;
+2. **`type="search"` vira `type="text"`**, porque o `cmdk` escreve `type` depois do espalhamento;
+3. **o papel vira `combobox`**, nunca `searchbox`;
+4. **`CommandItem` acrescenta um `<CheckIcon>` depois do `children`**, com `ml-auto size-4`: uma
+   coluna de 16px no fim de cada linha de 72px;
+5. **`CommandList` mete um `<div cmdk-list-sizer>` entre a lista e os itens**, e o seletor
+   `.lista > li` da §3.1 deixa de casar;
+6. **o `cmdk` marca o primeiro resultado sozinho** e o `data-selected:bg-muted` do `base-nova` pinta
+   de cinza uma linha que hoje não é pintada;
+7. **custo de dependência**: o `cmdk` traz 16 pacotes `@radix-ui/*` — outra pilha de diálogo, portal
+   e foco ao lado do `@base-ui/react` que já temos — e obriga a suíte inteira a ganhar
+   `ResizeObserver` e `scrollIntoView` falsos.
+
+Os itens 1 a 3 são contrato escrito da §5.10; 4 a 6 são mudança de tela.
+
+**Toast — o `sonner` estava no plano e não entrou.** O **P5 desta mesma direção proíbe toast no
+painel**, com todas as letras: feedback no lugar do dedo, e toast é para quem está olhando a tela
+inteira. Aqui ninguém está. Além disso o retorno visual que o toast traria já existe duas vezes — a
+linha troca de cor sob o polegar e o "Desfazer" da §5.7 fica 20s na própria linha. Um toast em cima
+disso seria um terceiro "Desfazer" competindo com os outros dois.
+
+**`TiraDeDias`, `GradeDeHorarios`, `BotaoDeConfirmacao` e `CabecalhoDePagina` — sem equivalente.** O
+shadcn não tem nada que resolva o problema deles (o `alert-dialog`, o mais próximo do
+`BotaoDeConfirmacao`, é um diálogo — e diálogo de confirmação é justamente o que o P4 troca por dois
+toques no próprio botão). Continuam nossos, adaptados ao padrão da casa: `cva` para as variantes com
+o `xxxVariants` exportado, `cn()` para juntar a classe interna com a `className` recebida,
+`React.ComponentProps<…>` na base do tipo em vez de tipo fechado, `data-slot` em cada parte
+estilizável, e nada de `forwardRef` — no React 19 `ref` é prop comum.
+
+#### O que a aparência manteve
+
+Nada da §3 foi negociado na migração:
+
+- **os tokens da §3.1** continuam sendo a fonte do valor. Os nomes canônicos do shadcn
+  (`--background`, `--primary`, `--destructive`, …) foram acrescentados **apontando para eles** — é
+  tradução, não redecoração;
+- **`--primary` é `--tinta`, não `--marca`.** A §3.4 é fechada: a marca aparece em cinco lugares e o
+  botão primário não é um deles. Mapear `--primary` para `--marca` mudaria o produto inteiro;
+- **o alvo de toque de 52px** (`--tap-md`) sobrevive a todo componente que chega com 36px de altura;
+- **a cor da loja com L e croma travados** (`oklch(0.45 0.09 H)` / `oklch(0.82 0.09 H)`, croma
+  0.09), e a proibição de a semântica girar com a marca.
+
+#### As armadilhas, que custaram caro e vão custar de novo
+
+Três, e todas mordem exatamente quem for mexer nisto depois:
+
+1. **`@layer utilities` vence `@layer components` inteira**, independente de especificidade. As
+   classes da §3.1 moram na camada de componente e o `base-nova` escreve utilitário; por isso a cor
+   da borda de cada variante do `Botao` aparece repetida como utilitário, e por isso o véu da folha
+   inferior é uma regra **fora de qualquer camada** no `globals.css` — CSS sem camada ganha de todas
+   elas. O gancho é o `data-slot`, que é para isto: o CLI pode regerar o arquivo à vontade.
+2. **O `tailwind-merge` não resolve tudo.** Ele trabalha por grupo de classe conhecido, então
+   **propriedade arbitrária** (`[text-align:inherit]`) não entra no grupo `text-align` e as duas
+   classes sobrevivem ao `cn()` — a briga vai para a ordem em que o Tailwind emite o CSS, onde as
+   arbitrárias saem antes das nomeadas, e a sua perde. E ele **não conhece as chaves que a gente
+   inventou no `@theme`**: `rounded-t-folha` contra `rounded-t-xl` passa batido pelo merge e o `xl`
+   ganha por ordem. Nos dois casos a saída é valor arbitrário com `!`, ou a variante repetida
+   inteira quando o seletor de atributo (`data-[swipe-direction=down]:…`) entra na conta.
+3. **As variantes do `base-nova` quase nunca servem.** O `destructive` de lá é vazado
+   (`bg-destructive/10`) e o nosso `perigo` é sólido; o `outline` pinta fundo e o nosso `secundario`
+   é transparente. **O padrão da casa é `variant={null}` e `size={null}`**, desligando a paleta de
+   propósito, com a aparência vindo das nossas classes por `cn()`. O que se aproveita do componente
+   do CLI é a anatomia, o primitivo e o `data-slot` — não a pele.
+
+#### Do bdsolutions continua vindo padrão, não código
+
+O alinhamento é de convenção, não de import: aquele projeto tem o stack de server actions dele e
+importar arquivo de lá segue impossível. O que se copia de verdade:
 
 | O que | De onde | O que se aproveita |
 |---|---|---|
@@ -556,9 +693,7 @@ O que se copia de verdade:
 | Cabeçalho de página | `/home/franklin/dev/bdsolutions/src/components/domain/page-header.tsx` | só a anatomia `eyebrow / título / descrição / ação à direita`, com o `flex-col → lg:flex-row` |
 | Abas de navegação | `/home/franklin/dev/bdsolutions/src/components/domain/primary-nav-tabs.tsx` | só a anatomia de aba com borda inferior; a nossa é rolável e a de lá não |
 | Busca global | `/home/franklin/dev/bdsolutions/src/components/domain/global-search.tsx` | comportamento de debounce e navegação por resultado, para a busca de cliente (§5.10) |
-| Folha/modal | `/home/franklin/dev/bdsolutions/src/components/ui/modal.tsx` | referência de comportamento; a implementação aqui é nova e sem dependência |
-
-**Do shadcn puro: nada.** Registrado explicitamente para encerrar a discussão.
+| `components.json` | `/home/franklin/dev/bdsolutions/components.json` | o estilo `base-nova` e os cinco campos que definem a casa; não divergir |
 
 ### 4.2 Já existe e só muda de pele (API idêntica)
 
@@ -632,10 +767,14 @@ gesto mais usado do painel:
 `role="dialog"` + `aria-modal="true"` + `aria-labelledby` no `<h2>` do cabeçalho; foco vai para o
 primeiro elemento focável na abertura e **volta para o disparador** no fechamento; `Escape` fecha
 (com a guarda de descarte quando pedida); `Tab`/`Shift+Tab` circulam dentro da folha, com foco preso
-por sentinelas focáveis no início e no fim, sem biblioteca; `inert` no `<main>` enquanto aberta;
+por sentinelas focáveis no início e no fim; o resto do documento inerte enquanto aberta;
 `overflow: hidden` no `<body>` com compensação de `scrollbar-gutter`; `max-height: 92dvh` com
 `overflow-y: auto`; `padding-bottom: env(safe-area-inset-bottom)`. Em ≥1024px **continua sendo folha
 inferior**, com `max-width: 560px` centrada — não inventar modal.
+
+Desde 13/08/2026 esse contrato é entregue pelo `drawer` do shadcn sobre o `@base-ui/react` (§4.1), e
+não mais por ~80 linhas de efeito escritas na mão. O que a lista acima exige continua valendo item
+por item: os sete casos de `folha-inferior.test.tsx` são o teste de aceitação da troca.
 
 ```ts
 // botao-de-confirmacao.tsx — 'use client'. Substitui todo confirm() do projeto.

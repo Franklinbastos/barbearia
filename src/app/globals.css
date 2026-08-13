@@ -40,9 +40,12 @@
   --sobre-marca: #FFFFFF;
 
   /* espaçamento — base 4px. A escala do Tailwind já é a nossa; estes tokens
-     existem para o CSS das classes de componente. Nada fora da escala. */
-  --e0: 2px;  --e1: 4px;  --e2: 8px;  --e3: 12px;
-  --e4: 16px; --e5: 20px; --e6: 24px; --e7: 32px; --e8: 48px;
+     existem só para o CSS das classes de componente abaixo, e sobraram os três
+     que elas realmente usam. Os outros seis (2, 4, 20, 24, 32 e 48px) foram
+     removidos na limpeza da migração: ninguém os referenciava, e token de
+     espaçamento sem dono convida a escrever CSS na mão onde a classe do
+     Tailwind já resolve. Fora daqui, espaçamento é `p-`/`gap-`. */
+  --e2: 8px;  --e3: 12px;  --e4: 16px;
 
   /* alvo de toque */
   --tap-min: 44px; /* SÓ afordância inline dentro de um bloco maior */
