@@ -25,7 +25,7 @@
 
 | Nosso componente | Vem do shadcn | Dependência nova |
 |---|---|---|
-| `botao` | `button` | nenhuma |
+| `botao` | `button` | `@base-ui/react` (o CLI gera o import e **não** instala — `npm install` na mão) |
 | `campo` | `field` + `input` + `label` | nenhuma |
 | `bloco` | `alert` | nenhuma |
 | `monograma` | `avatar` | nenhuma |
@@ -219,7 +219,9 @@ Dentro do `:root` (e o espelho no bloco de tema escuro), acrescentar:
   --destructive-foreground: var(--bg);
   --border: var(--linha);
   --input: var(--linha);
-  --ring: var(--anel);
+  --ring: var(--tinta);   /* cor, não sombra: o shadcn usa --ring em border-ring
+                             e em color-mix; --anel é a sombra inteira e quebraria
+                             as duas. A cor é a mesma, é a camada externa do anel. */
   --radius: var(--r);
 ```
 
@@ -272,6 +274,16 @@ npx shadcn@latest add button --yes
 ```
 
 Ler `src/components/ui/button.tsx`: ele traz um `buttonVariants` em `cva` com variantes `default | destructive | outline | secondary | ghost | link` e tamanhos `default | sm | lg | icon`.
+
+**Duas coisas que a Task 1 descobriu na prática e o mapa acima não previa:**
+
+1. O `button` do estilo `base-nova` **importa `@base-ui/react/button`**, e o CLI gera o arquivo sem instalar o pacote — `tsc` acusa `TS2307`. Rode antes de qualquer coisa:
+
+```bash
+npm install @base-ui/react
+```
+
+2. **A variante `destructive` do base-nova é vazada, não sólida**: `bg-destructive/10 text-destructive`. O nosso `perigo` é fundo sólido com texto branco. Mapear `perigo → destructive` sem sobrescrever **muda a aparência do botão de cancelar**, que é exatamente o que esta migração não pode fazer. A cor sólida entra por `cn()` em cima da variante.
 
 - [ ] **Step 2: Escrever o teste do que não pode mudar**
 

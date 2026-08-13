@@ -62,6 +62,40 @@
   /* foco — inegociável; funciona sobre branco, sobre cinza e sobre o botão preto,
      e nunca se confunde com cor de estado */
   --anel: 0 0 0 2px var(--bg), 0 0 0 5px var(--tinta);
+
+  /* ---- nomes canônicos do shadcn ----
+     O valor continua sendo o que o júri decidiu na §3.1 — isto é tradução, não
+     redecoração. Os nomes em português seguem valendo e são removidos na
+     Task 10, quando ninguém mais os usar.
+
+     Não há espelho no bloco de tema escuro de propósito: variável CSS resolve
+     no uso, não na declaração, então `var(--bg)` já entrega o #0A0C0F do escuro
+     sozinho. É o mesmo mecanismo que o `--anel` acima usa desde sempre. */
+  --background: var(--bg);
+  --foreground: var(--tinta);
+  --card: var(--superficie);
+  --card-foreground: var(--tinta);
+  --popover: var(--superficie);
+  --popover-foreground: var(--tinta);
+  --primary: var(--tinta);              /* botão primário é tinta, não marca — §3.4 */
+  --primary-foreground: var(--bg);
+  --secondary: var(--superficie-2);
+  --secondary-foreground: var(--tinta);
+  --muted: var(--superficie-2);
+  --muted-foreground: var(--tinta-2);
+  --accent: var(--marca);
+  --accent-foreground: var(--sobre-marca);
+  --destructive: var(--perigo);
+  --destructive-foreground: var(--bg);
+  --border: var(--linha);
+  --input: var(--linha);
+  /* `--ring` do shadcn é COR (vira `ring-ring`, `border-ring`, `outline-ring/50`),
+     enquanto o nosso `--anel` é a sombra inteira de duas camadas. Apontar um para
+     o outro geraria `border-color: 0 0 0 2px …`, que o navegador descarta — e
+     `color-mix()` com valor inválido derruba a declaração toda. A cor do nosso
+     anel é a camada externa, `--tinta`; o `--anel` segue intacto no :focus-visible. */
+  --ring: var(--tinta);
+  --radius: var(--r);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -112,10 +146,41 @@
   --color-marca:        var(--marca);
   --color-marca-suave:  var(--marca-suave);
 
+  /* as mesmas cores sob os nomes canônicos, para o Tailwind gerar `bg-background`,
+     `text-muted-foreground`, `border-input` e companhia — é disso que todo
+     componente vindo do CLI depende para sair colorido */
+  --color-background:           var(--background);
+  --color-foreground:           var(--foreground);
+  --color-card:                 var(--card);
+  --color-card-foreground:      var(--card-foreground);
+  --color-popover:              var(--popover);
+  --color-popover-foreground:   var(--popover-foreground);
+  --color-primary:              var(--primary);
+  --color-primary-foreground:   var(--primary-foreground);
+  --color-secondary:            var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted:                var(--muted);
+  --color-muted-foreground:     var(--muted-foreground);
+  --color-accent:               var(--accent);
+  --color-accent-foreground:    var(--accent-foreground);
+  --color-destructive:          var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border:               var(--border);
+  --color-input:                var(--input);
+  --color-ring:                 var(--ring);
+
   --font-sans: var(--fonte-inter), ui-sans-serif, system-ui, sans-serif;
 
   --radius-cx:    var(--r);
   --radius-folha: var(--r-folha);
+
+  /* escala de raio do shadcn, derivada do nosso --r de 4px: 0 / 2 / 4 / 8.
+     Nenhum arquivo de hoje usa rounded-sm|md|lg|xl (só rounded-cx e
+     rounded-full), então redefinir estes quatro não muda tela nenhuma. */
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
 }
 
 /* ============================================================
