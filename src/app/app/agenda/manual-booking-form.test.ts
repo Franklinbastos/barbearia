@@ -34,7 +34,15 @@ describe('ManualBookingForm', () => {
     expect(html).toMatch(/role="status"/);
   });
 
-  it('reserva a altura da barra fixa para ela não cobrir o último cartão', () => {
-    expect(html).toMatch(/height:64px/);
+  it('a barra fixa é só do celular — no desktop ela atravessava a tela por baixo da sidebar', () => {
+    // A reserva de rodapé saiu daqui e virou `pb-16 md:pb-0` no container de
+    // `agenda/page.tsx`: o componente passou a ser renderizado ANTES da lista,
+    // para que o botão de desktop apareça no topo, e uma reserva no topo não
+    // reservaria nada. Quem guarda a reserva agora é o teste da página.
+    expect(html).toMatch(/fixed[^"]*md:hidden/);
+  });
+
+  it('no desktop o encaixe é ação de topo, não barra de rodapé', () => {
+    expect(html).toMatch(/hidden md:flex/);
   });
 });

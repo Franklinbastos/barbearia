@@ -43,13 +43,28 @@ export default async function AgendaPage({
   };
 
   return (
-    <div>
+    // pb-16 reserva o rodapé para a barra fixa do celular; no desktop ela não existe
+    <div className="pb-16 md:pb-0">
       {/* O título não ocupa altura na primeira dobra — a barra de data já diz
           que dia é este, e 40px de cabeçalho custam meia linha da lista. Fica
           para o leitor de tela e para a estrutura do documento. */}
       <h1 className="sr-only">Agenda — {formatDayLabelLong(dataISO, timeZone)}</h1>
 
       <BarraDeData dataISO={dataISO} hojeISO={hojeISO} contagens={contagens} />
+
+      {/* Vem antes da lista de propósito: no desktop o botão de "Encaixe" mora
+          aqui, ao lado do topo, e é a primeira ação da tela. No celular o que
+          aparece é a barra fixa do rodapé, que é `position: fixed` e não liga
+          para a ordem no documento. */}
+      {loja ? (
+        <ManualBookingForm
+          slug={loja.slug}
+          services={servicos}
+          staffList={staffList}
+          defaultDate={dataISO}
+          timeZone={timeZone}
+        />
+      ) : null}
 
       <DayGrid
         appointments={appointments}
@@ -60,17 +75,6 @@ export default async function AgendaPage({
         agoraISO={agora.toJSDate().toISOString()}
       />
 
-      {/* O encaixe deixou de ser um formulário pendurado no fim da página: o
-          que fica na tela é a barra fixa de "Encaixe", e a folha abre nela. */}
-      {loja ? (
-        <ManualBookingForm
-          slug={loja.slug}
-          services={servicos}
-          staffList={staffList}
-          defaultDate={dataISO}
-          timeZone={timeZone}
-        />
-      ) : null}
     </div>
   );
 }

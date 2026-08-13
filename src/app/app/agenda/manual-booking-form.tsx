@@ -183,11 +183,14 @@ export function ManualBookingForm({
 
   return (
     <>
-      {/* Reserva o espaço da barra fixa: sem isto ela cobre o último cartão. */}
-      <div aria-hidden="true" style={{ height: 64 }} />
-
+      {/* A barra fixa é do balcão: polegar no rodapé, tela pequena, cliente em
+          pé na frente. No desktop ela atravessava a largura inteira por baixo da
+          sidebar e ficava órfã — a ação passa a morar no topo, que é onde o
+          shadcn põe ação de página. O rodapé é reservado pelo `pb-16` do
+          container em `agenda/page.tsx`, porque este componente agora vem antes
+          da lista. */}
       <div
-        className="fixed inset-x-0 bottom-0 z-30 bg-bg px-3 py-1.5"
+        className="fixed inset-x-0 bottom-0 z-30 bg-bg px-3 py-1.5 md:hidden"
         style={{
           boxShadow: 'var(--sombra-barra)',
           paddingBottom: 'calc(6px + env(safe-area-inset-bottom))',
@@ -196,6 +199,10 @@ export function ManualBookingForm({
         <Botao largura="total" onClick={abrir}>
           Encaixe
         </Botao>
+      </div>
+
+      <div className="mb-3 hidden md:flex md:justify-end">
+        <Botao onClick={abrir}>Encaixe</Botao>
       </div>
 
       {/* Permanente e fora da folha: o leitor de tela precisa ouvir a
