@@ -47,16 +47,35 @@
      Tailwind já resolve. Fora daqui, espaçamento é `p-`/`gap-`. */
   --e2: 8px;  --e3: 12px;  --e4: 16px;
 
+  /* densidade de controle — a da lib: `h-9` (36px), `text-sm` (14px/20px) e
+     `font-medium` (500). Decisão do dono em 13/08/2026: fidelidade ao shadcn
+     vence a densidade de balcão da direção de UI antiga, e o ajuste fino vem
+     depois, em cima do resultado.
+
+     Aqui só o valor. Quem adota é a Task 2, que troca `.btn`/`.campo` e os
+     componentes de `src/components/ui`; até lá os `--tap-*` abaixo seguem
+     mandando na altura, para não sobrar uma tela com metade dos botões numa
+     densidade e metade na outra. */
+  --altura-controle: 36px;
+  --texto-controle:  14px;
+  --peso-controle:   500;
+
   /* alvo de toque */
-  --tap-min: 44px; /* SÓ afordância inline dentro de um bloco maior */
+  --tap-min: 44px; /* piso de acessibilidade onde o alvo precisa ser maior que o
+                      controle: a barra fixa do encaixe e a folha inferior */
   --tap:     48px; /* piso de qualquer alvo que carregue decisão */
   --tap-md:  52px; /* campo de formulário, verbo da agenda */
   --tap-lg:  56px; /* ação principal da tela */
   --tap-xl:  64px; /* ficha de horário */
 
-  /* forma */
-  --r:       4px;  /* absolutamente tudo */
-  --r-folha: 6px;  /* só os dois cantos de cima da folha inferior */
+  /* forma — desde 13/08/2026 o raio é o do shadcn (0.625rem = 10px), não os 4px
+     de instrumento da direção antiga. Aqui a camada se inverte de propósito: o
+     valor mora no nome canônico (`--radius`, mais abaixo) e os nomes em
+     português viram apelidos, porque a forma agora vem da lib. A cor continua
+     nascendo em português. `--r` fica enquanto houver `rounded-[var(--r)]` no
+     app; some junto com os outros na Task 10. */
+  --r:       var(--radius); /* absolutamente tudo */
+  --r-folha: var(--radius); /* só os dois cantos de cima da folha inferior */
 
   /* elevação — só duas no produto inteiro */
   --sombra-barra: 0 -8px 24px rgb(0 0 0 / .10);
@@ -98,7 +117,9 @@
      `color-mix()` com valor inválido derruba a declaração toda. A cor do nosso
      anel é a camada externa, `--tinta`; o `--anel` segue intacto no :focus-visible. */
   --ring: var(--tinta);
-  --radius: var(--r);
+  /* O único token cujo valor NÃO vem da §3.1: a forma é a da lib desde
+     13/08/2026 — ver o bloco "forma" acima, onde `--r` virou apelido disto. */
+  --radius: 0.625rem; /* 10px */
 }
 
 @media (prefers-color-scheme: dark) {
@@ -177,9 +198,11 @@
   --radius-cx:    var(--r);
   --radius-folha: var(--r-folha);
 
-  /* escala de raio do shadcn, derivada do nosso --r de 4px: 0 / 2 / 4 / 8.
-     Nenhum arquivo de hoje usa rounded-sm|md|lg|xl (só rounded-cx e
-     rounded-full), então redefinir estes quatro não muda tela nenhuma. */
+  /* a escala de raio do shadcn, agora com os valores dela: 6 / 8 / 10 / 14.
+     As quatro contas são as do upstream — o que mudou foi só a base, que subiu
+     de 4px para 0.625rem. `rounded-lg` e `--radius-md` já aparecem no que veio
+     do CLI (bloco, button, toggle-group), então estes quatro não são mais
+     decorativos: é por aqui que os componentes da lib pegam a forma certa. */
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
