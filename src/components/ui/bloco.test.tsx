@@ -30,13 +30,35 @@ describe('Bloco', () => {
     expect(screen.queryByRole('status')).toBeNull();
   });
 
-  it('os cinco tons existem e cada um leva a própria classe', () => {
-    for (const tom of ['info', 'ok', 'perigo', 'alerta', 'agora'] as const) {
-      const { container, unmount } = render(<Bloco tom={tom}>X</Bloco>);
-      const caixa = container.firstElementChild as HTMLElement;
+  /**
+   * A cor de cada tom vinha das classes `.bloco--*` do `globals.css`. Desde
+   * 13/08/2026 a caixa é o `alert` do base-nova, e o `bg-card` do `default` chega
+   * como utilitário — que vence a camada de componente inteira, especificidade à
+   * parte. Por isso o fundo de estado também virou utilitário. As classes
+   * `.bloco--*` continuam no `globals.css` para os usos crus da página pública;
+   * o que mudou é por onde o componente pinta.
+   *
+   * O que o caso guarda é o mesmo de antes: os cinco tons existem e cada um leva
+   * a própria cor, sem dois caírem no mesmo fundo.
+   */
+  it('os cinco tons existem e cada um leva a própria cor', () => {
+    const FUNDO_DO_TOM = {
+      info: 'bg-card',
+      ok: 'bg-ok-bg',
+      perigo: 'bg-perigo-bg',
+      alerta: 'bg-alerta-bg',
+      agora: 'bg-agora-bg',
+    } as const;
+
+    for (const [tom, fundo] of Object.entries(FUNDO_DO_TOM)) {
+      const { container, unmount } = render(
+        <Bloco tom={tom as keyof typeof FUNDO_DO_TOM}>X</Bloco>,
+      );
+      const classes = (container.firstElementChild as HTMLElement).className.split(/\s+/);
       expect(screen.getByText('X')).toBeDefined();
-      expect(caixa.className).toContain('bloco');
-      if (tom !== 'info') expect(caixa.className).toContain(`bloco--${tom}`);
+      expect(classes).toContain(fundo);
+      // a borda de estado acompanha o fundo — `info` fica com a da lib
+      if (tom !== 'info') expect(classes).toContain(`border-${tom}`);
       unmount();
     }
   });
@@ -46,26 +68,47 @@ describe('Bloco', () => {
     expect(screen.getByRole('button', { name: 'Tentar de novo' })).toBeDefined();
   });
 
+  /**
+   * A escala desceu um degrau inteiro em 13/08/2026: o normal era 16px com
+   * recheio de 16px (`text-base p-4`) e passou a ser o do `alert` da lib — 14px
+   * com `px-2.5 py-2`. O compacto, que era 14px, desceu junto para 12px.
+   * O caso fica: o que ele guarda é que os dois degraus continuam existindo e
+   * que o compacto é mesmo menor que o normal.
+   */
   it('compacto encolhe o texto e o recheio, e o normal não', () => {
-    const { container: compacto } = render(<Bloco compacto>X</Bloco>);
-    expect((compacto.firstElementChild as HTMLElement).className).toMatch(/\btext-sm\b/);
+    const compactoClasses = (
+      render(<Bloco compacto>X</Bloco>).container.firstElementChild as HTMLElement
+    ).className;
+    expect(compactoClasses).toMatch(/\btext-xs\b/);
+    expect(compactoClasses).toMatch(/\bpx-2\b/);
+    expect(compactoClasses).toMatch(/\bpy-1\.5\b/);
 
-    const { container: normal } = render(<Bloco>X</Bloco>);
-    const classes = (normal.firstElementChild as HTMLElement).className;
-    expect(classes).toMatch(/\btext-base\b/);
-    expect(classes).toMatch(/\bp-4\b/);
+    const normalClasses = (render(<Bloco>X</Bloco>).container.firstElementChild as HTMLElement)
+      .className;
+    expect(normalClasses).toMatch(/\btext-sm\b/);
+    expect(normalClasses).toMatch(/\bpx-2\.5\b/);
+    expect(normalClasses).toMatch(/\bpy-2\b/);
   });
 
-  it('desfaz as decisões de aparência do base-nova', () => {
-    // Cada uma destas mudaria uma tela: `grid` afasta os dois parágrafos do
-    // /error, `w-full` e `text-left` desmontam o vazio centralizado da agenda,
-    // e o `border` do base-nova apaga a barra de 4px da esquerda.
+  /**
+   * Este caso era o inverso: ele exigia que o `grid`, a largura total, o
+   * alinhamento à esquerda e a borda dos quatro lados do base-nova fossem
+   * desfeitos, para preservar a barra de 4px na esquerda que era a marca visual
+   * do bloco na direção antiga. Em 13/08/2026 o dono decidiu que a lib manda, o
+   * desfazimento saiu inteiro e o teste perdeu o objeto.
+   *
+   * Invertido, ele guarda que a forma da lib chega inteira — e que ninguém
+   * ressuscitou a barra de 4px por engano.
+   */
+  it('as decisões de aparência do base-nova sobrevivem ao cn()', () => {
     const { container } = render(<Bloco>X</Bloco>);
     const classes = (container.firstElementChild as HTMLElement).className;
     const lista = classes.split(/\s+/);
-    expect(lista).not.toContain('grid');
-    expect(lista).not.toContain('w-full');
-    expect(classes).toMatch(/\bborder-l-4\b/);
-    expect(classes).toMatch(/\[text-align:inherit\]/);
+    expect(lista).toContain('grid');
+    expect(lista).toContain('w-full');
+    expect(lista).toContain('text-left');
+    expect(lista).toContain('border');
+    expect(classes).not.toMatch(/\bborder-l-4\b/);
+    expect(classes).not.toMatch(/\[text-align:inherit\]/);
   });
 });

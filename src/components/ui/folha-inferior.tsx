@@ -25,9 +25,19 @@ import { Drawer, DrawerClose, DrawerContent, DrawerTitle } from './drawer';
  * shadcn (estilo `base-nova`), que embrulha o `Drawer` do base-ui: foco preso
  * por sentinela de verdade, retorno ao disparador, resto do documento fora da
  * árvore de acessibilidade, trava de rolagem com compensação de barra, e o
- * arrasto para baixo que a implementação anterior não tinha. A **aparência
- * continua nossa** — ver `DESFAZ_O_BASE_NOVA` e a regra de
- * `[data-slot="drawer-overlay"]` no `globals.css`.
+ * arrasto para baixo que a implementação anterior não tinha.
+ *
+ * **Desde 13/08/2026 a aparência também é a de lá**: fundo em `--popover`, texto
+ * de 14px, canto de 12px, borda no topo, `max-height: 100dvh − 6rem`, 450ms de
+ * deslize e o véu a 10% com desfoque. Um `DESFAZ_O_BASE_NOVA` de dez linhas
+ * anulava cada um desses pontos, e uma regra de `[data-slot="drawer-overlay"]`
+ * no `globals.css` repunha o véu antigo. Os dois saíram.
+ *
+ * Sobraram duas coisas em cima da lib, e nenhuma é aparência:
+ *   • `max-w-[560px]` centrado, que é a decisão de a folha **continuar folha**
+ *     em ≥1024px em vez de virar modal de desktop;
+ *   • `motion-reduce:transition-none`, porque o base-ui não respeita
+ *     `prefers-reduced-motion` sozinho.
  */
 export type FolhaInferiorProps = {
   aberta: boolean;
@@ -56,45 +66,17 @@ function focaveisDe(raiz: HTMLElement | null): HTMLElement[] {
 }
 
 /**
- * O texto-base do `drawer` do base-nova não é neutro: ele decide aparência.
- * Cada linha aqui desfaz exatamente uma dessas decisões, e todas caem por
- * conflito de grupo no `tailwind-merge` — **desde que a variante seja a mesma**.
- * Um `rounded-t-folha` solto perderia para `data-[swipe-direction=down]:rounded-t-xl`
- * pela especificidade do seletor de atributo, então o desfazimento repete a
- * variante; é o motivo de três linhas daqui parecerem verbosas.
- *
- * Sem isto a folha muda em seis pontos medidos com `getComputedStyle` antes e
- * depois: fundo cinza (`--popover`) em vez de branco, texto de 14px em vez de
- * 16, canto de 12px em vez dos 6px da §3.1, uma borda de 1px no topo que nunca
- * existiu, altura máxima de `100dvh − 96px` em vez de 92dvh, e largura colada
- * nas bordas da tela grande em vez dos 560px centrados.
+ * O que continua sendo escrito por cima do `drawer` do base-nova, e por quê.
+ * Não há mais nada de aparência aqui — ver o cabeçalho do arquivo.
  */
-const DESFAZ_O_BASE_NOVA = [
-  'bg-background', //  desfaz `bg-popover` (--superficie): a folha é o branco de --bg
-  'text-base', //      desfaz `text-sm`: dentro da folha o texto é 16/24, como no resto
-  // desfaz `m-(--drawer-inset,0px)`: com `inset-x-0` e `width:auto`, é a margem
-  // automática que segura os 560px no meio da tela grande. Mesmo grupo do
-  // `tailwind-merge`, então não sobra margem antiga para brigar por ordem.
+const EM_CIMA_DA_LIB = [
+  // `m-(--drawer-inset,0px)` do base-nova cede o lugar para a margem automática
+  // que segura os 560px no meio da tela grande. Mesmo grupo do `tailwind-merge`,
+  // então não sobra margem antiga para brigar por ordem.
   'm-[0_auto] max-w-[560px]',
-  // desfaz `rounded-t-xl` (8px): o raio da folha é --r-folha, 6px. Vai como valor
-  // arbitrário, não como `rounded-t-folha`: o `tailwind-merge` não conhece as
-  // chaves de raio que a gente inventou no `@theme`, deixaria as duas classes
-  // passarem, e medindo deu 8px — o `xl` do base-nova ganhando por ordem.
-  'data-[swipe-direction=down]:rounded-t-[var(--r-folha)]',
-  'data-[swipe-direction=down]:border-t-0', //     desfaz `border-t`: a folha não tem borda
-  'data-[swipe-axis=y]:[--drawer-content-max-height:92dvh]', // desfaz calc(100dvh-6rem)
-  // o "vazamento" que o base-nova pinta abaixo da folha para o arrasto elástico
-  // é `--color-popover` por padrão, e apareceria como faixa cinza sob o branco
-  '[--drawer-bleed-background:var(--bg)]',
-  'shadow-[var(--sombra-folha)]', // a elevação da §3.1; o base-nova não tem nenhuma
-  // o `prefers-reduced-motion` era respeitado na implementação anterior e o
-  // base-nova não o respeita: sem isto a folha desliza 450ms de qualquer jeito
+  // o base-ui não respeita `prefers-reduced-motion`: sem isto a folha desliza
+  // 450ms de qualquer jeito
   'motion-reduce:transition-none',
-  // desfaz os 450ms do base-nova. A folha do encaixe abre dezenas de vezes por
-  // dia com o cliente esperando em pé, e meio segundo por toque é lentidão que
-  // se sente. 200ms fica perto dos 160ms da implementação anterior sem perder o
-  // deslize que dá a dica de que dá para arrastar.
-  'duration-200',
 ].join(' ');
 
 export function FolhaInferior({
@@ -186,14 +168,14 @@ export function FolhaInferior({
         initialFocus={false}
         // e o de saída é o disparador que aquele outro efeito anotou
         finalFocus={disparadorRef}
-        className={cn(DESFAZ_O_BASE_NOVA)}
+        className={cn(EM_CIMA_DA_LIB)}
       >
         <header
           data-slot="folha-cabecalho"
-          className="flex shrink-0 items-center justify-between gap-2 pl-4"
-          style={{ minHeight: 48, borderBottom: '1px solid var(--linha)' }}
+          className="flex shrink-0 items-center justify-between gap-2 border-b pl-4"
+          style={{ minHeight: 48 }}
         >
-          <DrawerTitle className="truncate text-[18px] leading-6 font-bold">{titulo}</DrawerTitle>
+          <DrawerTitle className="truncate">{titulo}</DrawerTitle>
           <DrawerClose
             aria-label="Fechar"
             className="flex shrink-0 items-center justify-center"
@@ -222,11 +204,13 @@ export function FolhaInferior({
             data-slot="folha-descarte"
             role="group"
             aria-label="Descartar o que foi digitado?"
-            className="shrink-0 p-4"
-            style={{ borderTop: '1px solid var(--linha)', background: 'var(--alerta-bg)' }}
+            className="shrink-0 border-t p-4"
+            style={{ background: 'var(--alerta-bg)' }}
           >
-            <p className="mb-3 text-[14px] leading-5">Descartar o que foi digitado?</p>
-            <div className="flex gap-2">
+            <p className="mb-3">Descartar o que foi digitado?</p>
+            {/* Botão de folha é alvo de dedo antes de ser controle: `--tap-min`
+                é o piso de acessibilidade e fica acima dos 36px da lib. */}
+            <div className="flex gap-2 [&_button]:min-h-[var(--tap-min)]">
               <Botao variante="secundario" onClick={() => setConfirmandoDescarte(false)}>
                 Continuar editando
               </Botao>
@@ -246,12 +230,10 @@ export function FolhaInferior({
         {rodape ? (
           <div
             data-slot="folha-rodape"
-            className="shrink-0 p-4"
-            style={{
-              borderTop: '1px solid var(--linha)',
-              background: 'var(--bg)',
-              paddingBottom: 'calc(16px + env(safe-area-inset-bottom))',
-            }}
+            // `--tap-min` pelo mesmo motivo da folha de descarte: o rodapé é
+            // onde mora o verbo da folha, e alvo de dedo tem piso próprio.
+            className="shrink-0 border-t bg-popover p-4 [&_button]:min-h-[var(--tap-min)]"
+            style={{ paddingBottom: 'calc(16px + env(safe-area-inset-bottom))' }}
           >
             {rodape}
           </div>

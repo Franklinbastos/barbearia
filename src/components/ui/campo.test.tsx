@@ -41,14 +41,21 @@ describe('Campo', () => {
     expect(screen.getByText('R$')).toBeDefined();
   });
 
-  it('mantém a altura de balcão', () => {
+  /**
+   * Este caso exigia `--tap-md` (52px), a altura de balcão da direção de UI
+   * antiga. Em 13/08/2026 o dono trocou densidade por fidelidade ao shadcn, e o
+   * controle passou a medir `--altura-controle` — 36px, o `h-9` da lib. O caso
+   * fica com o valor novo: o que ele guarda é que a altura chega no elemento, e
+   * não só numa regra de folha de estilo que um dia alguém move.
+   */
+  it('mantém a altura de controle da lib', () => {
     const { container } = render(
       <Campo rotulo="Seu nome">
         <input />
       </Campo>,
     );
     const input = container.querySelector('input');
-    expect(input?.className ?? '').toMatch(/tap-md|h-\[52px\]/);
+    expect(input?.className ?? '').toMatch(/min-h-\[var\(--altura-controle\)\]/);
   });
 
   /**
@@ -118,12 +125,18 @@ describe('Campo', () => {
   });
 
   /**
-   * O `field`, o `label` e o `input` do base-nova trazem tipografia própria —
-   * 14px sem entrelinha, peso 500, cinza de texto secundário e um recuo
-   * negativo na descrição. A §3.1 já decidiu outra coisa para cada um deles.
-   * Se alguma dessas classes sobreviver ao `cn()`, o campo mudou de cara.
+   * Este caso era o inverso: o `field`, o `label` e a descrição do base-nova
+   * trazem tipografia própria — peso 500 no rótulo, cinza de texto secundário na
+   * dica, recuo negativo quando ela é a penúltima linha — e a §3.1 tinha decidido
+   * outra coisa para cada um. Em 13/08/2026 o dono decidiu que a lib manda, o
+   * desfazimento saiu e o teste perdeu o objeto.
+   *
+   * Invertido, ele guarda que a tipografia da lib chega inteira nos quatro
+   * slots. `leading-none` do `Label` é a única que não aparece, e não por conta
+   * nossa: o próprio `FieldLabel` do base-nova a substitui por `leading-snug` —
+   * é a lib se sobrepondo à lib, e é `leading-snug` que se verifica aqui.
    */
-  it('nenhuma decisão de tipografia do base-nova sobrevive ao cn()', () => {
+  it('toda decisão de tipografia do base-nova sobrevive ao cn()', () => {
     const { container } = render(
       <Campo rotulo="Seu nome" dica="Como te chamam." erro="Escreva alguma coisa">
         <input />
@@ -133,11 +146,11 @@ describe('Campo', () => {
     const classesDe = (seletor: string) =>
       (container.querySelector(seletor)?.className ?? '').split(/\s+/);
 
-    expect(classesDe('[data-slot=field]')).not.toContain('gap-2');
-    expect(classesDe('[data-slot=field-label]')).not.toContain('leading-none');
-    expect(classesDe('[data-slot=field-label]')).not.toContain('font-medium');
-    expect(classesDe('[data-slot=field-description]')).not.toContain('text-muted-foreground');
-    expect(classesDe('[data-slot=field-description]')).not.toContain('nth-last-2:-mt-1');
-    expect(classesDe('[data-slot=field-error]')).not.toContain('font-normal');
+    expect(classesDe('[data-slot=field]')).toContain('gap-2');
+    expect(classesDe('[data-slot=field-label]')).toContain('leading-snug');
+    expect(classesDe('[data-slot=field-label]')).toContain('font-medium');
+    expect(classesDe('[data-slot=field-description]')).toContain('text-muted-foreground');
+    expect(classesDe('[data-slot=field-description]')).toContain('nth-last-2:-mt-1');
+    expect(classesDe('[data-slot=field-error]')).toContain('font-normal');
   });
 });

@@ -30,11 +30,18 @@ describe('Botao', () => {
 });
 
 describe('Botao — contrato preservado na migração', () => {
-  it('mantém a altura de balcão, não a do shadcn', () => {
+  /**
+   * Este caso exigia `--tap-md` (52px), a altura de balcão da direção de UI
+   * antiga. Em 13/08/2026 o dono decidiu o contrário: fidelidade ao shadcn vence
+   * a densidade, e o botão passou a medir o degrau mais alto que a lib tem —
+   * `size="lg"`, que no base-nova é `h-9` (36px). O caso fica com o valor novo,
+   * porque o que ele realmente guarda continua valendo: a altura é decidida
+   * dentro do componente, e não sobra dos 24px que o preflight deixa.
+   */
+  it('mantém a altura da lib, não a de balcão', () => {
     render(<Botao>Agendar</Botao>);
     const b = screen.getByRole('button', { name: 'Agendar' });
-    // 52px vem de --tap-md; o default do shadcn é 32px e não serve para o balcão
-    expect(b.className).toMatch(/tap-md|h-\[52px\]|min-h-\[var\(--tap-md\)\]/);
+    expect(b.className.split(/\s+/)).toContain('h-9');
   });
 
   it('aceita className de fora sem perder o que vem de dentro', () => {
@@ -51,16 +58,23 @@ describe('Botao — contrato preservado na migração', () => {
   });
 
   /**
-   * O texto-base do `button` do base-nova carrega decisão de aparência que não é
-   * a nossa: fonte de 14px, peso 500, empurrão de 1px ao apertar, anel de foco
-   * próprio, opacidade no desabilitado. Se qualquer uma sobreviver ao `cn()`,
-   * a tela mudou — e mudar tela é o defeito que esta migração não pode cometer.
+   * Este caso era o inverso: ele listava as decisões de aparência do base-nova e
+   * exigia que **nenhuma** sobrevivesse ao `cn()`, porque um bloco
+   * `DESFAZ_O_BASE_NOVA` anulava cada uma para preservar a direção de UI antiga.
+   * Em 13/08/2026 o dono decidiu que a lib manda, o bloco saiu inteiro e o teste
+   * perdeu o objeto.
+   *
+   * Invertido, ele continua útil e passa a guardar o contrário: fonte de 14px,
+   * peso 500, transição, empurrão de 1px ao apertar, anel de foco da lib e
+   * opacidade no desabilitado **têm** que chegar no elemento. Se alguém
+   * reintroduzir desfazimento sem querer — um `text-base` ou um
+   * `disabled:opacity-100` colado de fora —, a lista acusa na hora.
    */
-  it('nenhuma decisão de aparência do base-nova sobrevive ao cn()', () => {
+  it('toda decisão de aparência do base-nova sobrevive ao cn()', () => {
     render(<Botao>Agendar</Botao>);
     const classes = screen.getByRole('button').className.split(/\s+/);
 
-    for (const proibida of [
+    for (const esperada of [
       'text-sm',
       'font-medium',
       'whitespace-nowrap',
@@ -72,32 +86,50 @@ describe('Botao — contrato preservado na migração', () => {
       'focus-visible:ring-ring/50',
       'focus-visible:border-ring',
     ]) {
-      expect(classes).not.toContain(proibida);
+      expect(classes).toContain(esperada);
     }
   });
 
   /**
-   * `.btn:disabled` zera a cor da borda, mas mora em `@layer components` e a cor
-   * de cada variante agora é utilitário — e utilitário vence a camada inteira,
-   * especificidade à parte. Sem o `disabled:border-transparent` o botão
-   * desabilitado fica com a borda colorida acesa sobre o cinza.
+   * O `disabled:border-transparent` que este caso exigia era reposição nossa: a
+   * `.btn:disabled` zerava a cor da borda, mas mora em `@layer components` e a
+   * cor de cada variante era utilitário, que vence a camada inteira. Com o
+   * desfazimento fora, o desabilitado passou a ser o da lib — `opacity-50` no
+   * botão todo, borda incluída — e a reposição deixou de ter razão de existir.
+   *
+   * Invertido, o caso guarda que o apagamento do desabilitado é o da lib e que
+   * ninguém reintroduziu a reposição por cima dele.
    */
-  it('desabilitado perde a borda colorida, como sempre perdeu', () => {
+  it('desabilitado apaga pela opacidade da lib, não pela borda transparente nossa', () => {
     render(
       <Botao variante="perigo" disabled>
         Cancelar
       </Botao>,
     );
-    expect(screen.getByRole('button').className.split(/\s+/)).toContain(
-      'disabled:border-transparent',
-    );
+    const classes = screen.getByRole('button').className.split(/\s+/);
+    expect(classes).toContain('disabled:opacity-50');
+    expect(classes).toContain('disabled:pointer-events-none');
+    expect(classes).not.toContain('disabled:border-transparent');
   });
 
-  it('a variante perigo continua sólida, não vazada como a destructive do base-nova', () => {
+  /**
+   * `perigo` era sólido — fundo cheio em `--perigo`, texto branco — e o
+   * `variant={null}` existia justamente para a `destructive` do base-nova, que é
+   * vazada (`bg-destructive/10` com texto na cor), não entrar. A tabela da Task 2
+   * mapeou `perigo` em `destructive` de propósito, e a forma passou a ser a de
+   * lá.
+   *
+   * **O matiz não mudou**: `--destructive: var(--perigo)` no `globals.css`, e é
+   * `shadcn-nativo.test.ts` que guarda essa ponte. O que mudou é preenchimento,
+   * que é forma. A asserção antiga casava por `btn--perigo`, classe que saiu
+   * junto com o desfazimento.
+   */
+  it('a variante perigo é a destructive da lib, com o nosso vermelho por trás', () => {
     render(<Botao variante="perigo">Cancelar</Botao>);
     const classes = screen.getByRole('button').className.split(/\s+/);
-    expect(classes).toContain('btn--perigo');
-    expect(classes).not.toContain('bg-destructive/10');
+    expect(classes).toContain('bg-destructive/10');
+    expect(classes).toContain('text-destructive');
+    expect(classes).not.toContain('btn--perigo');
   });
 
   /**

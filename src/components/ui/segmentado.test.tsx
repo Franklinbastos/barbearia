@@ -49,13 +49,19 @@ describe('Segmentado', () => {
     expect(aoTrocar).not.toHaveBeenCalled();
   });
 
-  it('cada modo carrega a própria altura de balcão (--tap-md, 52px na §3.1)', () => {
-    // A altura vem do controle, não de classe utilitária colada pela tela: é a
-    // diferença entre um alvo de 52px e o texto de 24px que o preflight deixa.
+  /**
+   * A altura vinha de um `style` embutido em `--tap-md` (52px), a densidade de
+   * balcão da direção antiga. Em 13/08/2026 o dono trocou densidade por
+   * fidelidade ao shadcn: o modo virou o `toggle` `outline` tamanho `lg` do
+   * base-nova, e a altura passou a ser o `h-9` (36px) de lá — classe, não estilo
+   * embutido. O caso fica: o que ele guarda é que a altura vem do componente, e
+   * não de utilitário que cada tela lembra de colar.
+   */
+  it('cada modo carrega a própria altura de controle da lib', () => {
     montar();
     for (const rotulo of ['Agora', 'Marcar hora']) {
       const botao = screen.getByRole('button', { name: rotulo });
-      expect(botao.style.minHeight).toBe('var(--tap-md)');
+      expect(botao.className.split(/\s+/)).toContain('h-9');
     }
   });
 });
@@ -176,7 +182,17 @@ describe('FichasDeEscolha — contrato com a server action', () => {
     ).toBe('');
   });
 
-  it('cada ficha carrega a própria altura de balcão (--tap, 48px na §3.1)', () => {
+  /**
+   * A ficha vinha com `--tap` (48px) num `style` embutido, o alvo que a direção
+   * antiga exigia de qualquer toque que carregasse decisão. Em 13/08/2026 o dono
+   * trocou densidade por fidelidade ao shadcn: a ficha copia o `toggle`
+   * `outline` da lib e mede `--altura-controle` (36px), por classe. O caso fica
+   * guardando que a altura é do componente, não da tela.
+   *
+   * `--tap` continua no `globals.css` para o que não é controle — a ficha de
+   * horário do encaixe e a da página pública, que seguem sendo alvo grande.
+   */
+  it('cada ficha carrega a própria altura de controle da lib', () => {
     render(
       <FichasDeEscolha
         rotuloDoGrupo="Barbeiro"
@@ -185,8 +201,8 @@ describe('FichasDeEscolha — contrato com a server action', () => {
         aoTrocar={() => {}}
       />,
     );
-    expect((screen.getByRole('radio', { name: 'João' }) as HTMLElement).style.minHeight).toBe(
-      'var(--tap)',
+    expect((screen.getByRole('radio', { name: 'João' }) as HTMLElement).className).toMatch(
+      /min-h-\[var\(--altura-controle\)\]/,
     );
   });
 });

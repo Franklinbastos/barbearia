@@ -22,4 +22,15 @@ describe('forma nativa do shadcn', () => {
   it('o botão primário continua fora da cor da loja', () => {
     expect(css).toMatch(/--primary:\s*var\(--tinta\)/);
   });
+
+  /**
+   * A Task 2 mapeou a variante `perigo` do `<Botao>` na `destructive` da lib, o
+   * que trocou o preenchimento sólido pelo vazado de lá. Isso só é aceitável
+   * porque o **matiz** continua sendo o nosso: `text-destructive` e
+   * `bg-destructive/10` resolvem em `--perigo`. Se alguém desamarrar esta ponte,
+   * a reforma deixa de ser de forma e vira de cor.
+   */
+  it('o vermelho da lib continua sendo o nosso vermelho', () => {
+    expect(css).toMatch(/--destructive:\s*var\(--perigo\)/);
+  });
 });

@@ -52,21 +52,25 @@
      vence a densidade de balcão da direção de UI antiga, e o ajuste fino vem
      depois, em cima do resultado.
 
-     Aqui só o valor. Quem adota é a Task 2, que troca `.btn`/`.campo` e os
-     componentes de `src/components/ui`; até lá os `--tap-*` abaixo seguem
-     mandando na altura, para não sobrar uma tela com metade dos botões numa
-     densidade e metade na outra. */
+     Adotado pela Task 2: `.btn`, `.campo` e os componentes de
+     `src/components/ui` medem por aqui. Botão, campo, select, textarea, modo do
+     segmentado e ficha de escolha são todos controle e têm todos esta altura. */
   --altura-controle: 36px;
   --texto-controle:  14px;
   --peso-controle:   500;
 
-  /* alvo de toque */
+  /* alvo de toque — o que sobrou aqui NÃO é controle: é alvo de dedo que a
+     acessibilidade (ou a §5.4) exige maior do que o controle da lib. */
   --tap-min: 44px; /* piso de acessibilidade onde o alvo precisa ser maior que o
                       controle: a barra fixa do encaixe e a folha inferior */
   --tap:     48px; /* piso de qualquer alvo que carregue decisão */
-  --tap-md:  52px; /* campo de formulário, verbo da agenda */
-  --tap-lg:  56px; /* ação principal da tela */
-  --tap-xl:  64px; /* ficha de horário */
+  --tap-lg:  56px; /* ficha de horário do encaixe */
+  --tap-xl:  64px; /* ficha de horário da página pública */
+  /* Era 52px, a "altura de balcão" da direção antiga. Desde 13/08/2026 é apelido
+     da altura de controle da lib: os dois últimos consumidores fora de
+     `src/components/ui` (o mostrador de hora do encaixe e o `input type=time` da
+     equipe) são controle, e mediam por este nome. Some na Task 10. */
+  --tap-md:  var(--altura-controle);
 
   /* forma — desde 13/08/2026 o raio é o do shadcn (0.625rem = 10px), não os 4px
      de instrumento da direção antiga. Aqui a camada se inverte de propósito: o
@@ -246,49 +250,71 @@
    escreve <Botao>/<Campo>/<Bloco>, nunca .btn/.campo/.bloco na mão (P3).
    ============================================================ */
 @layer components {
-  /* ---- botão ---- */
+  /* ---- botão ----
+     Desde 13/08/2026 esta classe **copia** o `button` do base-nova em vez de
+     desfazê-lo: mesma altura (h-9), mesma tipografia (text-sm/font-medium),
+     mesmo raio, mesmo recheio (px-2.5), mesma transição e mesmo afundamento de
+     1px ao apertar. Ela existe porque sete `<a>`/`<Link>` do app usam `.btn`
+     cru e não recebem classe nenhuma da lib; o `<Botao>` compõe o `Button` de
+     verdade e tira a aparência de lá. Se a lib mudar, aqui muda junto. */
   .btn {
     display: inline-flex; align-items: center; justify-content: center;
-    gap: var(--e2);
-    min-height: var(--tap-md);
-    padding: 0 var(--e4);
+    gap: 6px;
+    min-height: var(--altura-controle);
+    padding: 0 10px;
     border: 1px solid transparent;
-    border-radius: var(--r);
+    border-radius: var(--radius);
     background: var(--acao);
     color: var(--acao-tinta);
-    font-size: 16px; line-height: 24px; font-weight: 700;
+    font-size: var(--texto-controle); line-height: 20px; font-weight: var(--peso-controle);
     text-decoration: none;
-    transition: background-color 120ms linear;
+    transition: all 150ms;
   }
-  .btn--lg  { min-height: var(--tap-lg); font-size: 18px; }
+  /* a lib não tem degrau acima de h-9: o "grande" vira só mais respiro lateral */
+  .btn--lg  { padding: 0 var(--e4); }
   .btn--tot { width: 100%; }
-  .btn--sec { background: transparent; color: var(--tinta); border-color: var(--linha); }
+  /* `outline` da lib */
+  .btn--sec { background: var(--bg); color: var(--tinta); border-color: var(--linha); }
+  /* `ok` não existe na lib — o tom é nosso e continua sólido */
   .btn--ok  { background: var(--ok); color: #FFFFFF; border-color: var(--ok); }
-  .btn--perigo-vazado { background: transparent; color: var(--perigo);
-                        border: 2px solid var(--perigo); }
-  .btn--perigo { background: var(--perigo); color: #FFFFFF; border-color: var(--perigo); }
-  .btn--texto  { background: transparent; color: var(--tinta); text-decoration: underline;
-                 padding: 0 var(--e2); font-weight: 400; }
-  .btn:disabled { background: var(--superficie-2); color: var(--tinta-3);
-                  border-color: transparent; cursor: default; }
-  .btn:active:not(:disabled) { filter: brightness(1.25); }
-  @media (hover: hover) { .btn--sec:hover { background: var(--superficie); } }
-
-  /* ---- campo: o <label> É o contêiner. O rótulo continua IMPLÍCITO por
-     aninhamento, que é do que getByLabel() dos e2e depende. ---- */
-  .campo { display: flex; flex-direction: column; gap: 6px; }
-  .campo > span { font-size: 14px; line-height: 20px; font-weight: 700; color: var(--tinta-2); }
-  .campo > input, .campo > select, .campo > textarea {
-    min-height: var(--tap-md);
-    padding: 0 var(--e3);
-    background: var(--bg);
-    border: 1px solid var(--linha);
-    border-radius: var(--r);
-    font-size: 16px; /* 16px impede o iOS de dar zoom ao focar. Nunca baixar. */
-    line-height: 24px;
+  /* `destructive` da lib é vazado: fundo a 10% e texto na cor de perigo */
+  .btn--perigo { background: color-mix(in oklab, var(--perigo) 10%, transparent);
+                 color: var(--perigo); border-color: transparent; }
+  /* `outline` com a cor de `destructive` — a lib não tem, a composição é nossa */
+  .btn--perigo-vazado { background: var(--bg); color: var(--perigo);
+                        border: 1px solid var(--perigo); }
+  /* `ghost` da lib: sem fundo e sem sublinhado */
+  .btn--texto  { background: transparent; color: var(--tinta); font-weight: var(--peso-controle); }
+  .btn:disabled { opacity: .5; pointer-events: none; cursor: default; }
+  .btn:active:not(:disabled) { transform: translateY(1px); }
+  @media (hover: hover) {
+    .btn--sec:hover, .btn--texto:hover { background: var(--superficie-2); }
   }
-  .campo--erro > input, .campo--erro > select { border: 2px solid var(--perigo); }
-  .campo > small { font-size: 14px; line-height: 20px; color: var(--tinta-3); }
+
+  /* ---- campo ----
+     Mesma história do `.btn`: copia o `input` do base-nova (h-9, px-2.5,
+     rounded-lg, borda em --input) em vez de desfazê-lo.
+
+     A ÚNICA exceção da migração de 13/08 mora aqui: **16px de fonte no
+     celular**. Abaixo disso o Safari do iOS dá zoom ao focar, e isso é defeito
+     de plataforma, não preferência de densidade. O corte em 768px é o mesmo que
+     o `Input` da lib faz (`text-base md:text-sm`), então a página pública, que é
+     de celular, fica nos 16px e o painel no desktop desce para os 14px. ---- */
+  .campo { display: flex; flex-direction: column; gap: var(--e2); }
+  .campo > input, .campo > select, .campo > textarea {
+    min-height: var(--altura-controle);
+    padding: 0 10px;
+    background: transparent;
+    border: 1px solid var(--input);
+    border-radius: var(--radius);
+    font-size: 16px; /* iOS dá zoom ao focar abaixo disto. Nunca baixar no celular. */
+    line-height: 20px;
+    transition: color 150ms, background-color 150ms, border-color 150ms;
+  }
+  @media (min-width: 768px) {
+    .campo > input, .campo > select, .campo > textarea { font-size: var(--texto-controle); }
+  }
+  .campo--erro > input, .campo--erro > select { border-color: var(--destructive); }
 
   /* select nativo padronizado — o painel continua cheio deles fora do encaixe */
   .campo > select {
@@ -300,21 +326,24 @@
     background-size: 12px 8px;
   }
 
-  /* ---- bloco informativo ---- */
+  /* ---- bloco informativo ----
+     Copia o `alert` do base-nova (px-2.5 py-2, text-sm, rounded-lg, borda de
+     1px). A barra de 4px na esquerda, que era a marca visual do bloco na
+     direção antiga, saiu em 13/08/2026: a lib desenha borda igual nos quatro
+     lados. Os cinco tons continuam nossos — a lib só tem `default` e
+     `destructive`, e nenhum dos dois pinta fundo de estado. */
   .bloco {
-    padding: var(--e4);
+    padding: 8px 10px;
     border: 1px solid var(--linha);
-    border-left-width: 4px;
-    border-left-color: var(--linha);
-    border-radius: var(--r);
-    background: var(--superficie);
-    font-size: 16px; line-height: 24px;
+    border-radius: var(--radius);
+    background: var(--card);
+    font-size: var(--texto-controle); line-height: 20px;
   }
   .bloco--ok     { background: var(--ok-bg);     border-color: var(--ok);     color: var(--tinta); }
   .bloco--perigo { background: var(--perigo-bg); border-color: var(--perigo); color: var(--tinta); }
   .bloco--alerta { background: var(--alerta-bg); border-color: var(--alerta); color: var(--tinta); }
   .bloco--agora  { background: var(--agora-bg);  border-color: var(--agora);  color: var(--tinta); }
-  .bloco--compacto { padding: 8px 10px; font-size: 14px; line-height: 20px; }
+  .bloco--compacto { padding: 6px 8px; font-size: 12px; line-height: 16px; }
 
   /* ---- lista de divisórias: o padrão de lista do produto inteiro ---- */
   .lista { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--linha); }
@@ -329,7 +358,7 @@
   .lista-btn:active { background: var(--superficie-2); }
   @media (hover: hover) { .lista-btn:hover { background: var(--superficie); } }
 
-  /* ---- barra indeterminada: a ÚNICA animação do produto ---- */
+  /* ---- barra indeterminada ---- */
   .barra-busca { height: 2px; background: var(--superficie-2); overflow: hidden; }
   .barra-busca::after {
     content: ""; display: block; height: 2px; width: 40%;
@@ -340,29 +369,34 @@
     .barra-busca::after { animation: none; width: 100%; opacity: .4; }
   }
 
-  /* ---- esqueleto: sem pulso, sem shimmer, sempre na altura final ---- */
-  .esqueleto { background: var(--superficie-2); border-radius: var(--r); }
+  /* ---- esqueleto ----
+     Pulsa desde 13/08/2026, como o `skeleton` da lib. A direção antiga proibia
+     ("a única animação do produto é a barra de busca"); a lib venceu. O pulso é
+     escrito aqui porque seis `<div class="esqueleto">` do app não passam pelo
+     componente, e é o mesmo tempo e a mesma curva do `animate-pulse`.
+     `prefers-reduced-motion` desliga — isso não é aparência, é acessibilidade. */
+  .esqueleto {
+    background: var(--muted);
+    border-radius: calc(var(--radius) - 2px); /* o `rounded-md` do skeleton da lib */
+    animation: pulsa 2s cubic-bezier(.4, 0, .6, 1) infinite;
+  }
+  @keyframes pulsa { 50% { opacity: .5 } }
+  @media (prefers-reduced-motion: reduce) { .esqueleto { animation: none } }
 }
 
 /* ============================================================
    5. VÉU DA FOLHA INFERIOR — fora de camada, de propósito
 
-   O `drawer` do base-nova pinta o backdrop com `bg-black/10` e
-   `supports-backdrop-filter:backdrop-blur-xs`, os dois utilitários. Utilitário
-   vence `@layer components` inteira e o `DrawerContent` do shadcn não expõe
-   `className` do backdrop, então o único jeito de repor o véu da §4.3 — preto a
-   45%, sem desfoque, como sempre foi — é uma regra fora de qualquer `@layer`:
-   CSS sem camada ganha de todas elas, independente de especificidade.
+   Aqui morava a reposição do véu da §4.3 (preto a 45%, sem desfoque) por cima
+   do `bg-black/10` + `backdrop-blur-xs` do base-nova. Saiu em 13/08/2026: o véu
+   passa a ser o da lib.
 
-   O gancho é o `data-slot`, que é exatamente para isto: o CLI pode regerar o
-   `drawer.tsx` quantas vezes quiser que esta regra continua valendo.
+   O que sobra é o único pedaço que não é aparência — `prefers-reduced-motion`.
+   O véu da lib transiciona em 450ms e ela não respeita a preferência do
+   sistema; o `DrawerContent` do shadcn não expõe `className` do backdrop, então
+   o gancho continua sendo o `data-slot`, numa regra fora de qualquer `@layer`
+   (CSS sem camada vence todas elas, independente de especificidade).
    ============================================================ */
-[data-slot="drawer-overlay"] {
-  background: rgb(0 0 0 / .45);
-  -webkit-backdrop-filter: none;
-  backdrop-filter: none;
-}
-
 @media (prefers-reduced-motion: reduce) {
   [data-slot="drawer-overlay"] { transition: none; }
 }

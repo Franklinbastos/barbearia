@@ -17,10 +17,14 @@ import { ToggleGroup, ToggleGroupItem } from './toggle-group';
  *
  * Por dentro compõe o `ToggleGroup` do shadcn, que traz o `role="group"`, o
  * `aria-pressed` de cada botão e a navegação por seta que a nossa versão de
- * botões soltos não tinha. A **aparência continua nossa** e continua vindo do
- * `style` embutido: propriedade em linha é a única coisa que vence a camada de
- * utilitários sem depender de ordem de arquivo, e o base-nova pinta fundo em
- * `aria-pressed:bg-muted` — cinza onde o nosso ativo é tinta cheia.
+ * botões soltos não tinha. **Desde 13/08/2026 a aparência também é a de lá**:
+ * grupo em `flex` com largura de conteúdo, modo `outline` de 36px e o ativo
+ * pintado em `aria-pressed:bg-muted`.
+ *
+ * Antes disso havia dois blocos de desfazimento (`DESFAZ_O_GRUPO` e
+ * `DESFAZ_O_ITEM`) e um `style` embutido que reescreviam altura, raio, fundo,
+ * borda e tipografia para o alvo de 52px e o ativo em tinta cheia da direção
+ * antiga. Saíram inteiros: era a maior camada de desfazimento do produto.
  */
 export type SegmentadoProps<T extends string> = {
   opcoes: { valor: T; rotulo: string }[];
@@ -31,34 +35,10 @@ export type SegmentadoProps<T extends string> = {
 };
 
 /**
- * O texto-base do `toggle-group` do base-nova decide aparência em cinco pontos,
- * e cada linha aqui desfaz exatamente um. Sem isto o segmentado vira uma tira
- * de 32px encostada à esquerda: os dois modos deixariam de dividir a largura em
- * partes iguais (`flex w-fit`), parariam de esticar até a mesma altura
- * (`items-center`), "Marcar hora" não quebraria mais linha em 360px
- * (`whitespace-nowrap`), a fonte cairia para 14px sem negrito e o anel de foco
- * da §3.1 daria lugar a um anel de 3px próprio.
+ * A única classe que sobra em cima da lib. O modo é um verbo curto, e o `min-w`
+ * de 32px do `toggle` deixa "Agora" espremido contra a borda.
  */
-const DESFAZ_O_GRUPO = [
-  'grid', //           desfaz `flex`: as colunas de 1fr dividem a largura em partes iguais
-  'w-auto', //         desfaz `w-fit`
-  'items-stretch', //  desfaz `items-center`: os modos têm a mesma altura mesmo com uma quebra
-  'gap-2', //          repõe os 8px sem depender do `--gap` que o `style` de fora substitui
-  'rounded-none', //   desfaz `rounded-lg`: o raio é de cada modo, o grupo não desenha nada
-].join(' ');
-
-const DESFAZ_O_ITEM = [
-  'flex', //              desfaz `inline-flex`, para o item ocupar a célula inteira
-  'h-auto', //            desfaz `h-8`: a altura é do `style`, e é 52px
-  'min-w-0', //           desfaz `min-w-8`
-  'whitespace-normal', // desfaz `whitespace-nowrap`: rótulo longo quebra em 360px
-  'text-[16px] leading-6 font-bold', // desfaz `text-sm font-medium`
-  // devolve o `--anel` da §3.1 no lugar do anel próprio do base-nova, como em
-  // `botao.tsx`: o `ring-3` continua declarado, só que transparente.
-  'focus-visible:ring-transparent focus-visible:shadow-[var(--anel)]',
-].join(' ');
-
-export const segmentadoVariants = cva(cn('px-3', DESFAZ_O_ITEM));
+export const segmentadoVariants = cva('px-3');
 
 export function Segmentado<T extends string>({
   opcoes,
@@ -69,6 +49,8 @@ export function Segmentado<T extends string>({
   return (
     <ToggleGroup
       aria-label={rotuloDoGrupo}
+      variant="outline"
+      size="lg"
       // O `ToggleGroup` do base-ui guarda um array mesmo quando só um item pode
       // ficar apertado. Tocar no modo já ativo devolve `[]` — e é por isso que
       // o balcão pode bater o dedo duas vezes no mesmo botão sem disparar nada.
@@ -77,35 +59,16 @@ export function Segmentado<T extends string>({
         const novo = escolhidos[0] as T | undefined;
         if (novo && novo !== valor) aoTrocar(novo);
       }}
-      className={cn(DESFAZ_O_GRUPO)}
-      style={{ gridTemplateColumns: `repeat(${opcoes.length}, 1fr)` }}
     >
-      {opcoes.map((opcao) => {
-        const ativo = opcao.valor === valor;
-        return (
-          <ToggleGroupItem
-            key={opcao.valor}
-            value={opcao.valor}
-            // `variant`/`size` em `null` desligam a paleta e a métrica do
-            // base-nova de propósito: `default` lá é 32px de altura com 10px de
-            // recheio, e o nosso modo é alvo de balcão de 52px.
-            variant={null}
-            size={null}
-            className={cn(segmentadoVariants())}
-            style={{
-              // Altura é propriedade do controle, nunca classe que alguém cola.
-              minHeight: 'var(--tap-md)',
-              borderRadius: 'var(--r)',
-              background: ativo ? 'var(--tinta)' : 'transparent',
-              color: ativo ? 'var(--acao-tinta)' : 'var(--tinta)',
-              border: ativo ? '2px solid var(--tinta)' : '1px solid var(--linha)',
-              transition: 'background-color 120ms linear',
-            }}
-          >
-            {opcao.rotulo}
-          </ToggleGroupItem>
-        );
-      })}
+      {opcoes.map((opcao) => (
+        <ToggleGroupItem
+          key={opcao.valor}
+          value={opcao.valor}
+          className={cn(segmentadoVariants())}
+        >
+          {opcao.rotulo}
+        </ToggleGroupItem>
+      ))}
     </ToggleGroup>
   );
 }

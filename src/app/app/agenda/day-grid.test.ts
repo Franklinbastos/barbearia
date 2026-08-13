@@ -120,12 +120,18 @@ describe('DayGrid', () => {
     // se procura justamente num horário que deu errado.
     //
     // A asserção procura opacidade *aplicada* — em `style` ou em utilitário
-    // `opacity-<n>` —, não a palavra solta: desde a migração para o shadcn o
-    // botão carrega `disabled:opacity-100`, que existe justamente para desfazer
-    // o `disabled:opacity-50` do base-nova e nunca desbota linha nenhuma.
+    // `opacity-<n>` —, não a palavra solta. Em 13/08/2026 o `disabled:opacity-50`
+    // do base-nova voltou junto com o resto da aparência da lib, e ele aparece
+    // no `class` de todo botão da linha; por isso a variante `disabled:` fica de
+    // fora da busca. Ela é condicional, só pinta quando o botão está
+    // desabilitado, e nenhum botão desta linha está.
     expect(html).not.toMatch(/opacity\s*:/);
-    expect(html).not.toMatch(/\bopacity-(?!100\b)\d/);
+    expect(html).not.toMatch(/(?<!disabled:)\bopacity-(?!100\b)\d/);
+    // a distinção continua sendo de tinta: fundo cinza, barra de perigo, nome
+    // riscado em tinta-3 — e o telefone intacto, que era o objetivo de tudo isso
     expect(html).toContain('--superficie');
+    expect(html).toContain('line-through');
+    expect(html).toContain('11999998888');
   });
 
   it('deixa "Compareceu" na linha e tira "Cancelar" de perto dele', () => {

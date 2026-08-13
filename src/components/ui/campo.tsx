@@ -14,9 +14,15 @@ import { Field, FieldDescription, FieldError, FieldLabel } from './field';
  * quando havia erro na tela.
  *
  * O contêiner continua com a classe `.campo`, e o controle continua sendo filho
- * direto dele: é o seletor `.campo > input` da §3.1 que dá altura de 52px,
- * borda, raio e os 16px de fonte que impedem o iOS de dar zoom ao focar. A
- * aparência não mudou de dono — só a caixa em volta.
+ * direto dele: é o seletor `.campo > input` que dá altura, borda e raio. Desde
+ * 13/08/2026 essa regra **copia** o `input` do base-nova (h-9, px-2.5,
+ * rounded-lg, borda em `--input`) em vez de desfazê-lo — o contorno é da lib
+ * porque o controle chega aqui como `children` cru e não passa pelo `Input`.
+ *
+ * A única exceção da migração mora nessa regra: **16px de fonte no celular**,
+ * porque abaixo disso o Safari do iOS dá zoom ao focar. O corte em 768px é o
+ * mesmo que o `Input` da lib faz (`text-base md:text-sm`), então a página
+ * pública fica nos 16px e o painel no desktop desce para os 14px.
  *
  * **Sem `'use client'`, de propósito.** O `useId()` roda em Server Component no
  * React 19, e `/app/clientes` renderiza `<Campo>` do servidor. Marcado como
@@ -44,27 +50,16 @@ export type CampoProps = {
  * ser do invólucro e o controle fica sem borda por dentro dela.
  */
 const CONTROLE_DENTRO_DO_INVOLUCRO =
-  'min-h-[var(--tap-md)] w-full flex-1 border-0 bg-transparent px-3 text-base leading-6 outline-none';
+  'min-h-[var(--altura-controle)] w-full flex-1 border-0 bg-transparent px-2.5 text-base leading-5 outline-none md:text-sm';
 
 const AFIXO =
-  'flex min-h-[var(--tap-md)] shrink-0 items-center justify-center bg-superficie-2 px-3 text-base leading-6 text-tinta-2';
+  'flex min-h-[var(--altura-controle)] shrink-0 items-center justify-center bg-muted px-2.5 text-base leading-5 text-muted-foreground md:text-sm';
 
 /**
  * O `.campo > input` já carrega esta altura. O utilitário existe para ela ficar
  * no elemento, e não só numa regra de folha de estilo que um dia alguém move.
  */
-const ALTURA_DE_BALCAO = 'min-h-[var(--tap-md)]';
-
-/**
- * A §3.1 decidiu 14px/20px, peso 700 e `--tinta-2` para o rótulo, `--tinta-3`
- * para a dica e peso 700 para o erro. O `field`, o `label` e o `input` do
- * base-nova trazem outra tipografia (entrelinha zerada, peso 500, cinza de
- * texto secundário e um recuo negativo na descrição quando ela é a penúltima
- * filha). Cada classe abaixo desfaz exatamente uma dessas decisões.
- */
-const ROTULO = 'leading-5 font-bold text-tinta-2';
-const DICA = 'leading-5 text-tinta-3 nth-last-2:mt-0';
-const ERRO = 'font-bold';
+const ALTURA_DE_CONTROLE = 'min-h-[var(--altura-controle)]';
 
 export function Campo({ rotulo, dica, erro, prefixo, sufixo, children }: CampoProps) {
   const semente = useId();
@@ -89,7 +84,7 @@ export function Campo({ rotulo, dica, erro, prefixo, sufixo, children }: CampoPr
     className:
       cn(
         propsDoControle.className,
-        ALTURA_DE_BALCAO,
+        ALTURA_DE_CONTROLE,
         comInvolucro ? CONTROLE_DENTRO_DO_INVOLUCRO : '',
       ) || undefined,
     'aria-invalid': propsDoControle['aria-invalid'] ?? (erro ? true : undefined),
@@ -97,25 +92,23 @@ export function Campo({ rotulo, dica, erro, prefixo, sufixo, children }: CampoPr
   } as Partial<typeof propsDoControle>);
 
   return (
-    <Field className={cn('campo gap-1.5', erro ? 'campo--erro' : undefined)}>
-      <FieldLabel htmlFor={idDoControle} className={ROTULO}>
-        {rotulo}
-      </FieldLabel>
+    <Field className={cn('campo', erro ? 'campo--erro' : undefined)}>
+      <FieldLabel htmlFor={idDoControle}>{rotulo}</FieldLabel>
 
       {comInvolucro ? (
         <div
-          className={`flex items-stretch overflow-hidden rounded-cx bg-bg ${
-            erro ? 'border-2 border-perigo' : 'border border-linha'
+          className={`flex items-stretch overflow-hidden rounded-lg bg-transparent ${
+            erro ? 'border border-destructive' : 'border border-input'
           }`}
         >
           {prefixo ? (
-            <span aria-hidden="true" className={`${AFIXO} min-w-12 border-r border-linha`}>
+            <span aria-hidden="true" className={`${AFIXO} min-w-10 border-r border-input`}>
               {prefixo}
             </span>
           ) : null}
           {controle}
           {sufixo ? (
-            <span aria-hidden="true" className={`${AFIXO} border-l border-linha`}>
+            <span aria-hidden="true" className={`${AFIXO} border-l border-input`}>
               {sufixo}
             </span>
           ) : null}
@@ -124,17 +117,9 @@ export function Campo({ rotulo, dica, erro, prefixo, sufixo, children }: CampoPr
         controle
       )}
 
-      {dica ? (
-        <FieldDescription id={idDaDica} className={DICA}>
-          {dica}
-        </FieldDescription>
-      ) : null}
+      {dica ? <FieldDescription id={idDaDica}>{dica}</FieldDescription> : null}
 
-      {erro ? (
-        <FieldError id={idDoErro} className={ERRO}>
-          {erro}
-        </FieldError>
-      ) : null}
+      {erro ? <FieldError id={idDoErro}>{erro}</FieldError> : null}
     </Field>
   );
 }

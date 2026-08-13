@@ -22,6 +22,11 @@ import { RadioGroup } from './radio-group';
  * navegação por seta e o único ponto de tabulação que um grupo de escolha deve
  * ter. Antes eram N botões `aria-pressed`, que o leitor de tela anunciava como
  * N botões independentes.
+ *
+ * **Desde 13/08/2026 a aparência é a da lib**: a ficha passou a ser o `toggle`
+ * `outline` do base-nova (36px, raio de 10px, borda em `--input`, 14px, ativo em
+ * `bg-muted` com borda em `--primary`). Antes disso a forma vinha toda de um
+ * `style` embutido — 48px de alvo, borda de 2px em tinta e peso 700 no ativo.
  */
 export type FichaDeEscolha = {
   valor: string;
@@ -46,26 +51,32 @@ const OPCOES_ANTES_DE_ROLAR = 6;
 
 /**
  * O `RadioGroup` do base-nova empilha as opções numa coluna que ocupa a largura
- * toda. A ficha é o contrário: quadradinho que se acomoda lado a lado e quebra
- * linha quando não cabe.
+ * toda, porque lá o item é uma bolinha com rótulo ao lado. A ficha é o
+ * contrário: quadradinho que se acomoda lado a lado e quebra linha quando não
+ * cabe. Isto não é desfazimento de aparência — é a forma do componente, e
+ * sobreviveu à adoção da cara nativa em 13/08/2026.
  */
-const DESFAZ_O_GRUPO = [
-  'flex flex-wrap', // desfaz `grid`: as fichas se acomodam lado a lado
-  'w-auto', //         desfaz `w-full`
-].join(' ');
+const FICHAS_LADO_A_LADO = 'flex w-auto flex-wrap';
 
 /**
  * O `RadioGroupItem` do base-nova não serve aqui e não dá para adaptar: ele é
  * uma bolinha de 16px que **renderiza o próprio indicador como filho** e ignora
  * o `children` que a gente passar. Ficha é cartão com rótulo, cor e detalhe
  * dentro. Por isso o item vem do primitivo `Radio.Root` direto, que chega sem
- * classe nenhuma — não há aparência do base-nova para desfazer aqui.
+ * classe nenhuma — e a ficha copia à mão o `toggle` `outline` da lib, que é o
+ * componente mais próximo que ela tem.
+ *
+ * `cursor-pointer` e `text-center` repõem dois padrões que a ficha ganhava de
+ * graça enquanto era `<button>`: o dedo do balcão e o rótulo centrado quando ele
+ * é curto demais para encher a ficha. `Radio.Root` é um `<span>`.
  */
 export const fichaVariants = cva(
-  // `cursor-pointer` e `text-center` repõem dois padrões que a ficha ganhava de
-  // graça enquanto era `<button>`: o dedo do balcão e o rótulo centrado quando
-  // ele é curto demais para encher a ficha. `Radio.Root` é um `<span>`.
-  'flex flex-auto cursor-pointer items-center justify-center gap-2 px-3 text-center text-[15px] leading-5',
+  cn(
+    'flex min-h-[var(--altura-controle)] min-w-24 flex-auto cursor-pointer items-center justify-center gap-2',
+    'rounded-lg border border-input px-2.5 text-center text-sm leading-5 transition-all outline-none',
+    'hover:bg-muted focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50',
+    'data-checked:border-primary data-checked:bg-muted data-checked:font-medium',
+  ),
 );
 
 export function FichasDeEscolha({
@@ -89,38 +100,28 @@ export function FichasDeEscolha({
           // dedo duas vezes na mesma ficha o tempo todo.
           if (escolhido !== valor) aoTrocar(escolhido);
         }}
-        className={cn(DESFAZ_O_GRUPO, 'gap-2')}
+        className={cn(FICHAS_LADO_A_LADO, 'gap-2')}
         style={rola ? { maxHeight: alturaMaxima, overflowY: 'auto' } : undefined}
       >
-        {opcoes.map((opcao) => {
-          const ativa = opcao.valor === valor;
-          return (
-            <Radio.Root
-              key={opcao.valor || 'qualquer'}
-              value={opcao.valor}
-              className={cn(fichaVariants())}
-              style={{
-                minHeight: 'var(--tap)',
-                minWidth: 96,
-                borderRadius: 'var(--r)',
-                background: ativa ? 'var(--superficie-2)' : 'transparent',
-                border: ativa ? '2px solid var(--tinta)' : '1px solid var(--linha)',
-                color: 'var(--tinta)',
-                fontWeight: ativa ? 700 : 400,
-              }}
-            >
-              {opcao.cor ? (
-                <span
-                  aria-hidden="true"
-                  className="inline-block h-2 w-2 shrink-0"
-                  style={{ background: opcao.cor }}
-                />
-              ) : null}
-              <span className="truncate">{opcao.rotulo}</span>
-              {opcao.detalhe ? <span className="shrink-0 text-tinta-2">{opcao.detalhe}</span> : null}
-            </Radio.Root>
-          );
-        })}
+        {opcoes.map((opcao) => (
+          <Radio.Root
+            key={opcao.valor || 'qualquer'}
+            value={opcao.valor}
+            className={cn(fichaVariants())}
+          >
+            {opcao.cor ? (
+              <span
+                aria-hidden="true"
+                className="inline-block h-2 w-2 shrink-0"
+                style={{ background: opcao.cor }}
+              />
+            ) : null}
+            <span className="truncate">{opcao.rotulo}</span>
+            {opcao.detalhe ? (
+              <span className="shrink-0 text-muted-foreground">{opcao.detalhe}</span>
+            ) : null}
+          </Radio.Root>
+        ))}
       </RadioGroup>
 
       {nomeDoCampoOculto ? <input type="hidden" name={nomeDoCampoOculto} value={valor} /> : null}

@@ -50,9 +50,23 @@ describe('tokens canônicos', () => {
     expect(css).toMatch(new RegExp(`--${nome}\\s*:`));
   });
 
-  it('preserva a densidade de balcão', () => {
+  /**
+   * Este caso guardava a densidade de balcão: `--tap-md` em 52px, a altura que a
+   * direção de UI antiga defendia para quem toca o botão em pé, com o dedo com
+   * talco. Em 13/08/2026 o dono trocou essa densidade por fidelidade ao shadcn,
+   * e a altura de controle passou a ser a da lib (`h-9`, 36px). O caso fica, com
+   * o valor novo: ele guarda que a altura é escolhida aqui, e não herdada por
+   * acidente de quem esquecer o token.
+   *
+   * `--tap-min` não muda porque não é densidade: é o piso de acessibilidade da
+   * barra fixa do encaixe e da folha inferior, onde o alvo de dedo precisa ser
+   * maior que o controle.
+   */
+  it('a altura de controle é a da lib, e o alvo de acessibilidade continua acima dela', () => {
+    expect(css).toMatch(/--altura-controle:\s*36px/);
     expect(css).toMatch(/--tap-min:\s*44px/);
-    expect(css).toMatch(/--tap-md:\s*52px/);
+    expect(css).toMatch(/--tap-md:\s*var\(--altura-controle\)/);
+    expect(css).not.toMatch(/--tap-md:\s*52px/);
   });
 
   it('preserva a cor de estado, que não gira com a marca', () => {

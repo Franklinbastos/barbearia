@@ -20,8 +20,16 @@ describe('globals.css — camada base', () => {
   });
 
   it('define o alvo de toque mínimo como custom property', () => {
+    // `--tap-min` continua em 44px: é piso de acessibilidade da barra fixa do
+    // encaixe e dos botões da folha, não densidade — ali o alvo de dedo precisa
+    // ser maior que o controle.
     expect(css).toMatch(/--tap-min:\s*44px/);
-    expect(css).toMatch(/--tap-md:\s*52px/);
+    // `--tap-md` era 52px, a "altura de balcão" da direção de UI antiga. Por
+    // decisão do dono em 13/08/2026 a densidade passou a ser a do shadcn, e o
+    // token virou apelido da altura de controle da lib. A asserção fica: ela
+    // guarda que a altura é escolhida, não herdada por acidente.
+    expect(css).toMatch(/--tap-md:\s*var\(--altura-controle\)/);
+    expect(css).toMatch(/--altura-controle:\s*36px/);
   });
 
   it('define foco visível para navegação por teclado', () => {
