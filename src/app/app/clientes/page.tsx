@@ -1,3 +1,4 @@
+import { ChevronRight } from 'lucide-react';
 import Link from 'next/link';
 import { requireSession } from '@/lib/session';
 import { db } from '@/db/client';
@@ -52,16 +53,13 @@ export default async function ClientesPage({
                     <span className="text-[17px] leading-[22px] font-bold">{c.name}</span>
                     <span className="text-sm leading-5 text-tinta-2">{c.phone}</span>
                   </span>
-                  <svg
+                  {/* Mesma seta da lista de equipe: `size-5` repõe o desenho de
+                      5×10 e o `-mr-1.5` desconta a folga da caixa do lucide. */}
+                  <ChevronRight
                     aria-hidden="true"
-                    viewBox="0 0 8 12"
-                    className="ml-auto h-3 w-2 shrink-0"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                  >
-                    <path d="M1.5 1l5 5-5 5" />
-                  </svg>
+                    strokeWidth={2.4}
+                    className="ml-auto -mr-1.5 size-5 shrink-0"
+                  />
                 </Link>
               </li>
             ))}

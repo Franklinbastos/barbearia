@@ -1,5 +1,10 @@
 'use client';
 
+import type { ComponentProps } from 'react';
+import { cva } from 'class-variance-authority';
+
+import { cn } from '@/lib/utils';
+
 /**
  * A tira de dias da página pública (§5.4).
  *
@@ -8,6 +13,12 @@
  * pé, é o gesto que mais se erra, e o dia escolhido não se distingue. Aqui são
  * 7 colunas × 2 linhas, tudo visível de uma vez, e o dia selecionado é um
  * retângulo cheio em `--marca`.
+ *
+ * **Por que não veio do shadcn.** O registry não tem nada parecido: `calendar`
+ * é um mês inteiro com navegação, e a §5.4 é o oposto disso — catorze fichas de
+ * 60px numa grade fixa. A anatomia é que segue o padrão da casa: `cva` para as
+ * variantes, `cn` para compor com a `className` de fora e `data-slot` em cada
+ * parte estilizável.
  */
 export type DiaDaTira = {
   /** YYYY-MM-DD */
@@ -20,6 +31,37 @@ export type DiaDaTira = {
   situacao: 'livre' | 'cheio' | 'desconhecido';
 };
 
+export type TiraDeDiasProps = Omit<ComponentProps<'div'>, 'children'> & {
+  /** 14 dias; a ficha "Outro dia" é desenhada por dentro. */
+  dias: DiaDaTira[];
+  selecionado: string;
+  aoSelecionar: (iso: string) => void;
+  /** Limite do `<input type="date">` de "Outro dia" — hoje + `maxAdvanceDays`. */
+  maxIso: string;
+};
+
+/**
+ * Sem variante: a tira é uma só. O `cva` fica assim mesmo por ser o gancho de
+ * composição que o resto de `src/components/ui` exporta — quem precisar da
+ * grade sem a colagem (`sticky`) compõe por cima em vez de recopiar a lista.
+ */
+export const tiraDeDiasVariants = cva(
+  'sticky top-[108px] z-10 -mx-4 grid grid-cols-7 gap-1 bg-bg px-4 pt-2 pb-3',
+);
+
+export const fichaDaTiraVariants = cva(
+  'flex min-h-[60px] flex-col items-center justify-center gap-0.5 rounded-cx',
+  {
+    variants: {
+      marcado: {
+        true: 'border-2 border-tinta bg-marca text-[var(--sobre-marca)]',
+        false: 'border border-linha bg-bg',
+      },
+    },
+    defaultVariants: { marcado: false },
+  },
+);
+
 /**
  * A cor do ponto de 4px (§5.4): `--linha-suave` enquanto a resposta de
  * `/days` não chegou, `--tinta-3` no dia com vaga, nada no dia cheio — que já
@@ -29,20 +71,37 @@ export type DiaDaTira = {
  * `--sobre-marca`; o "ainda não sei" some ali, porque um ponto cinza sobre a
  * marca não se lê e o dia aberto vai ter a grade logo abaixo respondendo.
  */
-function corDoPonto(situacao: DiaDaTira['situacao'], marcado: boolean): string {
-  if (situacao === 'cheio') return 'transparent';
-  if (situacao === 'livre') return marcado ? 'var(--sobre-marca)' : 'var(--tinta-3)';
-  return marcado ? 'transparent' : 'var(--linha-suave)';
-}
+export const pontoDaTiraVariants = cva('h-1 w-1 rounded-full', {
+  variants: {
+    situacao: {
+      livre: 'bg-tinta-3',
+      cheio: 'bg-transparent',
+      desconhecido: 'bg-linha-suave',
+    },
+    marcado: { true: '', false: '' },
+  },
+  compoundVariants: [
+    { situacao: 'livre', marcado: true, class: 'bg-[var(--sobre-marca)]' },
+    { situacao: 'desconhecido', marcado: true, class: 'bg-transparent' },
+  ],
+  defaultVariants: { situacao: 'desconhecido', marcado: false },
+});
 
-export type TiraDeDiasProps = {
-  /** 14 dias; a ficha "Outro dia" é desenhada por dentro. */
-  dias: DiaDaTira[];
-  selecionado: string;
-  aoSelecionar: (iso: string) => void;
-  /** Limite do `<input type="date">` de "Outro dia" — hoje + `maxAdvanceDays`. */
-  maxIso: string;
-};
+export const outroDiaVariants = cva(
+  [
+    'relative col-span-7 mt-1 flex min-h-12 items-center justify-center rounded-cx',
+    'text-sm leading-5 font-bold',
+  ],
+  {
+    variants: {
+      marcado: {
+        true: 'border-2 border-tinta bg-marca text-[var(--sobre-marca)]',
+        false: 'border border-dashed border-linha text-tinta-2',
+      },
+    },
+    defaultVariants: { marcado: false },
+  },
+);
 
 /** "7 de set" — dia sem zero à esquerda, mês abreviado sem o ponto final. */
 function limitePorExtenso(iso: string): string {
@@ -52,39 +111,42 @@ function limitePorExtenso(iso: string): string {
     .replace(/\.$/, '');
 }
 
-export function TiraDeDias({ dias, selecionado, aoSelecionar, maxIso }: TiraDeDiasProps) {
+export function TiraDeDias({
+  dias,
+  selecionado,
+  aoSelecionar,
+  maxIso,
+  className,
+  ...resto
+}: TiraDeDiasProps) {
   const foraDaTira = dias.every((d) => d.iso !== selecionado);
   const primeiro = dias[0]?.iso ?? selecionado;
 
   return (
-    <div className="sticky top-[108px] z-10 -mx-4 grid grid-cols-7 gap-1 bg-bg px-4 pt-2 pb-3">
+    <div data-slot="tira-de-dias" className={cn(tiraDeDiasVariants(), className)} {...resto}>
       {dias.map((d) => {
         const marcado = d.iso === selecionado;
         return (
           <button
             key={d.iso}
             type="button"
+            data-slot="tira-dia"
             aria-pressed={marcado}
             onClick={() => aoSelecionar(d.iso)}
-            style={marcado ? { color: 'var(--sobre-marca)' } : undefined}
-            className={[
-              'flex min-h-[60px] flex-col items-center justify-center gap-0.5 rounded-cx',
-              marcado ? 'border-2 border-tinta bg-marca' : 'border border-linha bg-bg',
-            ].join(' ')}
+            className={cn(fichaDaTiraVariants({ marcado }))}
           >
             <span
-              className={[
-                'text-xs leading-4 font-bold uppercase',
-                marcado ? '' : 'text-tinta-3',
-              ].join(' ')}
+              data-slot="tira-dia-rotulo"
+              className={cn('text-xs leading-4 font-bold uppercase', !marcado && 'text-tinta-3')}
             >
               {d.rotulo}
             </span>
             <span
-              className={[
+              data-slot="tira-dia-numero"
+              className={cn(
                 'text-[22px] leading-[26px] font-extrabold',
-                marcado ? '' : d.situacao === 'cheio' ? 'text-tinta-3' : 'text-tinta',
-              ].join(' ')}
+                !marcado && (d.situacao === 'cheio' ? 'text-tinta-3' : 'text-tinta'),
+              )}
             >
               {d.numero}
             </span>
@@ -95,9 +157,9 @@ export function TiraDeDias({ dias, selecionado, aoSelecionar, maxIso }: TiraDeDi
             {/* O espaço de 4px fica reservado sempre, para nada saltar quando a
                 resposta de `/days` chegar. */}
             <span
+              data-slot="tira-ponto"
               aria-hidden="true"
-              className="h-1 w-1 rounded-full"
-              style={{ background: corDoPonto(d.situacao, marcado) }}
+              className={cn(pontoDaTiraVariants({ situacao: d.situacao, marcado }))}
             />
           </button>
         );
@@ -106,16 +168,7 @@ export function TiraDeDias({ dias, selecionado, aoSelecionar, maxIso }: TiraDeDi
       {/* "Outro dia": o `<input type="date">` nativo cobre a ficha inteira, e o
           `<label>` como contêiner dá a ele o nome acessível visível. Nada de
           retângulo tracejado mudo — a data-limite está escrita. */}
-      <label
-        style={foraDaTira ? { color: 'var(--sobre-marca)' } : undefined}
-        className={[
-          'relative col-span-7 mt-1 flex min-h-12 items-center justify-center rounded-cx',
-          'text-sm leading-5 font-bold',
-          foraDaTira
-            ? 'border-2 border-tinta bg-marca'
-            : 'border border-dashed border-linha text-tinta-2',
-        ].join(' ')}
-      >
+      <label data-slot="tira-outro-dia" className={cn(outroDiaVariants({ marcado: foraDaTira }))}>
         <span>Outro dia (até {limitePorExtenso(maxIso)})</span>
         <input
           type="date"

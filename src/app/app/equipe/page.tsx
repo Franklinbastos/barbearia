@@ -1,3 +1,4 @@
+import { ChevronRight } from 'lucide-react';
 import Link from 'next/link';
 import { requireSession } from '@/lib/session';
 import { db } from '@/db/client';
@@ -78,16 +79,16 @@ export default async function EquipePage({
                       {membro.role === 'OWNER' ? 'Dono' : 'Barbeiro'}
                     </span>
                   </span>
-                  <svg
+                  {/* A seta à mão era 5×10 de desenho numa caixa de 8×12. O
+                      `ChevronRight` do lucide tem a mesma proporção: em `size-5`
+                      o glifo sai com os mesmos 5×10, e o `-mr-1.5` desconta a
+                      folga que a caixa maior acrescentaria à direita. O traço
+                      vai a 2.4 de viewBox para render os mesmos 2px. */}
+                  <ChevronRight
                     aria-hidden="true"
-                    viewBox="0 0 8 12"
-                    className="ml-auto h-3 w-2 shrink-0"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                  >
-                    <path d="M1.5 1l5 5-5 5" />
-                  </svg>
+                    strokeWidth={2.4}
+                    className="ml-auto -mr-1.5 size-5 shrink-0"
+                  />
                 </Link>
 
                 <div>

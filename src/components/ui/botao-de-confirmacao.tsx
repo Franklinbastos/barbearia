@@ -1,6 +1,9 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ComponentProps } from 'react';
+import { cva } from 'class-variance-authority';
+
+import { cn } from '@/lib/utils';
 import { Botao } from './botao';
 
 /**
@@ -14,8 +17,18 @@ import { Botao } from './botao';
  *
  * A troca de rótulo é anunciada por `aria-live="polite"`: para quem usa leitor
  * de tela, um botão que muda de função sem avisar é uma armadilha.
+ *
+ * **Por que não veio do shadcn.** O `alert-dialog` é o equivalente de catálogo
+ * e resolve outro problema: ele abre uma segunda superfície flutuante, e a §4.3
+ * trava a folha inferior como a única do produto. O gesto daqui é o botão
+ * virando a própria confirmação, sob o mesmo dedo. Por dentro segue o padrão da
+ * casa — `cva`, `cn` e `data-slot` — e compõe o `<Botao>`, que é quem carrega a
+ * altura de balcão e o estado pendente.
  */
-export type BotaoDeConfirmacaoProps = {
+export type BotaoDeConfirmacaoProps = Omit<
+  ComponentProps<typeof Botao>,
+  'variante' | 'children' | 'onClick'
+> & {
   /** "Cancelar meu horário" */
   rotulo: string;
   /** "Confirmar cancelamento" */
@@ -23,11 +36,19 @@ export type BotaoDeConfirmacaoProps = {
   aoConfirmar: () => void;
   /** Padrão 4 — depois volta sozinho ao rótulo original. */
   segundos?: number;
-  pendente?: boolean;
-  /** Mostrado no lugar do rótulo enquanto `pendente` — "Cancelando…". */
-  rotuloPendente?: string;
   variante?: 'perigo' | 'secundario';
 };
+
+/**
+ * Armado ele é o único destino do olho: o rótulo engrossa e a variante vira
+ * `perigo` cheio, para o segundo toque não ser distraído.
+ */
+export const botaoDeConfirmacaoVariants = cva('', {
+  variants: {
+    armado: { true: 'font-bold', false: '' },
+  },
+  defaultVariants: { armado: false },
+});
 
 export function BotaoDeConfirmacao({
   rotulo,
@@ -35,8 +56,9 @@ export function BotaoDeConfirmacao({
   aoConfirmar,
   segundos = 4,
   pendente = false,
-  rotuloPendente,
   variante = 'perigo',
+  className,
+  ...resto
 }: BotaoDeConfirmacaoProps) {
   const [armado, setArmado] = useState(false);
   const relogio = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -75,16 +97,17 @@ export function BotaoDeConfirmacao({
 
   return (
     <Botao
+      {...resto}
+      data-slot="botao-de-confirmacao"
       type="button"
       variante={armado ? 'perigo' : variante}
       onClick={aoTocar}
       pendente={pendente}
-      rotuloPendente={rotuloPendente}
-      // Armado ele é o único destino do olho: some a borda vazada e vira
-      // preenchimento cheio, para o segundo toque não ser distraído.
-      className={armado ? 'font-bold' : undefined}
+      className={cn(botaoDeConfirmacaoVariants({ armado }), className)}
     >
-      <span aria-live="polite">{armado ? rotuloConfirmar : rotulo}</span>
+      <span data-slot="botao-de-confirmacao-rotulo" aria-live="polite">
+        {armado ? rotuloConfirmar : rotulo}
+      </span>
     </Botao>
   );
 }

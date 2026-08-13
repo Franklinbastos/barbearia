@@ -1,5 +1,6 @@
 'use client';
 
+import { X } from 'lucide-react';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 
 import { cn } from '@/lib/utils';
@@ -198,15 +199,11 @@ export function FolhaInferior({
             className="flex shrink-0 items-center justify-center"
             style={{ width: 48, height: 48, background: 'transparent', border: 0 }}
           >
-            <svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true" focusable="false">
-              <path
-                d="M4 4l12 12M16 4L4 16"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-              />
-            </svg>
+            {/* O X à mão tinha 12×12 de desenho com traço de 2px numa caixa de
+                20px. O `X` do lucide desenha exatamente 12×12 com traço 2 na
+                caixa de 24 — `size-6` devolve o mesmo glifo, e a caixa maior
+                não move nada porque ela é centrada nos 48px do botão. */}
+            <X aria-hidden="true" className="size-6" />
           </DrawerClose>
         </header>
 

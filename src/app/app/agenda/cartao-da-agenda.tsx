@@ -20,6 +20,21 @@ import type { AgendaItem } from './day-grid';
  * 2. **"Compareceu" e "Não veio" na própria linha, com 52px.** "Cancelar" sai
  *    da linha e vai para a folha do "⋯": os três botões colados faziam o polegar
  *    cancelar quem tinha acabado de sentar na cadeira.
+ *
+ * **Por que não há toast aqui.** O plano da migração previa o `sonner` para
+ * confirmar o "Compareceu" com um "Desfazer" ao lado. Ele foi trazido pelo CLI,
+ * medido e devolvido, por três motivos:
+ *
+ * 1. o **P5 da direção de UI proíbe toast no painel** com todas as letras —
+ *    "feedback no lugar do dedo, nunca toast; toast é para quem está olhando a
+ *    tela inteira, e aqui ninguém está";
+ * 2. a confirmação que o toast traria **já existe duas vezes**: a linha troca de
+ *    cor debaixo do polegar (`peleDoEstado`) e o "Desfazer" de 20s da §5.7.9
+ *    ocupa o lugar das ações logo abaixo — o segundo caminho de volta seria um
+ *    "Desfazer" competindo com o outro;
+ * 3. o `sonner` puxa o `next-themes`, cujo provedor este projeto não monta, e o
+ *    `<Toaster />` no layout raiz desceria junto com a página pública, que
+ *    precisa abrir em 3G na porta da barbearia.
  */
 
 /** Só depois disso um "não veio" é possível — antes, o botão nem existe. */

@@ -1,5 +1,6 @@
 'use client';
 
+import { Search } from 'lucide-react';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { formatDayLabelFromInstant, formatTime, isoDateInZone } from '@/lib/format';
@@ -144,10 +145,11 @@ export function BuscaDeCliente({ valorInicial = '' }: BuscaDeClienteProps) {
         className="flex shrink-0 items-center justify-center text-[var(--acao-tinta)]"
         style={{ width: 44, height: 44, background: 'transparent', border: 0 }}
       >
-        <svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true" focusable="false">
-          <circle cx="9" cy="9" r="6" fill="none" stroke="currentColor" strokeWidth="2" />
-          <path d="M13.5 13.5L18 18" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-        </svg>
+        {/* Mesma caixa de 20px da lupa desenhada à mão, centrada nos 44px do
+            botão. O `strokeWidth` vai em unidade de viewBox, então 2.4 numa
+            caixa de 20 sai com os mesmos 2px de traço que o produto usa em
+            todo desenho — inclusive na seta do `<select>` (§3.1). */}
+        <Search aria-hidden="true" className="size-5" strokeWidth={2.4} />
       </button>
 
       <FolhaInferior aberta={aberta} titulo="Buscar cliente" aoFechar={fechar}>
