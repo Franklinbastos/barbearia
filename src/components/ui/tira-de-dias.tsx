@@ -167,7 +167,16 @@ export function TiraDeDias({
 
       {/* "Outro dia": o `<input type="date">` nativo cobre a ficha inteira, e o
           `<label>` como contêiner dá a ele o nome acessível visível. Nada de
-          retângulo tracejado mudo — a data-limite está escrita. */}
+          retângulo tracejado mudo — a data-limite está escrita.
+
+          **Por que aqui continua nativo, contra a fidelidade ao shadcn.** Esta é
+          a única superfície do produto que é do cliente final, no celular dele,
+          e o seletor nativo é o do sistema: já traduzido, já acessível, já
+          conhecido, e abre em tela cheia sem custar JS. O `Popover`+`Calendar`
+          da lib ganha no desktop do painel — onde ele foi adotado —, mas num
+          telefone ele é um calendário desenhado por nós concorrendo com o que a
+          pessoa usa em todos os outros aplicativos. Se um dia a decisão mudar, é
+          trocar este bloco pelo mesmo par usado em `barra-de-data.tsx`. */}
       <label data-slot="tira-outro-dia" className={cn(outroDiaVariants({ marcado: foraDaTira }))}>
         <span>Outro dia (até {limitePorExtenso(maxIso)})</span>
         <input

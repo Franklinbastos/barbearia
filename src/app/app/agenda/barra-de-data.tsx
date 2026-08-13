@@ -10,6 +10,7 @@ import { useState } from 'react';
 import { Button, buttonVariants } from '@/components/ui/button';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { dataParaISO, isoParaData } from '@/lib/data-local';
 import { cn } from '@/lib/utils';
 
 /**
@@ -55,21 +56,6 @@ export type BarraDeDataProps = {
  * densidade antiga de balcão que a reforma aposentou.
  */
 const ALVO_44 = 'size-11 shrink-0';
-
-/** `YYYY-MM-DD` do fuso da loja → `Date` local do mesmo dia civil, ao meio-dia. */
-function isoParaData(iso: string): Date {
-  const [ano, mes, dia] = iso.split('-').map(Number);
-  // Meio-dia, e não meia-noite: há fusos em que a meia-noite local não existe
-  // no dia da virada de horário de verão, e o `Date` escorrega para o dia
-  // anterior. É a mesma defesa do `T12:00:00Z` do `src/lib/format.ts`.
-  return new Date(ano!, mes! - 1, dia!, 12);
-}
-
-/** `Date` local → `YYYY-MM-DD` pelo calendário local. Nunca por UTC. */
-function dataParaISO(data: Date): string {
-  const dois = (n: number) => String(n).padStart(2, '0');
-  return `${data.getFullYear()}-${dois(data.getMonth() + 1)}-${dois(data.getDate())}`;
-}
 
 function deslocarDia(iso: string, dias: number): string {
   const [ano, mes, dia] = iso.split('-').map(Number);

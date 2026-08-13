@@ -1,17 +1,22 @@
 'use client';
 
+import { CalendarDays } from 'lucide-react';
+import { ptBR } from 'react-day-picker/locale';
 import { useActionState, useEffect, useMemo, useState } from 'react';
 import { carregarHorarios, type HorarioDisponivel } from '@/components/availability';
 import { ErroDeAcao } from '@/components/erro-de-acao';
 import { Bloco } from '@/components/ui/bloco';
 import { Botao } from '@/components/ui/botao';
+import { Calendar } from '@/components/ui/calendar';
 import { Campo } from '@/components/ui/campo';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { EsqueletoDeLinha } from '@/components/ui/esqueleto-de-linha';
 import { FichasDeEscolha, type FichaDeEscolha } from '@/components/ui/fichas-de-escolha';
 import { FolhaInferior } from '@/components/ui/folha-inferior';
 import { Segmentado } from '@/components/ui/segmentado';
 import { coresDeBarbeiro } from '@/lib/cores-de-barbeiro';
-import { formatDuration, formatTime } from '@/lib/format';
+import { dataParaISO, isoParaData } from '@/lib/data-local';
+import { formatDayLabelLong, formatDuration, formatTime } from '@/lib/format';
 import { aplicarMascaraTelefone } from '@/lib/telefone';
 import { createManualAppointmentAction, type ManualBookingState } from './actions';
 import { avisoDeHorarioLivre, deslocarHora, horaDeAgoraArredondada } from './encaixe';
@@ -79,6 +84,7 @@ export function ManualBookingForm({
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [agendou, setAgendou] = useState(false);
+  const [calendarioAberto, setCalendarioAberto] = useState(false);
 
   const cores = useMemo(() => coresDeBarbeiro(staffList), [staffList]);
 
@@ -271,15 +277,35 @@ export function ManualBookingForm({
           {modo === 'agora' ? (
             <input type="hidden" name="date" value={date} />
           ) : (
-            <Campo rotulo="Data">
-              <input
-                type="date"
-                name="date"
-                value={date}
-                onChange={(e) => setDate(e.target.value)}
-                required
-              />
-            </Campo>
+            <div className="flex flex-col gap-1.5">
+              <span className="text-sm font-medium">Data</span>
+              {/* O dia continua indo como campo escondido: o Calendar não é um
+                  controle de formulário e a server action espera `date`. */}
+              <input type="hidden" name="date" value={date} />
+              <Popover open={calendarioAberto} onOpenChange={setCalendarioAberto}>
+                <PopoverTrigger
+                  render={
+                    <Botao variante="secundario" largura="total" type="button">
+                      <CalendarDays aria-hidden="true" className="size-4" />
+                      {formatDayLabelLong(date, timeZone)}
+                    </Botao>
+                  }
+                />
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar
+                    mode="single"
+                    locale={ptBR}
+                    selected={isoParaData(date)}
+                    defaultMonth={isoParaData(date)}
+                    onSelect={(escolhido) => {
+                      if (!escolhido) return;
+                      setDate(dataParaISO(escolhido));
+                      setCalendarioAberto(false);
+                    }}
+                  />
+                </PopoverContent>
+              </Popover>
+            </div>
           )}
 
           <div className="flex flex-col gap-2">
