@@ -1,10 +1,29 @@
 'use client';
 
-import { CalendarDays, Contact, LogOut, Scissors, Settings, Store, Users } from 'lucide-react';
+import {
+  CalendarDays,
+  ChevronsUpDown,
+  Contact,
+  LogOut,
+  Scissors,
+  Settings,
+  Store,
+  Users,
+} from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useState } from 'react';
 import { authClient } from '@/lib/auth-client';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import {
   Sidebar,
@@ -19,6 +38,7 @@ import {
   SidebarMenuItem,
   SidebarRail,
   SidebarSeparator,
+  useSidebar,
 } from '@/components/ui/sidebar';
 
 /**
@@ -30,7 +50,8 @@ import {
  * - As cinco seções, com `aria-current="page"` na ativa (o realce de cor
  *   sozinho nunca foi o contrato — ver `tests/unit/casca.test.tsx`).
  * - O **logout**, que não existia no produto antes da reforma. Continua no
- *   rodapé, junto do monograma de quem está logado.
+ *   rodapé — desde 13/08/2026 dentro do menu de conta, não mais como botão
+ *   solto (ver `ContaDoRodape` abaixo).
  * - O nome da loja, agora no topo da sidebar e também na barra da `SidebarInset`
  *   (ver `src/app/app/layout.tsx`), porque no celular a sidebar nasce fechada.
  *
@@ -62,16 +83,50 @@ export type PanelNavProps = {
    * caminho é a única entrada do componente que o teste precisa controlar.
    */
   ativo?: string;
-  /** Iniciais do rodapé. Sem nome, a conta fica só com o verbo. */
+  /**
+   * Nome de quem está logado — vira o rótulo e as iniciais do avatar do menu de
+   * conta. Sem ele o item fica em "Conta", com o ícone no lugar das letras.
+   */
   nomeDoUsuario?: string;
 };
 
-export function PanelNav({ nomeDaLoja, ativo, nomeDoUsuario }: PanelNavProps) {
-  const pathname = usePathname();
-  const atual = ativo ?? pathname ?? '';
+/**
+ * Duas letras para o `AvatarFallback` — "Marcos Silva" vira `MS`, "Marcão" vira
+ * `M`. Sem nome não há iniciais, e o avatar cai no ícone de conta.
+ */
+function iniciais(nome: string): string {
+  const partes = nome.trim().split(/\s+/).filter(Boolean);
+  if (partes.length === 0) return '';
+  const primeira = partes[0]?.[0] ?? '';
+  const ultima = partes.length > 1 ? (partes[partes.length - 1]?.[0] ?? '') : '';
+  return `${primeira}${ultima}`.toUpperCase();
+}
+
+/**
+ * O `nav-user` do `dashboard-01`: um item de menu no `SidebarFooter` com
+ * `Avatar` + nome + `ChevronsUpDown`, e as ações de conta dentro de um
+ * `DropdownMenu`.
+ *
+ * **O logout mora aqui.** Até 13/08/2026 ele era o próprio botão do rodapé —
+ * clicar na conta *era* sair, o que resolvia o problema de o produto não ter
+ * saída nenhuma, mas não sobrava lugar para uma segunda ação de conta e
+ * "clicar no meu nome me desloga" é uma armadilha. Agora o botão abre o menu e
+ * "Sair" é um item de lá. Quem for reescrever esta casca de novo: **o item de
+ * sair é obrigatório**, e `tests/unit/casca.test.tsx` abre o menu justamente
+ * para conferir que ele continua existindo.
+ *
+ * O item usa `closeOnClick={false}` de propósito: `signOut()` é uma ida ao
+ * servidor e o menu fechando na hora deixaria a tela parada sem nada acontecer.
+ * Fechado o menu, o "Saindo…" não teria onde aparecer.
+ */
+function ContaDoRodape({ nomeDoUsuario }: { nomeDoUsuario?: string }) {
+  const { isMobile } = useSidebar();
   const [saindo, setSaindo] = useState(false);
+  const nome = nomeDoUsuario?.trim() || 'Conta';
+  const letras = nomeDoUsuario ? iniciais(nomeDoUsuario) : '';
 
   async function sair() {
+    if (saindo) return;
     setSaindo(true);
     try {
       await authClient.signOut();
@@ -84,6 +139,86 @@ export function PanelNav({ nomeDaLoja, ativo, nomeDoUsuario }: PanelNavProps) {
       window.location.href = '/login';
     }
   }
+
+  return (
+    <SidebarMenu>
+      <SidebarMenuItem>
+        <DropdownMenu>
+          <DropdownMenuTrigger
+            render={
+              <SidebarMenuButton
+                size="lg"
+                className="data-popup-open:bg-muted data-popup-open:text-foreground"
+              >
+                <Avatar className="size-8 rounded-lg">
+                  <AvatarFallback className="rounded-lg">
+                    {letras ? letras : <Contact aria-hidden="true" />}
+                  </AvatarFallback>
+                </Avatar>
+                <span className="grid flex-1 text-left leading-tight">
+                  <span className="truncate font-medium">{nome}</span>
+                  {/* Sem nome, a linha de cima já é "Conta" e a de baixo diria
+                      "Minha conta" — duas vezes a mesma palavra em duas linhas. */}
+                  {saindo || nomeDoUsuario ? (
+                    <span className="truncate text-xs text-muted-foreground">
+                      {saindo ? 'Saindo…' : 'Minha conta'}
+                    </span>
+                  ) : null}
+                </span>
+                <ChevronsUpDown aria-hidden="true" className="ml-auto size-4" />
+              </SidebarMenuButton>
+            }
+          />
+
+          {/* No desktop a sidebar é coluna e o menu abre ao lado; no celular ela
+              é gaveta colada na borda esquerda e não há "ao lado" — abre por
+              baixo, como o `dashboard-01` faz. */}
+          <DropdownMenuContent
+            className="min-w-56 rounded-lg"
+            side={isMobile ? 'bottom' : 'right'}
+            align="end"
+            sideOffset={4}
+          >
+            {/* O `DropdownMenuLabel` é o `Menu.GroupLabel` do base-ui, e ele
+                **explode** fora de um `Menu.Group` — não é enfeite de
+                agrupamento, é requisito do primitivo. O grupo é um só porque a
+                legenda rotula a mesma coisa que o item: a conta.
+
+                E o item é um só, que é o que o produto tem de ação de conta
+                hoje. "Configurações" e "Equipe" já são seções da nav e não se
+                repetem aqui: menu de conta com atalho para o que está dois
+                centímetros acima é ruído, não conveniência. */}
+            <DropdownMenuGroup>
+              <DropdownMenuLabel className="p-0 font-normal">
+                <div className="flex items-center gap-2 px-1 py-1.5 text-sm">
+                  <Avatar className="size-8 rounded-lg">
+                    <AvatarFallback className="rounded-lg">
+                      {letras ? letras : <Contact aria-hidden="true" />}
+                    </AvatarFallback>
+                  </Avatar>
+                  <span className="grid flex-1 text-left leading-tight">
+                    <span className="truncate font-medium text-foreground">{nome}</span>
+                  </span>
+                </div>
+              </DropdownMenuLabel>
+
+              <DropdownMenuSeparator />
+
+              <DropdownMenuItem closeOnClick={false} disabled={saindo} onClick={sair}>
+                <LogOut aria-hidden="true" />
+                {saindo ? 'Saindo…' : 'Sair'}
+              </DropdownMenuItem>
+            </DropdownMenuGroup>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </SidebarMenuItem>
+    </SidebarMenu>
+  );
+}
+
+export function PanelNav({ nomeDaLoja, ativo, nomeDoUsuario }: PanelNavProps) {
+  const pathname = usePathname();
+  const atual = ativo ?? pathname ?? '';
 
   return (
     // O provider fica aqui, e não na raiz do app: a única dica de ferramenta do
@@ -140,24 +275,7 @@ export function PanelNav({ nomeDaLoja, ativo, nomeDoUsuario }: PanelNavProps) {
         <SidebarSeparator />
 
         <SidebarFooter>
-          <SidebarMenu>
-            <SidebarMenuItem>
-              {/* O nome de quem está logado e o verbo no mesmo controle, como
-                  era na barra preta: clicar na conta É sair. Encolhido, sobra o
-                  ícone com a dica "Sair da conta". */}
-              <SidebarMenuButton size="lg" tooltip="Sair da conta" disabled={saindo} onClick={sair}>
-                <LogOut aria-hidden="true" />
-                <span className="grid flex-1 text-left leading-tight">
-                  {nomeDoUsuario ? (
-                    <span className="truncate font-medium">{nomeDoUsuario}</span>
-                  ) : null}
-                  <span className="truncate text-xs text-muted-foreground">
-                    {saindo ? 'Saindo…' : 'Sair'}
-                  </span>
-                </span>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
-          </SidebarMenu>
+          <ContaDoRodape nomeDoUsuario={nomeDoUsuario} />
         </SidebarFooter>
 
         <SidebarRail />
