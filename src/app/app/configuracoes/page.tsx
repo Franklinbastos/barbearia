@@ -23,8 +23,16 @@ export default async function ConfiguracoesPage() {
       {/* O teto da tela mora aqui, não dentro do formulário: a página decide
           quanto ocupa, o formulário decide como se arruma por dentro. Era um
           card de 520px sobre um formulário de 520px numa tela de 1400 — dois
-          terços vazios. */}
-      <Largura tipo="leitura">
+          terços vazios.
+
+          `tabela`, e não `leitura`, pelo mesmo motivo que tirou a agenda dos
+          1120px: as cinco telas do painel começam na mesma coluna, e a que
+          escolher outro teto é a que parece de outro produto quando se navega
+          entre elas. As duas colunas de campos continuam: o `lg:` do
+          `settings-form` olha a janela, não este teto, e em 880px cada coluna
+          fica com ~430px — abaixo dos 520 da régua, que é o teto do campo e
+          não o piso. */}
+      <Largura tipo="tabela">
         <SettingsForm loja={loja} linkPublico={linkPublico} />
       </Largura>
     </div>

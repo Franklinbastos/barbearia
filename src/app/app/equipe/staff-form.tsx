@@ -22,12 +22,18 @@ export function StaffForm() {
 
   if (!aberto) {
     return (
+      // Mesmo `self-start` do formulário de serviços, pela mesma razão: filho
+      // direto do `flex flex-col` da tela estica por `align-items: stretch`, e
+      // o stretch só age quando a largura é `auto` — o `md:w-auto` sozinho
+      // pedia exatamente essa condição, e o botão ia aos 880px do bloco. O
+      // `align-self` mora aqui para a página não ter que lembrar de nada; no
+      // celular o `largura="total"` continua valendo.
       <Botao
         type="button"
         variante="secundario"
         largura="total"
         onClick={() => setAberto(true)}
-        className="md:w-auto"
+        className="self-start md:w-auto"
       >
         Adicionar barbeiro
       </Botao>

@@ -2,7 +2,7 @@ import { DateTime } from 'luxon';
 import { requireSession } from '@/lib/session';
 import { db } from '@/db/client';
 import { findBarbershopById, listActiveStaff, listActiveServices, listAppointmentsBetween } from '@/db/repositories';
-import { formatDayLabelLong } from '@/lib/format';
+import { CabecalhoDePagina } from '@/components/ui/cabecalho-de-pagina';
 import { Largura } from '@/components/ui/largura';
 import { BarraDeData } from './barra-de-data';
 import { DayGrid } from './day-grid';
@@ -46,10 +46,27 @@ export default async function AgendaPage({
   return (
     // pb-16 reserva o rodapé para a barra fixa do celular; no desktop ela não existe
     <div className="pb-16 md:pb-0">
-      {/* O título não ocupa altura na primeira dobra — a barra de data já diz
-          que dia é este, e 40px de cabeçalho custam meia linha da lista. Fica
-          para o leitor de tela e para a estrutura do documento. */}
-      <h1 className="sr-only">Agenda — {formatDayLabelLong(dataISO, timeZone)}</h1>
+      {/* Esta era a única tela do painel sem título à vista, e no desktop isso
+          fazia a agenda parecer de outro produto: as cinco irmãs abrem com o
+          mesmo `<CabecalhoDePagina>` e esta abria direto na barra de data.
+
+          No celular ele continua escondido — a primeira dobra é do balcão, e
+          40px de cabeçalho custam meia linha da lista —, mas agora por `md:` e
+          não por `sr-only` sempre. `sr-only md:not-sr-only` esconde só o olho: o
+          `<h1>` continua na árvore de acessibilidade nas duas larguras, e no
+          celular ele nem é item do fluxo (o `sr-only` o tira com
+          `position: absolute`), então não sobra buraco nenhum acima da barra.
+
+          O `mb-0` desliga a margem que o componente traz para o espaço vir do
+          `md:mb-3` daqui: a margem própria dele só valeria no desktop, e no
+          celular seria folga de um bloco invisível. */}
+      <Largura tipo="tabela" className="md:mb-3">
+        <CabecalhoDePagina
+          titulo="Agenda"
+          descricao="Quem vem, a que horas e com quem."
+          className="mb-0 sr-only md:not-sr-only"
+        />
+      </Largura>
 
       {/* O encaixe entra pela `acao` da barra em vez de virar um bloco próprio
           logo abaixo dela: no desktop é a primeira ação da tela e agora divide a
@@ -74,10 +91,16 @@ export default async function AgendaPage({
         }
       />
 
-      {/* A lista para no mesmo teto de `leitura` do conteúdo da barra (§3.7):
-          com a barra contida e a lista solta até os 1400px do container, o
-          degrau só teria mudado de lugar. */}
-      <Largura tipo="leitura">
+      {/* `tabela`, o mesmo degrau de Serviços, Equipe e Clientes (§3.7): a
+          agenda é lista com ação, igual a elas, e era a única do painel em
+          `leitura` — lado a lado na navegação ela pulava 240px para fora do
+          alinhamento das irmãs. O cartão não fica apertado em 880: ele é
+          `[64px_1fr]` com uma linha de ação de `1fr 1fr 44px`, e nessa largura
+          cada botão ainda sai com ~400px.
+
+          A barra de data segue este mesmo teto por dentro — esqueleto, barra e
+          lista num degrau só, senão o degrau só mudaria de lugar. */}
+      <Largura tipo="tabela">
         <DayGrid
           appointments={appointments}
           staffList={staffList}

@@ -557,8 +557,15 @@ esquerdo de uma tela de 1400px.
 | `leitura` | 1120px | Conteúdo corrido e grade de cards. Abaixo dos 1400px do container de propósito: texto que atravessa a tela inteira cansa. |
 | `cheia` | — | Grade que se vira sozinha. Sem teto. |
 
-O `<Largura>` é um `<div class="w-full">` e **nunca** `mx-auto`: o painel alinha à esquerda, e
-centralizar mudaria a posição de todas as telas de uma vez.
+O `<Largura>` é um `<div class="mx-auto w-full">` — **centralizado**. A primeira versão alinhava à
+esquerda, e o dono reprovou olhando a tela pronta: uma lista de 880px numa área útil de 1184px
+deixava 300px de vazio só do lado direito, e o painel parecia encostado num canto em vez de
+composto. Centralizar reparte a folga nos dois lados. Vale para o bloco; o texto e os controles
+dentro dele continuam alinhados à esquerda.
+
+Um bloco estreito **dentro** de outro herda esse `mx-auto`, e nem sempre é o que se quer: um
+formulário de 520px dentro de um card de 880px fica com 180px de folga de cada lado. Quando o
+formulário for a continuação visual da lista logo abaixo, ancore com `mx-0`.
 
 **A forma certa é a do resumo** — a tela que o dono aprovou. Ela não tem largura mágica nenhuma:
 `grid-cols-1 sm:grid-cols-2 xl:grid-cols-4` ocupando o container, zero `max-w`

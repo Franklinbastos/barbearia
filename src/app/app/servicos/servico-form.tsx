@@ -44,12 +44,22 @@ export function ServicoForm() {
 
   if (!aberto) {
     return (
+      // Quem segura a largura é o `self-start`, não o `md:w-auto` — e a
+      // armadilha vale guardar. Este botão nasce filho direto de um
+      // `flex flex-col` (a `<Largura>` da tela) e num flex-column o filho
+      // estica na transversal por `align-items: stretch`. O detalhe é que o
+      // stretch só age quando a largura é `auto`: `md:w-auto` pedia justamente
+      // a condição que faz o stretch valer, então o botão saía com os 880px da
+      // tela inteira em vez do tamanho do texto. Quem desliga o stretch é o
+      // `align-self`, e ele fica aqui de propósito — a tela que renderiza este
+      // formulário não precisa lembrar de nada. No celular nada muda: o
+      // `largura="total"` continua mandando.
       <Botao
         type="button"
         variante="secundario"
         largura="total"
         onClick={() => setAberto(true)}
-        className="md:w-auto"
+        className="self-start md:w-auto"
       >
         Adicionar serviço
       </Botao>

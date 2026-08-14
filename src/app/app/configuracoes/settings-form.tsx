@@ -43,13 +43,27 @@ const OPCOES_DE_GRADE = GRADES_PERMITIDAS.map((g) => ({ label: `${g} min`, value
  * Largura e altura são as duas únicas coisas ajustadas — o resto (borda, raio,
  * tipografia, anel de foco, seta) é o do base-nova, sem uma linha desfeita.
  *
+ * **A largura volta a ser a do conteúdo a partir de `sm`.** Em 1440px estes dois
+ * campos mediam 520px — a coluna inteira do card — para mostrar
+ * "America/Sao_Paulo" e "30 min". Campo de escolher não é campo de digitar: o
+ * teto de `formulario` existe para linha de texto que o olho percorre, e num
+ * disparador ele só afasta a seta do rótulo escolhido. Abaixo de `sm` continua
+ * largura total, onde a coluna é uma só e controle estreito no meio do vazio
+ * fica pior do que largo.
+ *
+ * É `max-w-fit`, e não `w-fit`, por causa do `*:w-full` que o `Field` do
+ * base-nova põe em todo filho direto: contra ele, `w-fit` empata em
+ * especificidade e o resultado passa a depender da ordem em que o Tailwind
+ * gerar as duas regras. `max-width` é outra propriedade, não disputa com
+ * ninguém, e deixa o `width: 100%` valendo inteiro no celular.
+ *
  * Elas vêm por aqui, e não do `<Campo>`: o `Campo` clona o filho com `id` e
  * `className`, e o `Select.Root` só aceita o `id` (que ele repassa ao
  * disparador, o que mantém o `htmlFor` do rótulo funcionando). O resto do que o
  * `Campo` injeta cai no chão — **quem puser `dica` ou `erro` num destes dois
  * campos precisa levar o `aria-describedby` até o `<SelectTrigger>` na mão.**
  */
-const DISPARADOR = 'min-h-[var(--altura-controle)] w-full';
+const DISPARADOR = 'min-h-[var(--altura-controle)] w-full sm:max-w-fit';
 
 /**
  * O rótulo dos blocos que não são campo. O endereço público e a cor da loja são
@@ -137,25 +151,36 @@ export function SettingsForm({ loja, linkPublico }: { loja: Loja; linkPublico?: 
 
           {/* Doze fichas em vez de `input type="color"`: menos escolha e zero
               cor feia. O dono controla só o matiz — L e croma são travados,
-              então nenhuma escolha produz botão ilegível na página pública. */}
-          <fieldset className="flex flex-col gap-2">
-            <legend className={`pb-1 ${MICRO_ROTULO}`}>Cor da loja</legend>
-            <p className="text-sm leading-5 text-tinta-3">
-              Aparece só na página que o cliente vê. Sem cor, a página fica preto e branco.
-            </p>
+              então nenhuma escolha produz botão ilegível na página pública.
 
+              O teto de `formulario` passou a envolver o `<fieldset>` inteiro, e
+              não só a grade de fichas: desde que a régua ganhou `mx-auto`, um
+              bloco de 520px dentro do card de 1120 fica centrado, e com a
+              `<legend>` e o "Escolhida:" de fora sobrava um bloco de fichas
+              deslocado do próprio rótulo. Com todo mundo dentro do mesmo teto,
+              o pedaço anda inteiro — não importa se centrado ou à esquerda. */}
+          <Largura tipo="formulario">
             {/* O grupo acessível é o próprio `<fieldset>`, nomeado pela
                 `<legend>` — um `role="group"` aqui dentro criaria um segundo
                 grupo de mesmo nome dentro do primeiro. */}
-            <Largura tipo="formulario" className="flex flex-col gap-2">
+            <fieldset className="flex flex-col gap-2">
+              <legend className={`pb-1 ${MICRO_ROTULO}`}>Cor da loja</legend>
+              <p className="text-sm leading-5 text-tinta-3">
+                Aparece só na página que o cliente vê. Sem cor, a página fica preto e branco.
+              </p>
+
+              {/* Nenhuma das treze fichas carrega altura própria: ficha é
+                  controle, e controle mede `--altura-controle` (36px) desde
+                  13/08/2026 — a mesma régua do botão, do campo e da
+                  `fichas-de-escolha`. O `min-h-12` que estava aqui era a
+                  "altura de balcão" de 48px da direção velha, e deixava aqui a
+                  única fileira de 48px de uma tela inteira de 36. */}
               <Botao
                 type="button"
                 variante="secundario"
                 aria-pressed={matiz === null}
                 onClick={() => setMatiz(null)}
-                className={`min-h-12 self-start ${
-                  matiz === null ? 'border-2 border-tinta font-bold' : ''
-                }`}
+                className={`self-start ${matiz === null ? 'border-2 border-tinta font-bold' : ''}`}
               >
                 Sem cor
               </Botao>
@@ -176,26 +201,30 @@ export function SettingsForm({ loja, linkPublico }: { loja: Loja; linkPublico?: 
                       aria-label={NOME_DO_MATIZ[h]}
                       title={NOME_DO_MATIZ[h]}
                       onClick={() => setMatiz(h)}
-                      className={`min-h-12 w-full px-0 ${escolhido ? 'border-2 border-tinta' : ''}`}
+                      className={`w-full px-0 ${escolhido ? 'border-2 border-tinta' : ''}`}
                     >
+                      {/* 24px, e não os 28px de antes: a ficha desceu de 48 para
+                          36, e a borda de 2px da escolhida come mais 4 — com o
+                          quadrado velho sobrava 1px de cada lado e a cor
+                          encostava na moldura. */}
                       <span
                         aria-hidden="true"
-                        className="h-7 w-7 rounded-cx border border-linha"
+                        className="h-6 w-6 rounded-cx border border-linha"
                         style={{ background: corDoMatiz(h) }}
                       />
                     </Botao>
                   );
                 })}
               </div>
-            </Largura>
 
-            {/* Campo oculto: a server action continua lendo um FormData comum. */}
-            <input type="hidden" name="accentHue" value={matiz === null ? '' : String(matiz)} />
+              {/* Campo oculto: a server action continua lendo um FormData comum. */}
+              <input type="hidden" name="accentHue" value={matiz === null ? '' : String(matiz)} />
 
-            <p className="text-sm leading-5 text-tinta-2">
-              Escolhida: <strong>{matiz === null ? 'Sem cor' : NOME_DO_MATIZ[matiz]}</strong>
-            </p>
-          </fieldset>
+              <p className="text-sm leading-5 text-tinta-2">
+                Escolhida: <strong>{matiz === null ? 'Sem cor' : NOME_DO_MATIZ[matiz]}</strong>
+              </p>
+            </fieldset>
+          </Largura>
         </CardContent>
       </Card>
 
@@ -304,7 +333,20 @@ export function SettingsForm({ loja, linkPublico }: { loja: Loja; linkPublico?: 
           </p>
         ) : null}
 
-        <Botao type="submit" largura="total" pendente={pending} rotuloPendente="Salvando…">
+        {/* No desktop ele nem chega nos 520: formulário de coluna única tem um
+            envio só, e botão que atravessa a coluna inteira vira faixa de novo,
+            só que menor. `sm:w-auto` desfaz o `w-full` do `largura="total"` e
+            `sm:self-start` é o par obrigatório dele — sem isso o `align-items:
+            stretch` desta coluna estica o botão de volta, porque `width: auto`
+            em item de flex é justamente o caso em que o stretch manda. Abaixo de
+            `sm` continua largura total, que é o alvo que o polegar quer. */}
+        <Botao
+          type="submit"
+          largura="total"
+          pendente={pending}
+          rotuloPendente="Salvando…"
+          className="sm:w-auto sm:self-start"
+        >
           Salvar configurações
         </Botao>
       </Largura>

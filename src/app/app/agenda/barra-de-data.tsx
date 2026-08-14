@@ -45,11 +45,18 @@ import { cn } from '@/lib/utils';
  * dia em UTC, e às 21h em São Paulo já é o dia seguinte) — o mesmo erro que o
  * `isoDateInZone` do `src/lib/format.ts` foi criado para tirar do produto.
  *
- * **Largura (§3.7).** O `1fr` do meio dava ~1300px ao botão que escreve "sexta,
- * 14 de agosto". O teto de `leitura` entra **dentro** da faixa fixa, nunca em
- * volta dela: o fundo e a borda continuam atravessando a tela de ponta a ponta,
- * e é o `-mx-3 md:-mx-5` que os faz encostar nas laterais. O que fica contido é
- * o conteúdo da faixa, não a faixa.
+ * **Largura (§3.7).** O teto entra **dentro** da faixa fixa, nunca em volta
+ * dela: o fundo e a borda continuam atravessando a tela de ponta a ponta, e é o
+ * `-mx-3 md:-mx-5` que os faz encostar nas laterais. O que fica contido é o
+ * conteúdo da faixa, não a faixa. O degrau é `tabela`, o mesmo da lista logo
+ * abaixo e o das outras telas de lista do painel — barra num teto e lista em
+ * outro é o degrau que o teto existe para não ter.
+ *
+ * Conter a faixa não bastava para o botão do meio: mesmo dentro do teto ele
+ * herdava o `1fr` da grade e chegava a 932px para escrever "sexta, 14 de
+ * agosto", ~150px de texto. No desktop a coluna do meio passa a ter largura
+ * fixa, medida pelo rótulo mais longo do ano ("quarta, 30 de setembro"); no
+ * celular ela continua sendo o `1fr` entre as duas setas, que lá é o certo.
  */
 export type BarraDeDataProps = {
   dataISO: string;
@@ -108,13 +115,18 @@ export function BarraDeData({ dataISO, hojeISO, contagens, acao }: BarraDeDataPr
   return (
     <div className="-mx-3 mb-2 md:-mx-5">
       <div className="sticky top-0 z-10 flex h-16 flex-col justify-center border-b border-border bg-background px-3 md:px-5">
-        <Largura tipo="leitura" className="flex flex-col gap-1">
+        <Largura tipo="tabela" className="flex flex-col gap-1">
           {/* A ação divide a linha com a navegação em vez de ganhar uma faixa
               própria abaixo. No celular ela não rende nenhum item de flex — o
               que o chamador manda para cá é `hidden` ou fora de fluxo — e por
               isso o `gap-2` não abre buraco nos 360px. */}
           <div className="flex h-11 items-center gap-2">
-            <div className="grid min-w-0 flex-1 grid-cols-[44px_1fr_44px] items-center gap-2">
+            {/* A grade continua `flex-1` no desktop de propósito: é ela que
+                empurra a ação para a ponta direita da faixa, como o cabeçalho
+                das outras telas faz. Com as três colunas fixas a sobra fica
+                dentro da grade, à direita das setas, em vez de esticar o botão
+                do meio. */}
+            <div className="grid min-w-0 flex-1 grid-cols-[44px_1fr_44px] items-center gap-2 md:grid-cols-[44px_240px_44px]">
               <Link
                 href={`/app/agenda?data=${ontem}`}
                 aria-label="Ontem"

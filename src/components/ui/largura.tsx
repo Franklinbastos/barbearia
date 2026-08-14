@@ -31,8 +31,11 @@ import { cn } from '@/lib/utils';
  *   hoje sem precisar declarar, e é a forma certa: `grid-cols-1 sm:grid-cols-2
  *   xl:grid-cols-4` ocupando o container, zero `max-w`.
  *
- * **Nunca `mx-auto`.** O painel alinha à esquerda; centralizar aqui mudaria a
- * posição de todas as telas de uma vez.
+ * **Centralizado (`mx-auto`).** Foi decisão do dono, depois de ver a primeira
+ * versão: alinhado à esquerda, uma lista de 880px numa área útil de 1184px
+ * deixava 300px de vazio só do lado direito, e a tela parecia encostada num
+ * canto em vez de composta. Centralizar reparte a folga nos dois lados. Vale
+ * para o bloco; o texto dentro dele continua alinhado à esquerda.
  *
  * **Sem `'use client'`, de propósito.** É um `<div>` com uma classe, e quem o usa
  * é quase todo Server Component.
@@ -43,7 +46,7 @@ export type LarguraProps = ComponentProps<'div'> & {
   tipo?: TipoDeLargura;
 };
 
-export const larguraVariants = cva('w-full', {
+export const larguraVariants = cva('mx-auto w-full', {
   variants: {
     tipo: {
       leitura: 'max-w-[1120px]',
