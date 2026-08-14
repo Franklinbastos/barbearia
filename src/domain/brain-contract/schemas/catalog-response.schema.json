@@ -1,0 +1,236 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "required": [
+    "operations",
+    "intentSlots",
+    "uxHints"
+  ],
+  "properties": {
+    "operations": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "intentSlots": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "required": [
+            "name"
+          ],
+          "properties": {
+            "name": {
+              "type": "string",
+              "minLength": 1
+            },
+            "format": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "hint": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "alwaysMissing": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "resolutionStrategy": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "resolverKey": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "minimumSlots": {
+              "type": [
+                "array",
+                "null"
+              ],
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          "additionalProperties": true
+        }
+      }
+    },
+    "uxHints": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "label": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "emoji": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "showInMenu": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "inverseOperation": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "suggestedNextOperations": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            }
+          },
+          "temporalPolicy": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "supportsCollectiveMode": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          }
+        },
+        "additionalProperties": true
+      }
+    },
+    "slotDisplayNames": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "additionalProperties": {
+        "type": "string"
+      }
+    },
+    "copyHintsByOperation": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "candidateSelectionPromptsBySlot": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "additionalProperties": {
+              "type": "string"
+            }
+          },
+          "candidateButtonTemplatesBySlot": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "additionalProperties": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          "confirmationTemplate": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "additionalProperties": true
+      }
+    },
+    "profileRole": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "conversationMenu": {
+      "description": "Menu de atendimento declarado pelo domínio: o que ele sabe responder numa conversa com o cliente, o papel de cada intent e o texto pronto de cada resposta.",
+      "type": [
+        "object",
+        "null"
+      ],
+      "properties": {
+        "offerText": {
+          "description": "Convite de menu, já escrito pelo domínio. Sem ele o agente não oferece menu nenhum.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "intents": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "object",
+            "required": [
+              "name",
+              "behavior"
+            ],
+            "properties": {
+              "name": {
+                "type": "string",
+                "minLength": 1
+              },
+              "behavior": {
+                "description": "O que o agente faz com o intent: INFO responde com replyText, HANDOFF escala para humano, GREETING cumprimenta. Papel desconhecido é ignorado pelo agente, não recusado.",
+                "type": "string",
+                "minLength": 1
+              },
+              "replyText": {
+                "description": "Resposta pronta para INFO. O agente repassa como recebe.",
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "additionalProperties": true
+          }
+        }
+      },
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": true
+}

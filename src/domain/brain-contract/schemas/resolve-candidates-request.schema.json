@@ -1,0 +1,93 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "accountId",
+    "slotToResolve",
+    "resolverKey",
+    "slots"
+  ],
+  "properties": {
+    "accountId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "actorProfileId": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "slotToResolve": {
+      "type": "string",
+      "minLength": 1
+    },
+    "resolverKey": {
+      "type": "string",
+      "enum": [
+        "enrollment",
+        "session"
+      ]
+    },
+    "temporalPolicy": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "enum": [
+        "PAST_ONLY",
+        "FUTURE_ONLY",
+        "PREFER_PAST",
+        "PREFER_FUTURE",
+        "ANY",
+        null
+      ]
+    },
+    "slots": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "clientName": {
+          "type": "string",
+          "minLength": 1
+        },
+        "serviceName": {
+          "type": "string",
+          "minLength": 1
+        },
+        "sessionDate": {
+          "type": "string",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+        },
+        "sessionTime": {
+          "type": "string",
+          "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$"
+        },
+        "profileId": {
+          "oneOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string",
+              "pattern": "^\\d+$"
+            }
+          ]
+        }
+      }
+    },
+    "limit": {
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "offset": {
+      "type": [
+        "integer",
+        "null"
+      ]
+    }
+  }
+}
