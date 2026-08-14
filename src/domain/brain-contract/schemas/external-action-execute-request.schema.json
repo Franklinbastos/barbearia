@@ -1,0 +1,124 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "actionName",
+    "externalReference",
+    "idempotencyKey",
+    "payload",
+    "accountId"
+  ],
+  "properties": {
+    "actionName": {
+      "type": "string",
+      "enum": [
+        "confirm_attendance",
+        "decline_attendance",
+        "create_session",
+        "create_session_with_enrollment",
+        "create_enrollment",
+        "create_enrollment_and_invite",
+        "delete_enrollment",
+        "confirm_enrollment",
+        "unconfirm_enrollment",
+        "mark_enrollment_attendance_present",
+        "mark_enrollment_attendance_absent",
+        "mark_enrollment_payment_paid",
+        "mark_enrollment_payment_pending",
+        "mark_enrollment_invitation_sent",
+        "mark_enrollment_cancellation_notice_sent",
+        "start_agent_invite",
+        "resend_agent_invite",
+        "start_agent_charge",
+        "resend_agent_charge",
+        "start_agent_cancellation_notice",
+        "query_sessions_by_day",
+        "query_sessions_count_by_day",
+        "query_paid_enrollments_by_session",
+        "query_pending_payments_by_session",
+        "query_operational_daily_summary",
+        "query_top_debtors",
+        "query_agenda_occupancy",
+        "query_inactive_clients"
+      ]
+    },
+    "accountId": {
+      "description": "Conta dona dos dados. Obrigatória: sem ela o backend não sabe de qual negócio é a ação, e executá-la assim mesmo operaria dado alheio.",
+      "type": "string",
+      "minLength": 1
+    },
+    "conversationKey": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "profileRole": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "externalReference": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "minLength": 1
+    },
+    "reasonSummary": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "idempotencyKey": {
+      "type": "string",
+      "minLength": 1
+    },
+    "payload": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "channel": {
+          "type": "string",
+          "enum": [
+            "TELEGRAM",
+            "WHATSAPP"
+          ]
+        },
+        "userId": {
+          "type": "integer"
+        },
+        "clientName": {
+          "type": "string"
+        },
+        "serviceName": {
+          "type": "string"
+        },
+        "profileName": {
+          "type": "string"
+        },
+        "sessionDate": {
+          "type": "string"
+        },
+        "sessionTime": {
+          "type": "string"
+        },
+        "locationDetails": {
+          "type": "string"
+        },
+        "profileId": {
+          "type": "integer"
+        },
+        "enrollmentId": {
+          "type": [
+            "string",
+            "integer"
+          ]
+        }
+      }
+    }
+  }
+}
