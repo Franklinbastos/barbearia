@@ -183,3 +183,39 @@ export function janelaAnterior(janela: Janela, timeZone: string): Janela {
   );
   return montarJanela(fim.minus({ days: dias }), fim, 'livre');
 }
+
+/** Se a janela ainda não terminou — a semana corrente numa segunda de manhã. */
+export function janelaEmCurso(janela: Janela, agora: Date): boolean {
+  return agora.getTime() < janela.fim.getTime();
+}
+
+/**
+ * Até onde ler o período anterior para que a comparação seja honesta.
+ *
+ * **O problema que isto resolve:** numa segunda às 10h, a semana corrente tem
+ * meia manhã de faturamento e a semana passada tem sete dias inteiros.
+ * Comparar as duas mostra "−95% que a semana passada" numa loja que não perdeu
+ * um cliente sequer — e o dono só descobre isso se souber de cabeça que a
+ * janela está pela metade. Era a comparação chegando à conclusão errada com
+ * dois números certos.
+ *
+ * A saída é comparar percurso com percurso: o período anterior é lido só até o
+ * mesmo ponto de avanço em que a janela atual está. Segunda 10h contra segunda
+ * 10h da semana passada.
+ *
+ * O avanço é medido em **milissegundos decorridos desde o início da janela**, e
+ * não em unidade de calendário. Numa janela em curso o que se quer é "o mesmo
+ * tanto de expediente", e o instante equivalente é o que a virada de horário de
+ * verão desloca em uma hora nos dois lados igualmente. O corte nunca passa do
+ * `fim` da anterior: em 30 de março o percurso decorrido é maior que fevereiro
+ * inteiro, e somar sem teto invadiria março.
+ *
+ * Janela encerrada devolve o `fim` da anterior — os dois períodos inteiros, que
+ * é a comparação de sempre.
+ */
+export function recorteEquivalente(janela: Janela, anterior: Janela, agora: Date): Date {
+  if (!janelaEmCurso(janela, agora)) return anterior.fim;
+
+  const decorrido = Math.max(0, agora.getTime() - janela.inicio.getTime());
+  return new Date(Math.min(anterior.inicio.getTime() + decorrido, anterior.fim.getTime()));
+}

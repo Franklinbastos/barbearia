@@ -11,9 +11,9 @@ function item(over: Partial<AtendimentoBruto> = {}): AtendimentoBruto {
 }
 
 const BARBEIROS = [
-  { id: 'a', nome: 'João', percentual: 40 },
-  { id: 'b', nome: 'Pedro', percentual: 50 },
-  { id: 'c', nome: 'Dono', percentual: null },
+  { id: 'a', nome: 'João', ativo: true, percentual: 40 },
+  { id: 'b', nome: 'Pedro', ativo: true, percentual: 50 },
+  { id: 'c', nome: 'Dono', ativo: true, percentual: null },
 ];
 
 describe('calcularComissao', () => {
@@ -56,7 +56,7 @@ describe('calcularComissao', () => {
   it('zero é configuração e aparece; nulo é ausência e some', () => {
     const r = calcularComissao([item({ staffId: 'z' }), item({ staffId: 'c' })], [
       ...BARBEIROS,
-      { id: 'z', nome: 'Zerado', percentual: 0 },
+      { id: 'z', nome: 'Zerado', ativo: true, percentual: 0 },
     ]);
     expect(r.find((x) => x.staffId === 'z')).toMatchObject({ baseCents: 5000, comissaoCents: 0 });
     expect(r.find((x) => x.staffId === 'c')).toBeUndefined();
@@ -78,9 +78,28 @@ describe('calcularComissao', () => {
 
   it('percentual fora da faixa é contido em vez de virar comissão absurda', () => {
     const r = calcularComissao([item({ staffId: 'x' })], [
-      { id: 'x', nome: 'Torto', percentual: 400 },
+      { id: 'x', nome: 'Torto', ativo: true, percentual: 400 },
     ]);
     expect(r[0].comissaoCents).toBe(5000);
+  });
+
+  it('barbeiro desativado sem atendimento no período some do fechamento', () => {
+    // Ele saiu da barbearia; o percentual continua no cadastro. Uma linha
+    // zerada no fechamento de agosto é o nome de quem não trabalha mais ali
+    // ocupando espaço na conferência — e, pior, sugerindo que há algo a pagar.
+    const r = calcularComissao([item()], [
+      ...BARBEIROS,
+      { id: 'saiu', nome: 'Saiu', ativo: false, percentual: 40 },
+    ]);
+    expect(r.map((x) => x.staffId)).not.toContain('saiu');
+  });
+
+  it('barbeiro desativado que produziu no período continua no fechamento: ele tem a receber', () => {
+    const r = calcularComissao([item({ staffId: 'saiu' })], [
+      ...BARBEIROS,
+      { id: 'saiu', nome: 'Saiu', ativo: false, percentual: 40 },
+    ]);
+    expect(r.find((x) => x.staffId === 'saiu')).toMatchObject({ comissaoCents: 2000 });
   });
 });
 

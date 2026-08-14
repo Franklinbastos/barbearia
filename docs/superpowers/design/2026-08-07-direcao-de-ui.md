@@ -1416,10 +1416,16 @@ para o resumo.
    posição. Coluna que dança é erro de instrumento.
 3. **Linha de apoio** em `sm` (14/20) `muted-foreground` — horas vagas, receita perdida, quantidade
    de atendimentos. É onde o segundo número mora, para o principal não ter concorrente.
-4. **Explicação do cálculo** num `Tooltip`, atrás de um alvo de 24px com o ícone `Info`. **É
-   obrigatória**, e é o princípio nº 3 do spec: o dono que não sabe o que entra no denominador não
-   usa o número para decidir nada. Em comissão, onde o barbeiro confere linha a linha, é a diferença
-   entre relatório e discussão.
+4. **Explicação do cálculo** num `Popover` com `openOnHover`, atrás de um alvo de 24px com o ícone
+   `Info` (`explicacao-do-calculo.tsx`). **É obrigatória**, e é o princípio nº 3 do spec: o dono que
+   não sabe o que entra no denominador não usa o número para decidir nada. Em comissão, onde o
+   barbeiro confere linha a linha, é a diferença entre relatório e discussão.
+
+   **Não é `Tooltip`, e a diferença não é de gosto.** Tooltip não abre no toque — a documentação do
+   base-ui diz "tooltips are disabled on touch devices" e manda usar `Popover` justamente no ícone
+   de informação, "so touch users and screen reader users can access the content". Com tooltip, a
+   explicação existe no código e não existe no celular, que é onde o dono usa a tela. `openOnHover`
+   mantém o comportamento de mouse; o clique e o `Enter` passam a funcionar em cima dele.
 
 **A comparação com o período anterior é um `Badge`** ao lado do número, em `ok`/`perigo`, e **nunca
 depende só de cor**: um `sr-only` com "melhor que" / "pior que" vai antes do texto. Quem decide o

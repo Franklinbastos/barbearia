@@ -141,40 +141,94 @@ export async function listarHistoricoDeClientes(
 }
 
 /**
- * Os atendimentos da janela, no formato que a matemática dos indicadores
- * consome.
+ * **Há duas consultas de atendimento, e elas recortam a janela de jeitos
+ * diferentes de propósito.** Se um dia alguém as reunir "porque são iguais", um
+ * dos dois indicadores passa a mentir — e nenhum teste de tela acusa.
  *
- * **Por que não `listAppointmentsBetween`.** Aquela consulta serve à agenda e
- * traz o que a agenda desenha: nome do cliente e do serviço. Faltam os dois
- * campos de que os indicadores vivem — `customerId`, que é a chave de novos vs
- * recorrentes, e `canceledAt`, que é o único jeito de separar o cancelamento
- * com aviso do cancelamento em cima da hora (§3.4). Alargar a consulta da
- * agenda para carregar coluna que ela não desenha seria pior do que ter duas
- * projeções do mesmo `appointment`.
+ * - `listarAtendimentosIniciadosNoPeriodo` (`startAt` dentro da janela) serve a
+ *   **dinheiro e comportamento**: faturamento, ticket médio, comissão, receita
+ *   perdida, falta, cancelamento, origem, novos vs recorrentes. São números que
+ *   pertencem inteiros ao dia em que o atendimento **começou**.
+ * - `listarAtendimentosQueOcupamOPeriodo` (interseção) serve **só à ocupação**,
+ *   que mede minuto de cadeira e corta a parte de dentro da janela.
  *
- * O recorte é por **interseção** (`startAt < fim` e `endAt > inicio`), igual ao
- * da agenda: um atendimento que começa antes da meia-noite e atravessa para
- * dentro da janela ainda ocupou cadeira lá dentro, e `calcularOcupacao` já
- * corta a parte que interessa.
+ * O caso que separa as duas: um corte das 23:40 de domingo às 00:10 de segunda.
+ * Pela interseção ele entra na segunda-feira e leva o preço inteiro junto — o
+ * faturamento da semana seguinte ganha um corte que aconteceu na semana
+ * anterior, e a comissão do barbeiro muda de fechamento. Para a ocupação da
+ * segunda, porém, aqueles 10 minutos de cadeira ocupada são reais e têm que
+ * entrar.
+ *
+ * **Por que nenhuma das duas é `listAppointmentsBetween`.** Aquela consulta
+ * serve à agenda e traz o que a agenda desenha: nome do cliente e do serviço.
+ * Faltam os dois campos de que os indicadores vivem — `customerId`, que é a
+ * chave de novos vs recorrentes, e `canceledAt`, que é o único jeito de separar
+ * o cancelamento com aviso do cancelamento em cima da hora (§3.4). Alargar a
+ * consulta da agenda para carregar coluna que ela não desenha seria pior do que
+ * ter duas projeções do mesmo `appointment`.
  */
-export async function listarAtendimentosDoPeriodo(
+const COLUNAS_DO_INDICADOR = {
+  id: appointment.id,
+  staffId: appointment.staffId,
+  customerId: appointment.customerId,
+  startAt: appointment.startAt,
+  endAt: appointment.endAt,
+  status: appointment.status,
+  origin: appointment.origin,
+  precoCents: appointment.servicePriceCentsSnapshot,
+  canceledAt: appointment.canceledAt,
+};
+
+/**
+ * Os atendimentos que **começaram** dentro da janela — a lista de **dinheiro e
+ * comportamento**.
+ *
+ * O recorte é `inicio <= startAt < fim`, e não a interseção da agenda: valor,
+ * comissão, falta e origem são atributos do atendimento inteiro, e atendimento
+ * inteiro só cabe num período — o em que ele começou. Quem usa interseção aqui
+ * soma o preço de um corte de domingo ao faturamento da segunda.
+ *
+ * O `fim` é exclusivo, como em toda a casa.
+ */
+export async function listarAtendimentosIniciadosNoPeriodo(
   db: Db,
   barbershopId: string,
   inicio: Date,
   fim: Date,
 ): Promise<AtendimentoBruto[]> {
   return db
-    .select({
-      id: appointment.id,
-      staffId: appointment.staffId,
-      customerId: appointment.customerId,
-      startAt: appointment.startAt,
-      endAt: appointment.endAt,
-      status: appointment.status,
-      origin: appointment.origin,
-      precoCents: appointment.servicePriceCentsSnapshot,
-      canceledAt: appointment.canceledAt,
-    })
+    .select(COLUNAS_DO_INDICADOR)
+    .from(appointment)
+    .where(
+      and(
+        eq(appointment.barbershopId, barbershopId),
+        gte(appointment.startAt, inicio),
+        lt(appointment.startAt, fim),
+      ),
+    )
+    .orderBy(asc(appointment.startAt));
+}
+
+/**
+ * Os atendimentos que **tocam** a janela — a lista da **ocupação**, e só dela.
+ *
+ * Recorte por interseção (`startAt < fim` e `endAt > inicio`), a mesma convenção
+ * de `listBusyRanges` e `listAppointmentsBetween`: um atendimento que começa
+ * antes da meia-noite e atravessa para dentro da janela ocupou cadeira lá
+ * dentro, e `calcularOcupacao` corta exatamente a parte que interessa. Quem
+ * termina no `inicio`, ou começa no `fim`, não intersecta nada.
+ *
+ * **Não use esta lista para somar dinheiro.** Ela traz atendimento cujo preço
+ * pertence a outro período.
+ */
+export async function listarAtendimentosQueOcupamOPeriodo(
+  db: Db,
+  barbershopId: string,
+  inicio: Date,
+  fim: Date,
+): Promise<AtendimentoBruto[]> {
+  return db
+    .select(COLUNAS_DO_INDICADOR)
     .from(appointment)
     .where(
       and(

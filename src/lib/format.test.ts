@@ -1,6 +1,9 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import {
   formatPrice,
+  formatMoney,
+  formatMoneyRounded,
+  formatPercent,
   formatDuration,
   formatTime,
   formatDayLabel,
@@ -16,6 +19,36 @@ describe('formatPrice', () => {
   it('formata reais e centavos', () => expect(formatPrice(4050)).toBe('R$ 40,50'));
   it('formata valor redondo', () => expect(formatPrice(4000)).toBe('R$ 40,00'));
   it('formata gratuito', () => expect(formatPrice(0)).toBe('Grátis'));
+});
+
+describe('formatMoney', () => {
+  it('leva o centavo: é o número que o barbeiro confere na comissão', () => {
+    expect(formatMoney(453212)).toBe('R$ 4.532,12');
+  });
+
+  it('zero é zero, e não "Grátis" — faturamento de uma semana parada é R$ 0,00', () => {
+    expect(formatMoney(0)).toBe('R$ 0,00');
+  });
+});
+
+describe('formatMoneyRounded', () => {
+  it('sem centavo: no card de faturamento o centavo é ruído', () => {
+    expect(formatMoneyRounded(453212)).toBe('R$ 4.532');
+  });
+
+  it('zero continua sendo número, nunca "Grátis"', () => {
+    expect(formatMoneyRounded(0)).toBe('R$ 0');
+  });
+});
+
+describe('formatPercent', () => {
+  it('fração de 0 a 1 vira percentual inteiro', () => {
+    expect(formatPercent(0.6789)).toBe('68%');
+  });
+
+  it('zero é 0%, e cabe a quem chama decidir se zero é resposta', () => {
+    expect(formatPercent(0)).toBe('0%');
+  });
 });
 
 describe('formatDuration', () => {

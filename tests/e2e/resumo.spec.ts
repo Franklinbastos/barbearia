@@ -167,8 +167,10 @@ test('o dono chega ao Resumo pelo painel e lê os quatro números da primeira do
   // 1 falta em 2 atendidos + 1 falta.
   await expect(valorDo(page, 'Taxa de falta')).toHaveText('33%');
   // A ocupação depende do expediente do dia da semana, então o número varia
-  // conforme o dia em que a suíte roda; o que não varia é ela ser percentual.
-  await expect(valorDo(page, 'Ocupação')).toHaveText(/^\d+%$/);
+  // conforme o dia em que a suíte roda. Num domingo — o único dia sem
+  // expediente no cadastro padrão — não há denominador, e aí o card mostra
+  // traço em vez de `0%`, que leria como cadeira parada numa loja fechada.
+  await expect(valorDo(page, 'Ocupação')).toHaveText(/^(\d+%|—)$/);
 
   // A receita perdida com a falta é a linha de apoio do §3.1.
   await expect(cartao(page, 'Taxa de falta')).toContainText(/R\$\s*50/);

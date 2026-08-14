@@ -9,16 +9,13 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import {
-  JANELA_DE_RETORNO,
-  calcularClientes,
-  type VisitaDoCliente,
-} from '@/domain/indicadores/cliente';
+import { calcularClientes, type VisitaDoCliente } from '@/domain/indicadores/cliente';
 import { calcularComissao } from '@/domain/indicadores/comissao';
 import { calcularComportamento } from '@/domain/indicadores/comportamento';
 import { calcularDinheiro, type AtendimentoBruto } from '@/domain/indicadores/dinheiro';
 import type { OcupacaoDoBarbeiro } from '@/domain/indicadores/ocupacao';
 import type { Janela } from '@/domain/indicadores/periodo';
+import { formatMoney, formatPercent } from '@/lib/format';
 
 /**
  * A tabela por barbeiro (§3.5 do spec): uma linha por profissional, com o que
@@ -41,18 +38,6 @@ import type { Janela } from '@/domain/indicadores/periodo';
  * aconteceram — que a cadeira ficou vazia, que ninguém faltou de um universo
  * inexistente, que nenhum estreante voltou quando nenhum teve tempo de voltar.
  */
-
-/** Dinheiro com centavo: é o número que o barbeiro confere, não o que o dono estima. */
-export function formatarReais(cents: number): string {
-  return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(cents / 100);
-}
-
-/** Fração de 0 a 1 → "68%". Casa decimal em taxa é ruído. */
-export function formatarPercentual(fracao: number): string {
-  return `${Math.round(fracao * 100)}%`;
-}
-
-const MS_POR_DIA = 24 * 60 * 60 * 1000;
 
 export type BarbeiroDaTabela = {
   id: string;
@@ -121,22 +106,6 @@ function visitasDoBarbeiro(historico: AtendimentoBruto[], staffId: string): Visi
 }
 
 /**
- * Se alguma estreia do período já teve os 90 dias inteiros para voltar.
- *
- * Sem isto, a semana corrente mostraria "0% de retorno" para todo mundo —
- * ninguém teve tempo de voltar ainda —, e um zero desses lido como desempenho
- * do barbeiro é injusto e falso ao mesmo tempo. É a mesma maturidade de coorte
- * que `calcularClientes` usa por dentro para montar o denominador.
- */
-function houveCoorteMadura(visitas: VisitaDoCliente[], janela: Janela, agora: Date): boolean {
-  return visitas.some((cliente) => {
-    const primeira = cliente.visitas.reduce((a, b) => (a < b ? a : b));
-    if (primeira < janela.inicio || primeira >= janela.fim) return false;
-    return (agora.getTime() - primeira.getTime()) / MS_POR_DIA >= JANELA_DE_RETORNO;
-  });
-}
-
-/**
  * Monta as linhas da tabela a partir do que a página já leu.
  *
  * Nada de conta nova: cada número sai da função de domínio que já o define
@@ -155,7 +124,7 @@ export function montarLinhasPorBarbeiro(args: MontarLinhasArgs): LinhaDoBarbeiro
   const comissaoPorStaff = new Map(
     calcularComissao(
       itens,
-      barbeiros.map((b) => ({ id: b.id, nome: b.nome, percentual: b.percentual })),
+      barbeiros.map((b) => ({ id: b.id, nome: b.nome, ativo: b.ativo, percentual: b.percentual })),
     ).map((c) => [c.staffId, c]),
   );
 
@@ -168,10 +137,6 @@ export function montarLinhasPorBarbeiro(args: MontarLinhasArgs): LinhaDoBarbeiro
       const visitas = visitasDoBarbeiro(historico, barbeiro.id);
       const clientes = calcularClientes(visitas, janela, agora);
 
-      const fechados = doBarbeiro.filter(
-        (item) => item.status === 'DONE' || item.status === 'NO_SHOW',
-      ).length;
-
       return {
         staffId: barbeiro.id,
         nome: barbeiro.nome,
@@ -179,11 +144,14 @@ export function montarLinhasPorBarbeiro(args: MontarLinhasArgs): LinhaDoBarbeiro
         atendimentos: dinheiro.atendimentos,
         faturamentoCents: dinheiro.faturamentoCents,
         ticketMedioCents: dinheiro.ticketMedioCents,
-        ocupacao:
-          ocupacaoDele && ocupacaoDele.disponiveis > 0 ? ocupacaoDele.taxa : null,
-        taxaFalta: fechados > 0 ? comportamento.taxaFalta : null,
+        // Os três traços vêm prontos do domínio: quem não tem denominador
+        // devolve `null`, e a tabela só desenha. Enquanto a maturidade da
+        // coorte era recalculada aqui, a página fazia a mesma conta de um jeito
+        // diferente — e as duas divergiam na mesma tela.
+        ocupacao: ocupacaoDele?.taxa ?? null,
+        taxaFalta: comportamento.taxaFalta,
         novos: clientes.novos,
-        taxaRetorno: houveCoorteMadura(visitas, janela, agora) ? clientes.taxaRetorno : null,
+        taxaRetorno: clientes.taxaRetorno,
         comissaoCents: comissaoPorStaff.get(barbeiro.id)?.comissaoCents ?? null,
         percentual: barbeiro.percentual,
       };
@@ -231,7 +199,7 @@ function CelulaDeComissao({
       href={`/app/comissao?barbeiro=${linha.staffId}${buscaDoPeriodo}`}
       className="tabular-nums"
     >
-      {formatarReais(linha.comissaoCents)}
+      {formatMoney(linha.comissaoCents)}
     </Link>
   );
 }
@@ -274,20 +242,20 @@ export function TabelaPorBarbeiro({ linhas, buscaDoPeriodo }: TabelaPorBarbeiroP
                 </TableCell>
                 <TableCell className="text-right tabular-nums">{linha.atendimentos}</TableCell>
                 <TableCell className="text-right tabular-nums">
-                  {formatarReais(linha.faturamentoCents)}
+                  {formatMoney(linha.faturamentoCents)}
                 </TableCell>
                 <TableCell className="text-right tabular-nums">
-                  {formatarReais(linha.ticketMedioCents)}
+                  {formatMoney(linha.ticketMedioCents)}
                 </TableCell>
                 <TableCell className="text-right tabular-nums">
-                  {ouTraco(linha.ocupacao, formatarPercentual)}
+                  {ouTraco(linha.ocupacao, formatPercent)}
                 </TableCell>
                 <TableCell className="text-right tabular-nums">
-                  {ouTraco(linha.taxaFalta, formatarPercentual)}
+                  {ouTraco(linha.taxaFalta, formatPercent)}
                 </TableCell>
                 <TableCell className="text-right tabular-nums">{linha.novos}</TableCell>
                 <TableCell className="text-right tabular-nums">
-                  {ouTraco(linha.taxaRetorno, formatarPercentual)}
+                  {ouTraco(linha.taxaRetorno, formatPercent)}
                 </TableCell>
                 <TableCell className="text-right">
                   <CelulaDeComissao linha={linha} buscaDoPeriodo={buscaDoPeriodo} />
@@ -315,19 +283,19 @@ export function TabelaPorBarbeiro({ linhas, buscaDoPeriodo }: TabelaPorBarbeiroP
                 <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm leading-5">
                   <div>
                     <dt className="text-muted-foreground">Faturamento</dt>
-                    <dd className="tabular-nums">{formatarReais(linha.faturamentoCents)}</dd>
+                    <dd className="tabular-nums">{formatMoney(linha.faturamentoCents)}</dd>
                   </div>
                   <div>
                     <dt className="text-muted-foreground">Ticket</dt>
-                    <dd className="tabular-nums">{formatarReais(linha.ticketMedioCents)}</dd>
+                    <dd className="tabular-nums">{formatMoney(linha.ticketMedioCents)}</dd>
                   </div>
                   <div>
                     <dt className="text-muted-foreground">Ocupação</dt>
-                    <dd className="tabular-nums">{ouTraco(linha.ocupacao, formatarPercentual)}</dd>
+                    <dd className="tabular-nums">{ouTraco(linha.ocupacao, formatPercent)}</dd>
                   </div>
                   <div>
                     <dt className="text-muted-foreground">Falta</dt>
-                    <dd className="tabular-nums">{ouTraco(linha.taxaFalta, formatarPercentual)}</dd>
+                    <dd className="tabular-nums">{ouTraco(linha.taxaFalta, formatPercent)}</dd>
                   </div>
                   <div>
                     <dt className="text-muted-foreground">Novos</dt>
@@ -336,7 +304,7 @@ export function TabelaPorBarbeiro({ linhas, buscaDoPeriodo }: TabelaPorBarbeiroP
                   <div>
                     <dt className="text-muted-foreground">Retorno</dt>
                     <dd className="tabular-nums">
-                      {ouTraco(linha.taxaRetorno, formatarPercentual)}
+                      {ouTraco(linha.taxaRetorno, formatPercent)}
                     </dd>
                   </div>
                   <div>

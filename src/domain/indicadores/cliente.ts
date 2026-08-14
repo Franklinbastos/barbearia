@@ -37,8 +37,17 @@ export type ClienteSumido = {
   ultimaVisita: Date;
   /** A mediana dos intervalos dele, em dias inteiros — o "corta a cada X". */
   intervaloTipico: number;
-  /** Quantos dias além do próprio ritmo ele já está ausente. */
-  diasAtraso: number;
+  /**
+   * Há quantos dias ele não aparece — a ausência de verdade, contada da última
+   * visita até agora.
+   *
+   * **Não é o excedente sobre o ritmo**, que é o que este campo já guardou e o
+   * que fazia a linha da tela se contradizer: "corta a cada 15 dias, sumiu há
+   * 25" para quem está ausente há 40. O dono decide se liga olhando há quanto
+   * tempo o cliente sumiu; o quanto isso passa do ritmo dele é a ordenação da
+   * lista, não a frase.
+   */
+  diasSemVir: number;
 };
 
 export type ClienteDeUmaVezSo = {
@@ -57,8 +66,17 @@ export type IndicadoresDeCliente = {
   recorrentes: number;
   /** Média dos intervalos que se fecharam na janela, ou `null` sem histórico. */
   diasEntreVisitas: number | null;
-  /** Fração de 0 a 1. Ver `calcularClientes` para o que entra no denominador. */
-  taxaRetorno: number;
+  /**
+   * Quantos estreantes da janela já tiveram os 90 dias inteiros para voltar —
+   * o denominador de `taxaRetorno`, e o número que separa "ninguém voltou" de
+   * "ainda não dá para saber".
+   */
+  coorteDeRetorno: number;
+  /**
+   * Fração de 0 a 1, ou **`null` enquanto a coorte não amadurece**. Ver
+   * `calcularClientes` para o que entra no denominador.
+   */
+  taxaRetorno: number | null;
 };
 
 const MS_POR_DIA = 24 * 60 * 60 * 1000;
@@ -159,15 +177,16 @@ export function listarSumidos(historico: VisitaDoCliente[], agora: Date): Client
       telefone: cliente.telefone,
       ultimaVisita,
       intervaloTipico: Math.round(intervaloTipico),
-      // O atraso é contra o ritmo dele, não contra o corte: é o número que a
-      // tela consegue explicar em uma frase ("corta a cada 15, sumiu há 40").
-      diasAtraso: Math.max(1, Math.round(ausencia - intervaloTipico)),
+      // A ausência crua, que é a metade da frase que a tela monta: "corta a
+      // cada 15, sumiu há 40". O quanto isso passa do ritmo dele vai na
+      // `razao`, que ordena a lista e não vai para a tela.
+      diasSemVir: Math.max(1, Math.round(ausencia)),
       razao: ausencia / intervaloTipico,
     });
   }
 
   return sumidos
-    .sort((a, b) => b.razao - a.razao || b.diasAtraso - a.diasAtraso || a.nome.localeCompare(b.nome, 'pt-BR'))
+    .sort((a, b) => b.razao - a.razao || b.diasSemVir - a.diasSemVir || a.nome.localeCompare(b.nome, 'pt-BR'))
     .map(({ razao: _razao, ...cliente }) => cliente);
 }
 
@@ -225,9 +244,13 @@ function dentroDaJanela(quando: Date, janela: Janela): boolean {
  *   voltar, contados **até `agora`** — não até o fim da janela, e não abrindo
  *   exceção para quem já voltou. As duas tentações levam ao mesmo lugar: uma
  *   coorte formada só por quem voltou marca 100% de retorno, porque o
- *   denominador virou o numerador. Enquanto a coorte não amadurece o certo é
- *   não haver taxa; com o denominador vazio devolve 0, e cabe à tela não
- *   mostrar percentual de coorte que ainda não existe.
+ *   denominador virou o numerador. Enquanto a coorte não amadurece **não há
+ *   taxa, e o retorno é `null`** — nunca zero. É a diferença entre "ninguém
+ *   voltou" e "ainda não dá para saber", e ela decide o número que a tela
+ *   mostra em Hoje, Semana e Mês: nas três janelas ninguém teve 90 dias para
+ *   voltar, então um zero ali seria `0%` de retorno na tela inteira, todo dia.
+ *   O tamanho da coorte sai junto, em `coorteDeRetorno`, para a tela poder
+ *   dizer de quantos está falando.
  *
  * `agora` é parâmetro, e não `Date.now()` de dentro, porque é o que torna a
  * maturidade da coorte testável. O padrão existe para a chamada trivial, mas a
@@ -282,6 +305,7 @@ export function calcularClientes(
     recorrentes: atendidos - novos,
     diasEntreVisitas:
       intervalosFechados === 0 ? null : Math.round(somaDosIntervalos / intervalosFechados),
-    taxaRetorno: coorte === 0 ? 0 : voltaram / coorte,
+    coorteDeRetorno: coorte,
+    taxaRetorno: coorte === 0 ? null : voltaram / coorte,
   };
 }

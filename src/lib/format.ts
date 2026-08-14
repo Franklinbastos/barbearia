@@ -5,6 +5,48 @@ export function formatPrice(cents: number): string {
     .replace(/ /g, ' ');
 }
 
+/**
+ * Dinheiro com centavo — o formato de quem **confere**.
+ *
+ * Não é o `formatPrice`: aquele devolve "Grátis" no zero, que é certo para
+ * preço de serviço e absurdo para faturamento de uma semana parada ou para uma
+ * comissão de R$ 0,00. A comissão é o número que o barbeiro confere com o dedo
+ * na tela, e centavo escondido ali é divergência no fechamento.
+ */
+export function formatMoney(cents: number): string {
+  return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' })
+    .format(cents / 100)
+    .replace(/\u00A0/g, ' ');
+}
+
+/**
+ * Dinheiro sem centavo — o formato de quem **decide**.
+ *
+ * No card de faturamento o centavo é ruído: o dono lê "R$ 4.532" e segue. Os
+ * dois formatos convivem de propósito, e ficam lado a lado aqui para que a
+ * diferença seja escolha e não acidente — eles já divergiram em silêncio, cada
+ * um copiado numa tela.
+ */
+export function formatMoneyRounded(cents: number): string {
+  return new Intl.NumberFormat('pt-BR', {
+    style: 'currency',
+    currency: 'BRL',
+    maximumFractionDigits: 0,
+  })
+    .format(cents / 100)
+    .replace(/\u00A0/g, ' ');
+}
+
+/**
+ * Fração de 0 a 1 → "68%". Inteiro: casa decimal em taxa de ocupação é ruído.
+ *
+ * Só recebe número. Denominador vazio não é zero por cento, é ausência de taxa,
+ * e quem trata isso é a tela — com traço (§5.12 da direção de UI).
+ */
+export function formatPercent(fracao: number): string {
+  return `${Math.round(fracao * 100)}%`;
+}
+
 export function formatDuration(minutes: number): string {
   const horas = Math.floor(minutes / 60);
   const resto = minutes % 60;

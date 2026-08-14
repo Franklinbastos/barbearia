@@ -30,10 +30,12 @@ import type { AtendimentoBruto } from './dinheiro';
  * repositório leu e devolve número.
  */
 
-/** O barbeiro como a comissão o enxerga: nome e percentual, nada mais. */
+/** O barbeiro como a comissão o enxerga: nome, percentual e se ainda trabalha ali. */
 export type BarbeiroComissionado = {
   id: string;
   nome: string;
+  /** Se continua na equipe. Desativado só entra no fechamento se produziu. */
+  ativo: boolean;
   /** Inteiro de 0 a 100. `null` = sem comissão, e some do relatório. */
   percentual: number | null;
 };
@@ -112,10 +114,15 @@ export function comissaoDoAtendimento(precoCents: number, percentual: number): n
  * Uma linha por barbeiro **comissionado**, ordenada da maior comissão para a
  * menor.
  *
- * Barbeiro com percentual e sem atendimento no período continua aparecendo,
- * zerado: no fechamento, "o João não produziu nada nesta semana" é resposta, e
- * a linha que some parece relatório quebrado. Quem some é só o de percentual
- * nulo, que não trabalha por comissão.
+ * Barbeiro **da equipe** com percentual e sem atendimento no período continua
+ * aparecendo, zerado: no fechamento, "o João não produziu nada nesta semana" é
+ * resposta, e a linha que some parece relatório quebrado. Quem some é o de
+ * percentual nulo, que não trabalha por comissão.
+ *
+ * **E some também o desativado que não produziu no período** — a mesma regra da
+ * tabela por barbeiro do resumo. Quem saiu em março não polui o fechamento de
+ * agosto com uma linha zerada que parece haver algo a pagar; o fechamento de
+ * março continua mostrando o que ele fez, e a comissão que ele tem a receber.
  *
  * Atendimento de quem não está na lista de barbeiros (desativado, ou de outra
  * barbearia se alguém errar o escopo da consulta) é ignorado — o relatório não
@@ -133,6 +140,7 @@ export function calcularComissao(
 
   return barbeiros
     .filter((barbeiro) => barbeiro.percentual !== null)
+    .filter((barbeiro) => barbeiro.ativo || (porStaff.get(barbeiro.id)?.length ?? 0) > 0)
     .map((barbeiro) => {
       const percentual = percentualValido(barbeiro.percentual!);
       const doBarbeiro = porStaff.get(barbeiro.id) ?? [];

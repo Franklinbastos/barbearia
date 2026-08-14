@@ -7,29 +7,30 @@ import { db } from '@/db/client';
 import {
   findBarbershopById,
   listAllStaff,
-  listarAtendimentosDoPeriodo,
+  listarAtendimentosIniciadosNoPeriodo,
+  listarAtendimentosQueOcupamOPeriodo,
   listarExpedienteEBloqueios,
   listarHistoricoDeClientes,
 } from '@/db/repositories';
-import { calcularClientes, listarSumidos } from '@/domain/indicadores/cliente';
+import { calcularClientes, listarSumidos, JANELA_DE_RETORNO } from '@/domain/indicadores/cliente';
 import { calcularComportamento } from '@/domain/indicadores/comportamento';
 import { calcularDinheiro } from '@/domain/indicadores/dinheiro';
 import { calcularOcupacao } from '@/domain/indicadores/ocupacao';
-import { janelaAnterior, resolverPeriodo, type Janela } from '@/domain/indicadores/periodo';
-import { formatDuration } from '@/lib/format';
+import { janelaAnterior, recorteEquivalente, resolverPeriodo } from '@/domain/indicadores/periodo';
+// O `formatMoney` leva centavo e o `formatMoneyRounded` não: o card é para
+// decidir e a comissão é para conferir. Os dois moram em `lib/format` desde que
+// duas cópias divergentes de "formatar reais" apareceram nesta tela.
+import { formatDuration, formatMoney, formatMoneyRounded, formatPercent } from '@/lib/format';
 import { requireSession } from '@/lib/session';
-import { CartaoIndicador, type ComparacaoDoIndicador } from './cartao-indicador';
+import { CartaoIndicador } from './cartao-indicador';
 import { ClientesSumidos } from './clientes-sumidos';
+import { compararComAnterior } from './comparacao';
+import { ComportamentoEOrigem } from './comportamento-e-origem';
 import { PeriodoSemAtendimento, SemHistorico, estadoDoResumo } from './estado-vazio';
 import { GraficoDeOcupacao } from './grafico-de-ocupacao';
+import { apoioDoRetorno } from './retorno';
 import { SeletorDePeriodo } from './seletor-de-periodo';
-import {
-  TabelaPorBarbeiro,
-  montarLinhasPorBarbeiro,
-  // O da tabela leva centavo: comissão é o número que o barbeiro confere, e
-  // arredondar ali é justamente a divergência que a funcionalidade evita.
-  formatarReais as formatarReaisExato,
-} from './tabela-por-barbeiro';
+import { TabelaPorBarbeiro, montarLinhasPorBarbeiro } from './tabela-por-barbeiro';
 
 /**
  * O resumo do dono (§5 do spec). A agenda é o que o balcão abre o dia inteiro;
@@ -41,7 +42,18 @@ import {
  *
  * **A repartição é a mesma em toda a tela**: o repositório lê, o domínio
  * calcula, a página formata. Nenhuma conta de indicador mora neste arquivo; o
- * que existe aqui são as funções de formatação, que são borda por definição.
+ * que existe aqui é a escolha de qual consulta alimenta qual conta, e a
+ * formatação, que é borda por definição.
+ *
+ * **Duas listas de atendimento, e a diferença não é acidente.** Dinheiro,
+ * comportamento e cliente leem o que **começou** dentro da janela; a ocupação
+ * lê o que **toca** a janela, porque ela conta minuto de cadeira e recorta a
+ * parte de dentro. Juntar as duas põe o corte das 23:40 de domingo no
+ * faturamento da segunda. O porquê está em `indicadores.repo.ts`.
+ *
+ * **Traço não é zero, e a página respeita isso como a tabela.** Onde o domínio
+ * devolve `null` — ocupação sem expediente, falta sem atendido nem falta,
+ * retorno de coorte que não amadureceu — o card mostra `—`. Ver `ouTraco`.
  *
  * **O fuso é o da barbearia.** `resolverPeriodo` recebe o relógio já em
  * `timeZone` e devolve a janela em instantes absolutos, que é o que o
@@ -62,55 +74,22 @@ import {
 /** Um ano de histórico basta para medir o ritmo de quem corta a cada dois meses. */
 const MESES_DE_HISTORICO = 12;
 
-function formatarReais(cents: number): string {
-  // Não é o `formatPrice` do catálogo: aquele devolve "Grátis" no zero, que é
-  // certo para preço de serviço e absurdo para faturamento de uma semana parada.
-  return new Intl.NumberFormat('pt-BR', {
-    style: 'currency',
-    currency: 'BRL',
-    maximumFractionDigits: 0,
-  }).format(cents / 100);
-}
-
-/** Fração de 0 a 1 → "68%". Inteiro: casa decimal em taxa de ocupação é ruído. */
-function formatarPercentual(fracao: number): string {
-  return `${Math.round(fracao * 100)}%`;
-}
-
 function plural(quantidade: number, singular: string, plural: string): string {
   return `${quantidade} ${quantidade === 1 ? singular : plural}`;
 }
 
-/** Como a comparação chama o período anterior, na voz de quem fala com o dono. */
-function rotuloDoAnterior(janela: Janela): string {
-  if (janela.periodo === 'hoje') return 'que ontem';
-  if (janela.periodo === 'semana') return 'que a semana passada';
-  if (janela.periodo === 'mes') return 'que o mês passado';
-  return 'que o período anterior';
-}
-
 /**
- * A comparação com o período anterior, ou nada.
+ * Traço, nunca zero — a §5.12 da direção de UI, e a mesma função que a tabela
+ * por barbeiro usa nas colunas dela.
  *
- * **Sem base não há comparação.** Dividir por um período anterior zerado daria
- * "+∞%" ou um "+100%" inventado — a primeira semana de uma barbearia nova
- * apareceria como crescimento espetacular. Nesses casos o card simplesmente
- * não mostra o selo.
+ * O domínio devolve `null` onde não há denominador (sem expediente cadastrado,
+ * sem atendido nem falta, coorte que não amadureceu), e o trabalho da tela é só
+ * não transformar isso em `0%`. Zero afirma que a cadeira ficou vazia, que
+ * ninguém faltou, que nenhum estreante voltou — três coisas que não
+ * aconteceram.
  */
-function compararComAnterior(
-  atualCents: number,
-  anteriorCents: number,
-  janela: Janela,
-): ComparacaoDoIndicador | undefined {
-  if (anteriorCents <= 0) return undefined;
-
-  const variacao = Math.round(((atualCents - anteriorCents) / anteriorCents) * 100);
-  const sinal = variacao > 0 ? '+' : '';
-
-  return {
-    valor: `${sinal}${variacao}% ${rotuloDoAnterior(janela)}`,
-    melhorou: atualCents >= anteriorCents,
-  };
+function ouTraco(fracao: number | null): string {
+  return fracao === null ? '—' : formatPercent(fracao);
 }
 
 export default async function ResumoPage({
@@ -130,10 +109,12 @@ export default async function ResumoPage({
   const janela = resolverPeriodo({ periodo, de, ate, timeZone, agora: relogio });
   const anterior = janelaAnterior(janela, timeZone);
 
-  // O histórico da tabela por barbeiro é ancorado na **janela**, não no relógio:
-  // para saber se quem estreou em março voltou, é preciso enxergar abril e maio
-  // — que ficam depois do fim da janela. E o começo vai um ano atrás do início
-  // dela, porque "novo" só é novo se ele não tinha vindo antes.
+  // **Todo histórico desta tela é ancorado na janela, não no relógio.** Para
+  // saber se quem estreou em março voltou, é preciso enxergar abril e maio — que
+  // ficam depois do fim da janela. E o começo vai um ano atrás do início dela,
+  // porque "novo" só é novo se ele não tinha vindo antes. Ancorar um dos dois
+  // históricos no relógio fazia a tabela por barbeiro e os cards de cliente
+  // discordarem na mesma tela sempre que o dono abria um intervalo antigo.
   const inicioDoHistorico = DateTime.fromJSDate(janela.inicio)
     .setZone(timeZone)
     .minus({ months: MESES_DE_HISTORICO })
@@ -141,19 +122,37 @@ export default async function ResumoPage({
     .toJSDate();
   const fimDoHistorico = new Date(Math.max(janela.fim.getTime(), agora.getTime()));
 
-  const [itens, itensDoAnterior, expedienteEBloqueios, historico, historicoBruto, equipe] =
-    await Promise.all([
-      listarAtendimentosDoPeriodo(db, sessao.barbershopId, janela.inicio, janela.fim),
-      listarAtendimentosDoPeriodo(db, sessao.barbershopId, anterior.inicio, anterior.fim),
-      listarExpedienteEBloqueios(db, sessao.barbershopId, janela.inicio, janela.fim),
-      listarHistoricoDeClientes(
-        db,
-        sessao.barbershopId,
-        relogio.minus({ months: MESES_DE_HISTORICO }).startOf('day').toJSDate(),
-      ),
-      listarAtendimentosDoPeriodo(db, sessao.barbershopId, inicioDoHistorico, fimDoHistorico),
-      listAllStaff(db, sessao.barbershopId),
-    ]);
+  // Comparação de percurso com percurso: numa janela em curso, o período
+  // anterior é lido só até o mesmo ponto de avanço. Ver `comparacao.ts` para o
+  // que estava errado e por que a saída não foi esconder o selo.
+  const corteDoAnterior = recorteEquivalente(janela, anterior, agora);
+
+  const [
+    itens,
+    itensParaOcupacao,
+    itensDoAnterior,
+    expedienteEBloqueios,
+    historico,
+    historicoBruto,
+    equipe,
+  ] = await Promise.all([
+    // Dinheiro, comportamento e cliente: só o que **começou** dentro da janela.
+    listarAtendimentosIniciadosNoPeriodo(db, sessao.barbershopId, janela.inicio, janela.fim),
+    // Ocupação: tudo que **toca** a janela, porque ela mede minuto de cadeira e
+    // corta a parte de dentro. As duas consultas existem por isso — ver
+    // `indicadores.repo.ts`.
+    listarAtendimentosQueOcupamOPeriodo(db, sessao.barbershopId, janela.inicio, janela.fim),
+    listarAtendimentosIniciadosNoPeriodo(db, sessao.barbershopId, anterior.inicio, corteDoAnterior),
+    listarExpedienteEBloqueios(db, sessao.barbershopId, janela.inicio, janela.fim),
+    listarHistoricoDeClientes(db, sessao.barbershopId, inicioDoHistorico),
+    listarAtendimentosIniciadosNoPeriodo(
+      db,
+      sessao.barbershopId,
+      inicioDoHistorico,
+      fimDoHistorico,
+    ),
+    listAllStaff(db, sessao.barbershopId),
+  ]);
 
   // Os clientes sumidos não dependem da janela — o corte é o ritmo de cada um
   // contra o relógio —, então a lista aparece nos dois estados em que a tela
@@ -225,7 +224,7 @@ export default async function ResumoPage({
   const dinheiroAnterior = calcularDinheiro(itensDoAnterior, agora);
   const comportamento = calcularComportamento(itens);
   const ocupacao = calcularOcupacao({
-    itens,
+    itens: itensParaOcupacao,
     expediente: expedienteEBloqueios.expediente,
     bloqueios: expedienteEBloqueios.bloqueios,
     janela,
@@ -275,47 +274,48 @@ export default async function ResumoPage({
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <CartaoIndicador
           titulo="Faturamento"
-          valor={formatarReais(dinheiro.faturamentoCents)}
+          valor={formatMoneyRounded(dinheiro.faturamentoCents)}
           apoio={
             dinheiro.previstoCents > 0
-              ? `${formatarReais(dinheiro.previstoCents)} previstos no que falta`
+              ? `${formatMoneyRounded(dinheiro.previstoCents)} previstos no que falta`
               : plural(dinheiro.atendimentos, 'atendimento concluído', 'atendimentos concluídos')
           }
-          comparacao={compararComAnterior(
-            dinheiro.faturamentoCents,
-            dinheiroAnterior.faturamentoCents,
+          comparacao={compararComAnterior({
+            atualCents: dinheiro.faturamentoCents,
+            anteriorCents: dinheiroAnterior.faturamentoCents,
             janela,
-          )}
-          explicacao="Soma do preço dos atendimentos concluídos no período, com o preço congelado no momento do agendamento. Agendado do futuro não entra no faturamento — aparece como previsto."
+            agora,
+          })}
+          explicacao="Soma do preço dos atendimentos concluídos no período, com o preço congelado no momento do agendamento. Agendado do futuro não entra no faturamento — aparece como previsto. A comparação com o período anterior lê o mesmo tanto de percurso dos dois lados: numa semana pela metade, meia semana contra meia semana."
         />
 
         <CartaoIndicador
           titulo="Ocupação"
-          valor={formatarPercentual(ocupacao.taxa)}
+          valor={ouTraco(ocupacao.taxa)}
           apoio={
             ocupacao.minutosDisponiveis > 0
               ? `${formatDuration(minutosVagos)} de cadeira vaga`
               : 'Sem expediente cadastrado no período'
           }
-          explicacao="Minutos ocupados ÷ minutos disponíveis. Disponível é o expediente do dia, menos bloqueios e menos o que ainda não chegou. Falta ocupa, porque a cadeira ficou reservada; cancelamento não, porque o horário voltou para a grade."
+          explicacao="Minutos ocupados ÷ minutos disponíveis. Disponível é o expediente do dia, menos bloqueios e menos o que ainda não chegou. Falta ocupa, porque a cadeira ficou reservada; cancelamento não, porque o horário voltou para a grade. Sem expediente cadastrado não há denominador, e aí não há taxa."
         />
 
         <CartaoIndicador
           titulo="Ticket médio"
-          valor={formatarReais(dinheiro.ticketMedioCents)}
+          valor={formatMoneyRounded(dinheiro.ticketMedioCents)}
           apoio={`em ${plural(dinheiro.atendimentos, 'atendimento', 'atendimentos')}`}
           explicacao="Faturamento ÷ número de atendimentos concluídos. Falta e cancelamento ficam de fora do divisor: eles têm taxa própria e derrubariam o ticket sem que nenhum preço tivesse mudado."
         />
 
         <CartaoIndicador
           titulo="Taxa de falta"
-          valor={formatarPercentual(comportamento.taxaFalta)}
+          valor={ouTraco(comportamento.taxaFalta)}
           apoio={
             dinheiro.perdidoCents > 0
-              ? `${formatarReais(dinheiro.perdidoCents)} perdidos com quem não veio`
+              ? `${formatMoneyRounded(dinheiro.perdidoCents)} perdidos com quem não veio`
               : 'Ninguém faltou no período'
           }
-          explicacao="Faltas ÷ (atendidos + faltas). Cancelamento não entra no divisor: quem cancela devolve o horário para a grade, quem falta deixa a cadeira parada."
+          explicacao="Faltas ÷ (atendidos + faltas). Cancelamento não entra no divisor: quem cancela devolve o horário para a grade, quem falta deixa a cadeira parada. Sem nenhum atendido e nenhuma falta não há do que tirar taxa."
         />
       </div>
 
@@ -358,7 +358,10 @@ export default async function ResumoPage({
           ) : (
             <p className="text-sm leading-5 text-muted-foreground">
               Comissão do período:{' '}
-              <strong className="tabular-nums">{formatarReaisExato(totalDeComissaoCents)}</strong>{' '}
+              {/* Este leva centavo: comissão é o número que o barbeiro
+                  confere, e arredondar aqui é a divergência que a
+                  funcionalidade existe para evitar. */}
+              <strong className="tabular-nums">{formatMoney(totalDeComissaoCents)}</strong>{' '}
               · <Link href={`/app/comissao?${buscaDoPeriodo.slice(1)}`}>ver atendimento a atendimento</Link>
             </p>
           )}
@@ -388,15 +391,21 @@ export default async function ResumoPage({
 
         <CartaoIndicador
           titulo="Taxa de retorno"
-          valor={clientes.novos === 0 ? '—' : formatarPercentual(clientes.taxaRetorno)}
-          apoio={
-            clientes.novos === 0
-              ? 'ninguém estreou neste período'
-              : 'de quem estreou e já teve 90 dias para voltar'
-          }
-          explicacao="Dos clientes que estrearam no período, a fração que voltou em até 90 dias. Só entra na conta quem já teve esses 90 dias inteiros para voltar — antes disso a coorte ainda não amadureceu e o número mentiria para cima."
+          // O denominador é a **coorte madura**, não os estreantes: em Hoje,
+          // Semana e Mês ninguém teve 90 dias para voltar ainda, e guardar este
+          // card com `novos === 0` estampava `0%` de retorno na tela padrão e
+          // nas três opções do seletor, todo dia. Zero por imaturidade de
+          // coorte não é zero — é "ainda não dá para saber".
+          valor={ouTraco(clientes.taxaRetorno)}
+          apoio={apoioDoRetorno(clientes)}
+          explicacao={`Dos clientes que estrearam no período, a fração que voltou em até ${JANELA_DE_RETORNO} dias. Só entra na conta quem já teve esses ${JANELA_DE_RETORNO} dias inteiros para voltar — antes disso a coorte ainda não amadureceu, e um percentual ali seria invenção. Por isso a taxa só aparece em períodos que já ficaram para trás.`}
         />
       </div>
+
+      {/* Os outros três do §3.4 do spec. Eram calculados a cada carregamento e
+          não apareciam em lugar nenhum — inclusive o de origem, que é o que
+          responde se o cliente está agendando sozinho. */}
+      <ComportamentoEOrigem comportamento={comportamento} />
     </div>
   );
 }

@@ -13,10 +13,16 @@ const MS_EM_CIMA_DA_HORA = HORAS_DE_ANTECEDENCIA * 60 * 60 * 1000;
 export type Origem = AtendimentoBruto['origin'];
 
 export type ResumoDeComportamento = {
-  /** `NO_SHOW` ÷ (`DONE` + `NO_SHOW`), de 0 a 1. Zero quando não houve nenhum dos dois. */
-  taxaFalta: number;
-  /** `CANCELED` ÷ total do período, de 0 a 1. */
-  taxaCancelamento: number;
+  /**
+   * `NO_SHOW` ÷ (`DONE` + `NO_SHOW`), de 0 a 1, ou **`null` quando não houve
+   * nenhum dos dois** — não há do que tirar taxa, e `0%` afirmaria que ninguém
+   * faltou de um universo que não existe (§5.12 da direção de UI).
+   */
+  taxaFalta: number | null;
+  /** `CANCELED` ÷ total do período, de 0 a 1, ou `null` num período sem nada. */
+  taxaCancelamento: number | null;
+  /** Quantos agendamentos o período tem, seja qual for o status. */
+  agendamentos: number;
   /** Quantos cancelamentos caíram a menos de 24h do horário marcado. */
   cancelamentoEmCimaDaHora: number;
   /** Quantos agendamentos vieram de cada canal. */
@@ -77,10 +83,13 @@ export function calcularComportamento(itens: AtendimentoBruto[]): ResumoDeCompor
   const compareceram = atendidos + faltas;
 
   return {
-    // Zero em vez de `NaN`: período sem atendido nem falta não tem taxa, e a
-    // tela precisa de um número para formatar.
-    taxaFalta: compareceram === 0 ? 0 : faltas / compareceram,
-    taxaCancelamento: itens.length === 0 ? 0 : cancelados / itens.length,
+    // `null` em vez de zero: período sem atendido nem falta não tem taxa, e
+    // quem decide como desenhar isso é a tela — que põe traço. Devolver zero
+    // aqui obrigava cada chamador a recalcular o denominador por fora para
+    // saber se aquele zero era resultado ou ausência, e um deles ia esquecer.
+    taxaFalta: compareceram === 0 ? null : faltas / compareceram,
+    taxaCancelamento: itens.length === 0 ? null : cancelados / itens.length,
+    agendamentos: itens.length,
     cancelamentoEmCimaDaHora,
     porOrigem,
   };

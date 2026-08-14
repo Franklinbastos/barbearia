@@ -70,9 +70,22 @@ describe('calcularComportamento', () => {
     expect(r.porOrigem).toEqual({ PUBLIC: 1, PANEL: 2, BOT: 1 });
   });
 
-  it('sem nada devolve zero em tudo', () => {
+  it('sem nada não há taxa nenhuma — nulo, e não zero', () => {
+    // Zero afirmaria que ninguém faltou e ninguém cancelou de um universo que
+    // não existe. A §5.12 da direção de UI manda traço, e o traço só existe se
+    // o domínio souber dizer "não há do que tirar taxa".
     const r = calcularComportamento([]);
-    expect(r.taxaFalta).toBe(0);
-    expect(r.taxaCancelamento).toBe(0);
+    expect(r.taxaFalta).toBeNull();
+    expect(r.taxaCancelamento).toBeNull();
+  });
+
+  it('período só com cancelamento não tem taxa de falta: ninguém compareceu nem faltou', () => {
+    const r = calcularComportamento([item({ status: 'CANCELED' }), item({ status: 'CANCELED' })]);
+    expect(r.taxaFalta).toBeNull();
+    expect(r.taxaCancelamento).toBe(1);
+  });
+
+  it('período só com agendado do futuro não tem taxa de falta', () => {
+    expect(calcularComportamento([item({ status: 'BOOKED' })]).taxaFalta).toBeNull();
   });
 });

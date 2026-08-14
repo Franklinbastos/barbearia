@@ -3,7 +3,8 @@ import { DateTime } from 'luxon';
 import { withTestDb, type TestDb } from '../helpers/db';
 import { appointment, barbershop, customer, service, staff, timeOff, workingHours } from '@/db/schema';
 import {
-  listarAtendimentosDoPeriodo,
+  listarAtendimentosIniciadosNoPeriodo,
+  listarAtendimentosQueOcupamOPeriodo,
   listarExpedienteEBloqueios,
   listarHistoricoDeClientes,
 } from '@/db/repositories';
@@ -212,7 +213,7 @@ describe('listarHistoricoDeClientes', () => {
   });
 });
 
-describe('listarAtendimentosDoPeriodo', () => {
+describe('listarAtendimentosIniciadosNoPeriodo', () => {
   it('traz só a barbearia pedida, com o preço do snapshot e o `canceledAt`', async () => {
     await withTestDb(async (db) => {
       const minha = await semear(db, 'minha');
@@ -224,7 +225,7 @@ describe('listarAtendimentosDoPeriodo', () => {
       await marcar(db, { barbershopId: minha.loja.id, staffId: minha.joao.id, serviceId: minha.corte.id, customerId: meu.id, startAt: em(SEGUNDA, '10:00'), precoCents: 5500, status: 'CANCELED', canceledAt: em(SEGUNDA, '09:00') });
       await marcar(db, { barbershopId: vizinha.loja.id, staffId: vizinha.joao.id, serviceId: vizinha.corte.id, customerId: dele.id, startAt: em(SEGUNDA, '10:00') });
 
-      const itens = await listarAtendimentosDoPeriodo(db, minha.loja.id, INICIO, FIM);
+      const itens = await listarAtendimentosIniciadosNoPeriodo(db, minha.loja.id, INICIO, FIM);
 
       expect(itens).toHaveLength(1);
       expect(itens[0]).toMatchObject({
@@ -245,9 +246,105 @@ describe('listarAtendimentosDoPeriodo', () => {
       await marcar(db, { barbershopId: loja.id, staffId: joao.id, serviceId: corte.id, customerId: cliente.id, startAt: em(SEGUNDA, '10:00') });
       await marcar(db, { barbershopId: loja.id, staffId: joao.id, serviceId: corte.id, customerId: cliente.id, startAt: em('2026-09-08', '10:00') });
 
-      const itens = await listarAtendimentosDoPeriodo(db, loja.id, INICIO, FIM);
+      const itens = await listarAtendimentosIniciadosNoPeriodo(db, loja.id, INICIO, FIM);
       expect(itens).toHaveLength(1);
       expect(itens[0].startAt.getTime()).toBe(em(SEGUNDA, '10:00').getTime());
+    });
+  });
+
+  it('atendimento que começou na véspera fica de fora: o dinheiro é do dia em que ele começou', async () => {
+    await withTestDb(async (db) => {
+      const { loja, joao, corte } = await semear(db, 'minha');
+      const cliente = await criarCliente(db, loja.id, 'Cliente', '11999990004');
+
+      // Começou 23:40 de domingo e terminou 00:10 de segunda. Pela consulta de
+      // interseção ele entrava inteiro na segunda — e o faturamento, o ticket
+      // médio, a comissão e a receita perdida da semana seguinte ganhavam um
+      // corte que aconteceu na semana anterior.
+      await marcar(db, {
+        barbershopId: loja.id,
+        staffId: joao.id,
+        serviceId: corte.id,
+        customerId: cliente.id,
+        startAt: em('2026-09-06', '23:40'),
+        minutos: 30,
+        precoCents: 9900,
+      });
+
+      const itens = await listarAtendimentosIniciadosNoPeriodo(db, loja.id, INICIO, FIM);
+      expect(itens).toHaveLength(0);
+
+      // E na janela do domingo, que é onde ele começou, aparece inteiro.
+      const daVespera = await listarAtendimentosIniciadosNoPeriodo(
+        db,
+        loja.id,
+        em('2026-09-06', '00:00'),
+        INICIO,
+      );
+      expect(daVespera.map((i) => i.precoCents)).toEqual([9900]);
+    });
+  });
+
+  it('atendimento que atravessa a meia-noite para fora conta inteiro no dia em que começou', async () => {
+    await withTestDb(async (db) => {
+      const { loja, joao, corte } = await semear(db, 'minha');
+      const cliente = await criarCliente(db, loja.id, 'Cliente', '11999990005');
+
+      await marcar(db, {
+        barbershopId: loja.id,
+        staffId: joao.id,
+        serviceId: corte.id,
+        customerId: cliente.id,
+        startAt: em(SEGUNDA, '23:40'),
+        minutos: 30,
+      });
+
+      const itens = await listarAtendimentosIniciadosNoPeriodo(db, loja.id, INICIO, FIM);
+      expect(itens).toHaveLength(1);
+    });
+  });
+});
+
+describe('listarAtendimentosQueOcupamOPeriodo', () => {
+  it('recorta por interseção: quem entrou pela madrugada ocupou cadeira aqui dentro', async () => {
+    await withTestDb(async (db) => {
+      const { loja, joao, corte } = await semear(db, 'minha');
+      const cliente = await criarCliente(db, loja.id, 'Cliente', '11999990006');
+
+      await marcar(db, {
+        barbershopId: loja.id,
+        staffId: joao.id,
+        serviceId: corte.id,
+        customerId: cliente.id,
+        startAt: em('2026-09-06', '23:40'),
+        minutos: 30,
+      });
+
+      // A ocupação corta a parte de dentro da janela, então o atendimento
+      // precisa chegar até `calcularOcupacao` — é o critério da agenda, e aqui
+      // ele é o certo.
+      const itens = await listarAtendimentosQueOcupamOPeriodo(db, loja.id, INICIO, FIM);
+      expect(itens).toHaveLength(1);
+    });
+  });
+
+  it('quem encosta na borda sem entrar não ocupa nada', async () => {
+    await withTestDb(async (db) => {
+      const { loja, joao, corte } = await semear(db, 'minha');
+      const cliente = await criarCliente(db, loja.id, 'Cliente', '11999990007');
+
+      // Termina exatamente à meia-noite da segunda: o `fim` é exclusivo em toda
+      // a casa, e o começo da janela também não é tocado por quem acaba nele.
+      await marcar(db, {
+        barbershopId: loja.id,
+        staffId: joao.id,
+        serviceId: corte.id,
+        customerId: cliente.id,
+        startAt: em('2026-09-06', '23:30'),
+        minutos: 30,
+      });
+
+      expect(await listarAtendimentosQueOcupamOPeriodo(db, loja.id, INICIO, FIM)).toHaveLength(0);
     });
   });
 });

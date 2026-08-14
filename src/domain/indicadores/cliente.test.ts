@@ -54,9 +54,9 @@ describe('listarSumidos — o corte é o ritmo de cada um', () => {
     expect(r[0].nome).toBe('MuitoAtrasado');
   });
 
-  it('devolve o número de dias de atraso, para a tela poder explicar', () => {
+  it('devolve há quantos dias o cliente não aparece, para a tela poder explicar', () => {
     const r = listarSumidos([cliente('X', [100, 85, 70, 40])], AGORA);
-    expect(r[0].diasAtraso).toBeGreaterThan(0);
+    expect(r[0].diasSemVir).toBeGreaterThan(0);
     expect(r[0].intervaloTipico).toBeGreaterThan(0);
   });
 
@@ -77,7 +77,15 @@ describe('listarSumidos — o corte é o ritmo de cada um', () => {
   it('diz de quanto em quanto tempo o cliente corta, em dias inteiros', () => {
     const [r] = listarSumidos([cliente('Quinzenal', [100, 85, 70, 55, 40])], AGORA);
     expect(r.intervaloTipico).toBe(15);
-    expect(r.diasAtraso).toBe(25); // ausente há 40, corta a cada 15
+  });
+
+  it('o número da ausência é a ausência de verdade, não o excedente sobre o ritmo', () => {
+    // A frase da tela é "corta a cada 15 dias, sumiu há 40". Devolver 25 (o que
+    // passou do ritmo) faz a linha se contradizer sozinha: quem lê soma 15 + 25
+    // e não chega em lugar nenhum. O dono decide se liga olhando há quanto
+    // tempo o cliente não aparece.
+    const [r] = listarSumidos([cliente('Quinzenal', [100, 85, 70, 55, 40])], AGORA);
+    expect(r.diasSemVir).toBe(40);
   });
 });
 
@@ -130,7 +138,23 @@ describe('calcularClientes — taxa de retorno', () => {
       semana,
       AGORA,
     );
-    expect(r.taxaRetorno).toBe(0);
+    // Nulo, e não zero: com dois estreantes na janela, um zero aqui é a tela
+    // inteira dizendo "0% de retorno" em Hoje, Semana e Mês — que são as três
+    // janelas em que ninguém teve tempo de voltar. Zero por imaturidade de
+    // coorte não é zero, é "ainda não dá para saber".
+    expect(r.taxaRetorno).toBeNull();
+    expect(r.novos).toBe(2);
+    expect(r.coorteDeRetorno).toBe(0);
+  });
+
+  it('a coorte madura é contável, para a tela poder dizer de quantos está falando', () => {
+    const janelaAntiga = { inicio: dias(160), fim: dias(130), rotulo: 'mês', periodo: 'mes' as const };
+    const r = calcularClientes(
+      [cliente('Voltou', [150, 90]), cliente('NaoVoltou', [150])],
+      janelaAntiga,
+      AGORA,
+    );
+    expect(r.coorteDeRetorno).toBe(2);
   });
 
   it('com a coorte madura, é a fração dos estreantes que voltou em até 90 dias', () => {

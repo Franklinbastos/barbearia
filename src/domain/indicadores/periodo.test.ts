@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { DateTime } from 'luxon';
-import { resolverPeriodo, janelaAnterior } from './periodo';
+import { resolverPeriodo, janelaAnterior, janelaEmCurso, recorteEquivalente } from './periodo';
 
 const TZ = 'America/Sao_Paulo';
 // Sexta-feira, 14/08/2026, 15h em São Paulo.
@@ -64,5 +64,62 @@ describe('janelaAnterior', () => {
     const marco = resolverPeriodo({ periodo: 'livre', de: '2026-03-01', ate: '2026-03-31', timeZone: TZ, agora: AGORA });
     const fevereiro = janelaAnterior({ ...marco, periodo: 'mes' }, TZ);
     expect(DateTime.fromJSDate(fevereiro.inicio).setZone(TZ).toISODate()).toBe('2026-02-01');
+  });
+});
+
+describe('janelaEmCurso', () => {
+  it('a semana corrente ainda está correndo na sexta', () => {
+    const semana = resolverPeriodo({ timeZone: TZ, agora: AGORA });
+    expect(janelaEmCurso(semana, AGORA.toJSDate())).toBe(true);
+  });
+
+  it('semana que já fechou não está em curso', () => {
+    const semana = resolverPeriodo({ timeZone: TZ, agora: AGORA });
+    const anterior = janelaAnterior(semana, TZ);
+    expect(janelaEmCurso(anterior, AGORA.toJSDate())).toBe(false);
+  });
+
+  it('janela do futuro conta como em curso: nada dela aconteceu ainda', () => {
+    const semana = resolverPeriodo({ timeZone: TZ, agora: AGORA });
+    const futura = {
+      ...semana,
+      inicio: DateTime.fromJSDate(semana.inicio).plus({ weeks: 4 }).toJSDate(),
+      fim: DateTime.fromJSDate(semana.fim).plus({ weeks: 4 }).toJSDate(),
+    };
+    expect(janelaEmCurso(futura, AGORA.toJSDate())).toBe(true);
+  });
+});
+
+describe('recorteEquivalente', () => {
+  it('numa janela em curso, corta a anterior no mesmo ponto do percurso', () => {
+    // Sexta 15h: a semana corrente correu 4 dias e 15 horas. Comparar isso com
+    // os 7 dias inteiros da semana passada mostra queda de 30% numa loja que
+    // não perdeu um cliente. O corte da anterior tem que cair na sexta 15h
+    // dela.
+    const semana = resolverPeriodo({ timeZone: TZ, agora: AGORA });
+    const anterior = janelaAnterior(semana, TZ);
+    const corte = recorteEquivalente(semana, anterior, AGORA.toJSDate());
+
+    expect(DateTime.fromJSDate(corte).setZone(TZ).toISO()).toContain('2026-08-07T15:00');
+  });
+
+  it('janela encerrada compara o período anterior inteiro', () => {
+    const semana = resolverPeriodo({ timeZone: TZ, agora: AGORA });
+    const anterior = janelaAnterior(semana, TZ);
+    const retrasada = janelaAnterior(anterior, TZ);
+    // A semana passada já acabou: não há meia comparação a fazer.
+    expect(recorteEquivalente(anterior, retrasada, AGORA.toJSDate()).getTime()).toBe(
+      retrasada.fim.getTime(),
+    );
+  });
+
+  it('nunca passa do fim da janela anterior, mesmo que ela seja mais curta', () => {
+    // Março tem 31 dias, fevereiro 28. No dia 30 de março o percurso decorrido
+    // é maior que fevereiro inteiro, e somar cegamente cairia dentro de março.
+    const marco = resolverPeriodo({ periodo: 'mes', timeZone: TZ, agora: DateTime.fromISO('2026-03-30T12:00', { zone: TZ }) });
+    const fevereiro = janelaAnterior(marco, TZ);
+    const corte = recorteEquivalente(marco, fevereiro, DateTime.fromISO('2026-03-30T12:00', { zone: TZ }).toJSDate());
+
+    expect(corte.getTime()).toBe(fevereiro.fim.getTime());
   });
 });

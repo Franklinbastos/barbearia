@@ -49,6 +49,34 @@ function rotuloDaHora(hora: number): string {
   return `${hora}h`;
 }
 
+/**
+ * A série em texto — a alternativa para quem não vê o gráfico.
+ *
+ * Não basta anunciar "gráfico de ocupação": a informação aqui **é a forma da
+ * curva**, e a curva responde uma pergunta específica — onde afunda é onde há
+ * hora para vender. Por isso o resumo lê a série inteira (são as horas de
+ * expediente de um dia, não uma tabela infinita) e termina apontando o buraco e
+ * o pico, que é a leitura que o dono faz olhando as barras.
+ *
+ * Com uma hora só não há buraco nem pico, e com a curva chapada também não —
+ * dizer "mais vazia às 9h, mais cheia às 9h" seria inventar relevo onde não há.
+ */
+export function resumoDaSerie(dados: PontoDeOcupacao[]): string {
+  if (dados.length === 0) return 'Sem expediente cadastrado no período.';
+
+  const emPercentual = dados.map((p) => ({ hora: p.hora, valor: Math.round(p.taxa * 100) }));
+  const serie = emPercentual.map((p) => `${rotuloDaHora(p.hora)} ${p.valor}%`).join(', ');
+
+  const menor = emPercentual.reduce((a, b) => (b.valor < a.valor ? b : a));
+  const maior = emPercentual.reduce((a, b) => (b.valor > a.valor ? b : a));
+  const relevo =
+    menor.valor === maior.valor
+      ? ''
+      : ` Mais vazia às ${rotuloDaHora(menor.hora)}, mais cheia às ${rotuloDaHora(maior.hora)}.`;
+
+  return `Ocupação por hora: ${serie}.${relevo}`;
+}
+
 export function GraficoDeOcupacao({ dados }: GraficoDeOcupacaoProps) {
   // A conversão para percentual é feita aqui, e não no domínio: a matemática
   // fala em fração de 0 a 1 em todo lugar, e quem formata é a borda.
@@ -60,6 +88,13 @@ export function GraficoDeOcupacao({ dados }: GraficoDeOcupacaoProps) {
   return (
     <ChartContainer
       config={CONFIG}
+      // `role="img"` com o resumo da série é o que existe de alternativa
+      // textual: ele tira o desenho do recharts inteiro — vetor e as centenas
+      // de nós que ele gera — da árvore de acessibilidade e põe uma frase no
+      // lugar. Sem isto, quem usa leitor de tela chegava no único gráfico da
+      // tela e não ouvia nada.
+      role="img"
+      aria-label={resumoDaSerie(dados)}
       // `aspect-video` do container deixaria a barra fininha no celular; a
       // altura fixa mantém a curva legível em 360px sem rolagem lateral.
       className="aspect-auto h-[220px] w-full"

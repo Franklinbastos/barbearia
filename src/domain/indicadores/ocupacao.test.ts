@@ -71,7 +71,55 @@ describe('calcularOcupacao — denominador', () => {
     };
     const r = calcularOcupacao({ ...base, itens: [], janela: domingo });
     expect(r.minutosDisponiveis).toBe(0);
-    expect(r.taxa).toBe(0); // e não NaN
+    // Nulo, e não zero: `0%` de ocupação num domingo fechado lê como cadeira
+    // parada, que é acusação falsa. Quem não tem denominador não tem taxa.
+    expect(r.taxa).toBeNull();
+  });
+
+  it('barbeiro sem expediente na janela não tem taxa, e não 0%', () => {
+    const r = calcularOcupacao({
+      ...base,
+      itens: [],
+      expediente: [{ staffId: 'a', weekday: 3, startTime: '09:00:00', endTime: '12:00:00' }],
+    });
+    expect(r.taxa).toBeNull();
+  });
+
+  it('bloco de expediente que vira a meia-noite não some calado', () => {
+    // 22:00 → 02:00 devolvia zero minuto e o barbeiro sumia do denominador: a
+    // ocupação da loja inteira subia sem que nada tivesse acontecido. O produto
+    // não suporta expediente virando o dia (`validateWorkingBlocks` rejeita na
+    // gravação), então aqui a linha só pode ter vindo de fora do produto — e
+    // fica sabido, em vez de virar número errado.
+    expect(() =>
+      calcularOcupacao({
+        ...base,
+        itens: [],
+        expediente: [{ staffId: 'a', weekday: 1, startTime: '22:00:00', endTime: '02:00:00' }],
+      }),
+    ).toThrow(/meia-noite/i);
+  });
+
+  it('expediente com hora ilegível também não passa calado', () => {
+    expect(() =>
+      calcularOcupacao({
+        ...base,
+        itens: [],
+        expediente: [{ staffId: 'a', weekday: 1, startTime: 'manhã', endTime: '12:00:00' }],
+      }),
+    ).toThrow(/hora/i);
+  });
+
+  it("'24:00:00' continua sendo a meia-noite do dia seguinte, não bloco invertido", () => {
+    const r = calcularOcupacao({
+      ...base,
+      itens: [],
+      // O dia inteiro já passou: sem isto o corte do "ainda não chegou" comeria
+      // a última hora e o teste mediria outra coisa.
+      agora: DateTime.fromISO('2026-08-11T00:00', { zone: TZ }).toJSDate(),
+      expediente: [{ staffId: 'a', weekday: 1, startTime: '22:00:00', endTime: '24:00:00' }],
+    });
+    expect(r.minutosDisponiveis).toBe(120);
   });
 });
 

@@ -19,8 +19,10 @@ import type { AtendimentoBruto } from './dinheiro';
  * 3. **O que ainda não chegou não é disponível.** Às 10h de um dia que fecha às
  *    18h, contar a tarde inteira como ociosa derruba o número sem motivo — a
  *    tarde ainda pode ser vendida.
- * 4. **Dia sem expediente não entra**, e sem denominador a taxa é `0`, nunca
- *    `NaN`. Loja fechada no domingo não é domingo com 0% de ocupação.
+ * 4. **Dia sem expediente não entra**, e sem denominador **não há taxa**: a
+ *    função devolve `null`, nunca `0` e nunca `NaN`. Loja fechada no domingo
+ *    não é domingo com 0% de ocupação — é domingo sem número, e quem desenha
+ *    isso é a tela, com traço.
  *
  * **Numerador**, e este é o ponto do indicador: `BOOKED` e `DONE` ocupam, e
  * **`NO_SHOW` ocupa também** — a cadeira ficou reservada e ninguém pôde usar,
@@ -48,14 +50,19 @@ export type Bloqueio = { staffId: string; startAt: Date; endAt: Date };
 export type OcupacaoDoBarbeiro = {
   disponiveis: number;
   ocupados: number;
-  taxa: number;
+  /** De 0 a 1, ou `null` para quem não tem expediente cadastrado na janela. */
+  taxa: number | null;
 };
 
 export type Ocupacao = {
   minutosDisponiveis: number;
   minutosOcupados: number;
-  /** De 0 a 1. Sem expediente no período, `0`. */
-  taxa: number;
+  /**
+   * De 0 a 1, ou **`null` sem expediente no período**: loja fechada no domingo
+   * não é domingo com 0% de ocupação, e a tela precisa distinguir os dois para
+   * mostrar traço em vez de acusar a cadeira de estar parada.
+   */
+  taxa: number | null;
   porBarbeiro: Map<string, OcupacaoDoBarbeiro>;
   /** Só os dias da semana que têm expediente na janela, em ordem. */
   porDiaDaSemana: { weekday: number; taxa: number }[];
@@ -112,6 +119,47 @@ function instanteDoDia(dia: DateTime, hora: string): DateTime | null {
 
   const dt = meiaNoite.set({ hour: h, minute: minuto, second: segundo, millisecond: 0 });
   return dt.isValid ? dt : null;
+}
+
+/**
+ * As duas pontas do bloco naquele dia, já em instante absoluto — e a barreira
+ * contra o bloco que este módulo não sabe medir, que antes virava zero minuto.
+ *
+ * **Por que rejeitar e não tratar.** O produto não suporta expediente que vira
+ * a meia-noite: `validateWorkingBlocks` recusa `endTime <= startTime` na
+ * gravação, e `computeAvailability` não oferece horário nenhum num bloco desses
+ * — ou seja, hora que nem existe para vender. Fazer a ocupação sozinha aceitar
+ * 22:00→02:00 abriria um denominador que a agenda nunca consegue preencher, e a
+ * taxa cairia sem que a barbearia tivesse ficado mais vazia. Uma linha assim só
+ * chega aqui por escrita fora do produto.
+ *
+ * **E por que não seguir em silêncio**, que é o que acontecia: o bloco sumia,
+ * o barbeiro saía do denominador junto e a ocupação da loja subia — sem erro,
+ * sem log, sem nada na tela. Número errado que parece certo é o defeito que
+ * este módulo inteiro existe para evitar.
+ */
+function instantesDoBloco(
+  dia: DateTime,
+  bloco: BlocoDeTrabalho,
+): { abre: DateTime; fecha: DateTime } {
+  const abre = instanteDoDia(dia, bloco.startTime);
+  const fecha = instanteDoDia(dia, bloco.endTime);
+  const onde = `barbeiro ${bloco.staffId}, dia ${bloco.weekday}`;
+
+  if (!abre || !fecha) {
+    throw new Error(
+      `Hora de expediente ilegível (${onde}): "${bloco.startTime}" às "${bloco.endTime}".`,
+    );
+  }
+
+  if (fecha.toMillis() <= abre.toMillis()) {
+    throw new Error(
+      `Expediente que vira a meia-noite não é suportado (${onde}): "${bloco.startTime}" às ` +
+        `"${bloco.endTime}". Cadastre dois blocos, um em cada dia da semana.`,
+    );
+  }
+
+  return { abre, fecha };
 }
 
 /** Corta o trecho nos limites pedidos; devolve `null` se não sobrar nada. */
@@ -185,9 +233,18 @@ function somar<K>(mapa: Map<K, { disponiveis: number; ocupados: number }>, chave
   mapa.set(chave, atual);
 }
 
-/** Ocupação sobre disponibilidade, com o zero do dia sem expediente no lugar do `NaN`. */
-function taxaDe(ocupados: number, disponiveis: number): number {
-  return disponiveis > 0 ? ocupados / disponiveis : 0;
+/** Ocupação sobre disponibilidade. Sem denominador não há taxa — `null`, nunca `NaN` nem `0`. */
+function taxaDe(ocupados: number, disponiveis: number): number | null {
+  return disponiveis > 0 ? ocupados / disponiveis : null;
+}
+
+/**
+ * O recorte por dia e por hora sempre tem denominador: as chaves desses mapas
+ * só nascem a partir de um trecho **disponível**, então o `null` de `taxaDe` é
+ * inalcançável ali. O `?? 0` existe para o tipo, não para o caso.
+ */
+function taxaDoRecorte(ocupados: number, disponiveis: number): number {
+  return taxaDe(ocupados, disponiveis) ?? 0;
 }
 
 export function calcularOcupacao(args: CalcularOcupacaoArgs): Ocupacao {
@@ -219,9 +276,7 @@ export function calcularOcupacao(args: CalcularOcupacaoArgs): Ocupacao {
         const porStaff = new Map<string, Trecho[]>();
 
         for (const bloco of doDia) {
-          const abre = instanteDoDia(dia, bloco.startTime);
-          const fecha = instanteDoDia(dia, bloco.endTime);
-          if (!abre || !fecha) continue;
+          const { abre, fecha } = instantesDoBloco(dia, bloco);
 
           const dentro = recortar(
             { inicio: abre.toMillis(), fim: fecha.toMillis() },
@@ -311,9 +366,9 @@ export function calcularOcupacao(args: CalcularOcupacaoArgs): Ocupacao {
     ),
     porDiaDaSemana: [...porDia]
       .sort(([a], [b]) => a - b)
-      .map(([weekday, v]) => ({ weekday, taxa: taxaDe(v.ocupados, v.disponiveis) })),
+      .map(([weekday, v]) => ({ weekday, taxa: taxaDoRecorte(v.ocupados, v.disponiveis) })),
     porHora: [...porHora]
       .sort(([a], [b]) => a - b)
-      .map(([hora, v]) => ({ hora, taxa: taxaDe(v.ocupados, v.disponiveis) })),
+      .map(([hora, v]) => ({ hora, taxa: taxaDoRecorte(v.ocupados, v.disponiveis) })),
   };
 }

@@ -1,11 +1,10 @@
 import type { ComponentProps } from 'react';
 import { cva } from 'class-variance-authority';
-import { Info } from 'lucide-react';
 
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
+import { ExplicacaoDoCalculo } from './explicacao-do-calculo';
 
 /**
  * O card de número do resumo — o tijolo da tela inteira (§2.1 e §2.3 do spec).
@@ -20,9 +19,9 @@ import { cn } from '@/lib/utils';
  * acertou e o que separa métrica confiável de número mágico: o dono que não
  * sabe o que entra no denominador não usa o número para decidir nada — e em
  * comissão, onde o barbeiro vai conferir, é a diferença entre relatório e
- * discussão. Fica num `Tooltip` do `base-ui`, que abre no toque
- * (`triggerPress`), no hover e no foco de teclado; o botão é o alvo, e o texto
- * chega ao leitor de tela pelo `aria-describedby` que o próprio componente liga.
+ * discussão. Quem desenha isso é `ExplicacaoDoCalculo`, e o porquê de ser
+ * `Popover` e não `Tooltip` está lá: tooltip não abre no toque, e o toque é o
+ * gesto do celular, que é onde esta tela é usada.
  *
  * **`tabular-nums` no valor** porque o número troca a cada navegação de
  * período. Sem largura fixa de dígito ele dança de posição, e coluna que dança
@@ -77,22 +76,7 @@ export function CartaoIndicador({
           {titulo}
         </CardTitle>
 
-        <Tooltip>
-          <TooltipTrigger
-            data-slot="cartao-indicador-explicacao"
-            delay={150}
-            // O alvo é pequeno de propósito — é ajuda, não ação —, mas o
-            // `p-1` mais o ícone de 16px dão os 24px que o dedo alcança sem
-            // brigar com o número ao lado.
-            className="-m-1 cursor-help rounded-md p-1 text-muted-foreground transition-colors hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
-          >
-            <Info aria-hidden="true" className="size-4" />
-            <span className="sr-only">Como {titulo.toLowerCase()} é calculado</span>
-          </TooltipTrigger>
-          <TooltipContent side="top" align="end">
-            {explicacao}
-          </TooltipContent>
-        </Tooltip>
+        <ExplicacaoDoCalculo de={titulo} texto={explicacao} />
       </CardHeader>
 
       <CardContent className="flex flex-col gap-1">

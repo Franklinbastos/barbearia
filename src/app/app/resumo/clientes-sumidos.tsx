@@ -18,6 +18,13 @@ import { formatDayLabelFromInstant } from '@/lib/format';
  * como saber por que o cliente bimestral não está ali — e é justamente esse
  * caso que a regra dos 30 dias erra e que a nossa definição acerta.
  *
+ * O segundo número é o `diasSemVir`, a **ausência real**. A linha já imprimiu
+ * aqui o excedente sobre o ritmo (`ausência − intervalo típico`) e se
+ * contradizia sozinha: quem corta a cada 15 e não aparece há 40 saía como
+ * "corta a cada 15 dias, sumiu há 25". O dono decide se liga olhando há quanto
+ * tempo o cliente sumiu — o quanto isso passa do ritmo dele já está dito pela
+ * ordem da lista.
+ *
  * **Sem `'use client'`.** Só há links: nenhum estado, nenhum manipulador. O
  * `wa.me` é montado no servidor e vai no `href`.
  */
@@ -98,8 +105,8 @@ export function ClientesSumidos({
               <p className="truncate text-base leading-6 font-medium">{cliente.nome}</p>
               <p className="text-sm leading-5 text-muted-foreground">
                 Corta a cada {cliente.intervaloTipico}{' '}
-                {cliente.intervaloTipico === 1 ? 'dia' : 'dias'}, sumiu há {cliente.diasAtraso}{' '}
-                {cliente.diasAtraso === 1 ? 'dia' : 'dias'} · última visita em{' '}
+                {cliente.intervaloTipico === 1 ? 'dia' : 'dias'}, sumiu há {cliente.diasSemVir}{' '}
+                {cliente.diasSemVir === 1 ? 'dia' : 'dias'} · última visita em{' '}
                 {formatDayLabelFromInstant(cliente.ultimaVisita, timeZone)}
               </p>
             </div>

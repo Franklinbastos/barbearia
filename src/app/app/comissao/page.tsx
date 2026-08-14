@@ -20,9 +20,8 @@ import {
   type ItemDeComissao,
 } from '@/domain/indicadores/comissao';
 import { resolverPeriodo, type Periodo } from '@/domain/indicadores/periodo';
-import { formatDateTime } from '@/lib/format';
+import { formatDateTime, formatMoney } from '@/lib/format';
 import { requireSession } from '@/lib/session';
-import { formatarReais } from '../resumo/tabela-por-barbeiro';
 
 /**
  * O fechamento da comissão, atendimento a atendimento (§4 do spec).
@@ -43,6 +42,11 @@ import { formatarReais } from '../resumo/tabela-por-barbeiro';
  * **Barbeiro sem percentual não aparece aqui.** Nulo não é zero: ele não
  * trabalha por comissão, e uma linha zerada no fechamento dele seria uma
  * afirmação errada. Quem manda configurar é o resumo, com link para a equipe.
+ *
+ * **Nem barbeiro desativado que não produziu no período** — a mesma regra da
+ * tabela do resumo. A consulta é a `listAllStaff` de propósito: o fechamento de
+ * março tem que continuar mostrando quem saiu em abril, com a comissão que ele
+ * tem a receber. Quem filtra é `calcularComissao`, que sabe quem produziu.
  */
 
 const PERIODOS: { valor: Periodo; rotulo: string }[] = [
@@ -110,11 +114,17 @@ export default async function ComissaoPage({
     cliente: a.customerName,
   }));
 
+  // `ativo` vai junto porque quem saiu da equipe só entra no fechamento do
+  // período em que produziu: a consulta traz a equipe inteira (o fechamento de
+  // março precisa do barbeiro que saiu em abril), e é `calcularComissao` que
+  // decide quem aparece. Sem isso, todo barbeiro desativado com percentual
+  // configurado aparecia zerado em todo fechamento, para sempre.
   const totais = calcularComissao(
     itens,
     equipe.map((membro) => ({
       id: membro.id,
       nome: membro.name,
+      ativo: membro.active,
       percentual: membro.commissionPercent,
     })),
   );
@@ -178,7 +188,7 @@ export default async function ComissaoPage({
               >
                 {total.nome}
                 <span className="ml-2 tabular-nums opacity-80">
-                  {formatarReais(total.comissaoCents)}
+                  {formatMoney(total.comissaoCents)}
                 </span>
               </Link>
             ))}
@@ -195,7 +205,7 @@ export default async function ComissaoPage({
                     ? 'Nenhum atendimento concluído neste período — não há comissão a pagar.'
                     : `${escolhido.atendimentos} ${
                         escolhido.atendimentos === 1 ? 'atendimento' : 'atendimentos'
-                      } concluídos, base de ${formatarReais(escolhido.baseCents)}. Falta e cancelamento não entram.`}
+                      } concluídos, base de ${formatMoney(escolhido.baseCents)}. Falta e cancelamento não entram.`}
                 </CardDescription>
               </CardHeader>
 
@@ -229,10 +239,10 @@ export default async function ComissaoPage({
                               <TableCell>{linha.cliente}</TableCell>
                               <TableCell>{linha.servico}</TableCell>
                               <TableCell className="text-right tabular-nums">
-                                {formatarReais(linha.precoCents)}
+                                {formatMoney(linha.precoCents)}
                               </TableCell>
                               <TableCell className="text-right tabular-nums">
-                                {formatarReais(linha.comissaoCents)}
+                                {formatMoney(linha.comissaoCents)}
                               </TableCell>
                             </TableRow>
                           ))}
@@ -241,10 +251,10 @@ export default async function ComissaoPage({
                           <TableRow>
                             <TableCell colSpan={3}>Total</TableCell>
                             <TableCell className="text-right tabular-nums">
-                              {formatarReais(escolhido.baseCents)}
+                              {formatMoney(escolhido.baseCents)}
                             </TableCell>
                             <TableCell className="text-right tabular-nums">
-                              {formatarReais(escolhido.comissaoCents)}
+                              {formatMoney(escolhido.comissaoCents)}
                             </TableCell>
                           </TableRow>
                         </TableFooter>
@@ -260,20 +270,20 @@ export default async function ComissaoPage({
                               {linha.cliente}
                             </span>
                             <span className="shrink-0 tabular-nums">
-                              {formatarReais(linha.comissaoCents)}
+                              {formatMoney(linha.comissaoCents)}
                             </span>
                           </div>
                           <p className="text-sm leading-5 text-muted-foreground">
                             {formatDateTime(linha.quando, timeZone)} · {linha.servico} ·{' '}
-                            {formatarReais(linha.precoCents)}
+                            {formatMoney(linha.precoCents)}
                           </p>
                         </li>
                       ))}
                     </ul>
 
                     <p className="pt-3 text-base leading-6 md:hidden">
-                      Total: <strong className="tabular-nums">{formatarReais(escolhido.comissaoCents)}</strong>{' '}
-                      sobre {formatarReais(escolhido.baseCents)}
+                      Total: <strong className="tabular-nums">{formatMoney(escolhido.comissaoCents)}</strong>{' '}
+                      sobre {formatMoney(escolhido.baseCents)}
                     </p>
                   </>
                 )}
