@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { Bloco } from '@/components/ui/bloco';
 import { CabecalhoDePagina } from '@/components/ui/cabecalho-de-pagina';
 import { Card } from '@/components/ui/card';
+import { Largura } from '@/components/ui/largura';
 import { Monograma } from '@/components/ui/monograma';
 import { StaffForm } from './staff-form';
 import { ToggleStaffButton } from './toggle-staff-button';
@@ -39,7 +40,10 @@ export default async function EquipePage({
   const ehDono = sessao.role === 'OWNER';
 
   return (
-    <div className="flex flex-col gap-4">
+    // Uma largura só para a tela (§3.7): cabeçalho, formulário e lista dividem o
+    // teto de `tabela`. Antes o card do formulário tinha 520px e o da lista
+    // 720px, um logo acima do outro, com o degrau à vista.
+    <Largura tipo="tabela" className="flex flex-col gap-4">
       <CabecalhoDePagina titulo="Equipe" descricao="Quem atende, o expediente de cada um e quem está de fora." />
 
       <ErroDeAcao mensagem={erro} />
@@ -52,13 +56,17 @@ export default async function EquipePage({
 
       {/* `gap-0 py-0`: o recheio do card cairia fora das divisórias, e a linha de
           72px já tem o seu. Do card fica a moldura — anel, raio e fundo. */}
-      <Card className="max-w-[720px] gap-0 py-0">
+      <Card className="gap-0 py-0">
         <ul className="lista border-t-0 [&>li:last-child]:border-b-0">
           {equipe.map((membro) => (
             // `--superficie-2` porque o fundo do card já é `--superficie`: sem
             // isso o membro inativo ficaria igual ao ativo.
             <li key={membro.id} className={membro.active ? undefined : 'bg-superficie-2'}>
-              <div className="grid min-h-[72px] grid-cols-[1fr_auto] items-center gap-3 p-3">
+              {/* Cada linha é uma grade própria, então uma coluna de ação `auto`
+                  resolve larguras diferentes em cada uma — a linha do "Você" é
+                  bem mais estreita que a do botão — e a seta do fim do nome
+                  dança de posição a cada linha. O mínimo iguala todas. */}
+              <div className="grid min-h-[72px] grid-cols-[1fr_minmax(104px,auto)] items-center gap-3 p-3">
                 {/* A linha inteira leva ao detalhe: "Configurar" era um link de
                     texto de 20px de altura no meio de uma tabela. */}
                 <Link
@@ -95,7 +103,7 @@ export default async function EquipePage({
                   />
                 </Link>
 
-                <div>
+                <div className="flex justify-end">
                   {/* Desativar a si mesmo é o clique que trancava o dono fora do
                       painel — o servidor recusa, e aqui o botão nem aparece. */}
                   {membro.id === sessao.staffId ? (
@@ -109,6 +117,6 @@ export default async function EquipePage({
           ))}
         </ul>
       </Card>
-    </div>
+    </Largura>
   );
 }

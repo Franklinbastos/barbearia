@@ -193,8 +193,16 @@ export function ManualBookingForm({
           pé na frente. No desktop ela atravessava a largura inteira por baixo da
           sidebar e ficava órfã — a ação passa a morar no topo, que é onde o
           shadcn põe ação de página. O rodapé é reservado pelo `pb-16` do
-          container em `agenda/page.tsx`, porque este componente agora vem antes
-          da lista. */}
+          container em `agenda/page.tsx`.
+
+          Desde 14/08/2026 este componente é renderizado dentro da faixa da barra
+          de data (a prop `acao` dela), e por isso a barra fixa mora debaixo de um
+          `position: sticky` com `z-10`. `sticky` não vira bloco de contenção de
+          `fixed` — a barra continua colada no rodapé da janela —, mas **cria
+          contexto de empilhamento**: este `z-30` passa a valer dentro dele, e
+          contra o resto da página a barra pinta no nível 10. Ainda é acima dos
+          cabeçalhos de hora da lista (`z-[5]`), e a folha vai para portal no
+          `<body>`. Quem mexer no `z` da barra de data mexe também no daqui. */}
       <div
         className="fixed inset-x-0 bottom-0 z-30 bg-bg px-3 py-1.5 md:hidden"
         style={{
@@ -207,7 +215,13 @@ export function ManualBookingForm({
         </Botao>
       </div>
 
-      <div className="mb-3 hidden md:flex md:justify-end">
+      {/* O botão de desktop ficava aqui num `div` só dele, com `md:justify-end`
+          empurrando-o para o canto: uma faixa inteira de altura gasta com um
+          botão flutuando, desalinhado da barra de data logo acima. Agora ele
+          entra na `acao` da barra e divide aquela linha — o `hidden md:flex`
+          continua sendo dele porque no celular quem manda é a barra fixa do
+          rodapé, e esconder pelo lado da barra apagaria ela junto. */}
+      <div className="hidden md:flex">
         <Botao onClick={abrir}>Encaixe</Botao>
       </div>
 

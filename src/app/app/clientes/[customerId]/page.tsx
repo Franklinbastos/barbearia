@@ -13,6 +13,7 @@ import { Badge } from '@/components/ui/badge';
 import { Bloco } from '@/components/ui/bloco';
 import { CabecalhoDePagina } from '@/components/ui/cabecalho-de-pagina';
 import { Card } from '@/components/ui/card';
+import { Largura } from '@/components/ui/largura';
 import { VARIANTE_DO_ESTADO } from '../../tom-do-estado';
 import { NotesForm } from './notes-form';
 import { AnonymizeButton } from './anonymize-button';
@@ -45,55 +46,61 @@ export default async function CustomerDetailPage({
         <CabecalhoDePagina titulo={cliente.name} descricao={cliente.phone} />
       </div>
 
-      <section className="flex max-w-[720px] flex-col gap-3">
-        <h2 className={TITULO_DE_SECAO}>Histórico</h2>
-        {historico.length === 0 ? (
-          <Bloco>Nenhum atendimento ainda.</Bloco>
-        ) : (
-          // O histórico é caixa de conteúdo, então vira card; o "Nenhum
-          // atendimento ainda" acima continua sendo `Bloco`, que é mensagem.
-          <Card className="gap-0 py-0">
-            <ul className="lista border-t-0 [&>li:last-child]:border-b-0">
-              {historico.map((h) => {
-                const estado = h.status as AppointmentStatus;
-                return (
-                  <li key={h.id}>
-                    <div className="grid min-h-[72px] grid-cols-[1fr_auto] items-center gap-3 p-3">
-                      <div className="flex min-w-0 flex-col gap-1">
-                        <span className="text-[17px] leading-[22px] font-bold">
-                          {formatDateTime(h.startAt, timeZone)}
-                        </span>
-                        <span className="text-sm leading-5 text-tinta-2">
-                          {h.serviceName} · {formatPrice(h.priceCents)}
-                        </span>
+      {/* As três seções dividem um teto só. Antes o histórico tinha 720px e a
+          privacidade 520px, e as bordas não batiam de uma seção para a outra —
+          o `<Largura>` fica aqui em volta para que a próxima seção nasça
+          alinhada sem ninguém precisar lembrar do número. */}
+      <Largura tipo="tabela" className="flex flex-col gap-6">
+        <section className="flex flex-col gap-3">
+          <h2 className={TITULO_DE_SECAO}>Histórico</h2>
+          {historico.length === 0 ? (
+            <Bloco>Nenhum atendimento ainda.</Bloco>
+          ) : (
+            // O histórico é caixa de conteúdo, então vira card; o "Nenhum
+            // atendimento ainda" acima continua sendo `Bloco`, que é mensagem.
+            <Card className="gap-0 py-0">
+              <ul className="lista border-t-0 [&>li:last-child]:border-b-0">
+                {historico.map((h) => {
+                  const estado = h.status as AppointmentStatus;
+                  return (
+                    <li key={h.id}>
+                      <div className="grid min-h-[72px] grid-cols-[1fr_auto] items-center gap-3 p-3">
+                        <div className="flex min-w-0 flex-col gap-1">
+                          <span className="text-[17px] leading-[22px] font-bold">
+                            {formatDateTime(h.startAt, timeZone)}
+                          </span>
+                          <span className="text-sm leading-5 text-tinta-2">
+                            {h.serviceName} · {formatPrice(h.priceCents)}
+                          </span>
+                        </div>
+                        {/* O `TOM_DO_ESTADO` de quatro tons desenhados à mão
+                            saiu: a variante agora vem de `tom-do-estado.ts`, que
+                            o cartão da agenda também lê — as duas telas
+                            discordavam sobre o "Não veio". */}
+                        <Badge variant={VARIANTE_DO_ESTADO[estado]}>
+                          {formatAppointmentStatus(estado)}
+                        </Badge>
                       </div>
-                      {/* O `TOM_DO_ESTADO` de quatro tons desenhados à mão saiu:
-                          a variante agora vem de `tom-do-estado.ts`, que o
-                          cartão da agenda também lê — as duas telas discordavam
-                          sobre o "Não veio". */}
-                      <Badge variant={VARIANTE_DO_ESTADO[estado]}>
-                        {formatAppointmentStatus(estado)}
-                      </Badge>
-                    </div>
-                  </li>
-                );
-              })}
-            </ul>
-          </Card>
-        )}
-      </section>
-
-      <section className="flex flex-col gap-3">
-        <h2 className={TITULO_DE_SECAO}>Notas</h2>
-        <NotesForm customerId={customerId} notes={cliente.notes} />
-      </section>
-
-      {sessao.role === 'OWNER' ? (
-        <section className="flex max-w-[520px] flex-col gap-3">
-          <h2 className={TITULO_DE_SECAO}>Privacidade</h2>
-          <AnonymizeButton customerId={customerId} />
+                    </li>
+                  );
+                })}
+              </ul>
+            </Card>
+          )}
         </section>
-      ) : null}
+
+        <section className="flex flex-col gap-3">
+          <h2 className={TITULO_DE_SECAO}>Notas</h2>
+          <NotesForm customerId={customerId} notes={cliente.notes} />
+        </section>
+
+        {sessao.role === 'OWNER' ? (
+          <section className="flex flex-col gap-3">
+            <h2 className={TITULO_DE_SECAO}>Privacidade</h2>
+            <AnonymizeButton customerId={customerId} />
+          </section>
+        ) : null}
+      </Largura>
     </div>
   );
 }

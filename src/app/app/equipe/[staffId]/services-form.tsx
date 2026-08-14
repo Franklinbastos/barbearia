@@ -6,6 +6,7 @@ import { Botao } from '@/components/ui/botao';
 import { Campo } from '@/components/ui/campo';
 import { Card } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Largura } from '@/components/ui/largura';
 import { formatDuration } from '@/lib/format';
 import { saveStaffServicesAction, type FormState } from './actions';
 
@@ -36,7 +37,7 @@ export function ServicesForm({
   const [state, formAction, pending] = useActionState(action, ESTADO_INICIAL);
 
   return (
-    <form action={formAction} className="flex max-w-[720px] flex-col gap-3">
+    <form action={formAction} className="flex flex-col gap-3">
       {/* `gap-0 py-0`: cada linha já traz o próprio recheio, e o do card
           empurraria as divisórias para dentro. */}
       <Card className="gap-0 py-0">
@@ -69,17 +70,22 @@ export function ServicesForm({
                     </span>
                   </label>
 
-                  <Campo rotulo="Duração própria (min)" dica="Vazio usa o padrão do serviço.">
-                    <input
-                      type="number"
-                      name={`duration_${s.id}`}
-                      aria-label={rotuloDaDuracaoPropria(s.name)}
-                      inputMode="numeric"
-                      min={1}
-                      defaultValue={override ?? ''}
-                      placeholder="usa o padrão"
-                    />
-                  </Campo>
+                  {/* A lista ocupa a largura da tela, mas o campo não: são dois
+                      ou três dígitos, e um `input` da largura da linha inteira
+                      só afasta o número do rótulo. */}
+                  <Largura tipo="formulario">
+                    <Campo rotulo="Duração própria (min)" dica="Vazio usa o padrão do serviço.">
+                      <input
+                        type="number"
+                        name={`duration_${s.id}`}
+                        aria-label={rotuloDaDuracaoPropria(s.name)}
+                        inputMode="numeric"
+                        min={1}
+                        defaultValue={override ?? ''}
+                        placeholder="usa o padrão"
+                      />
+                    </Campo>
+                  </Largura>
                 </div>
               </li>
             );

@@ -12,7 +12,9 @@ import { Button } from '@/components/ui/button';
 import { Calendar } from '@/components/ui/calendar';
 import { Campo } from '@/components/ui/campo';
 import { Card, CardContent } from '@/components/ui/card';
+import { larguraVariants } from '@/components/ui/largura';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { cn } from '@/lib/utils';
 import { formatDateTime } from '@/lib/format';
 import { createTimeOffAction, deleteTimeOffAction, type FormState } from './actions';
 
@@ -56,7 +58,7 @@ export function TimeOffSection({
   }, [state]);
 
   return (
-    <div className="flex max-w-[720px] flex-col gap-3">
+    <div className="flex flex-col gap-3">
       {bloqueios.length === 0 ? (
         <Bloco>Nenhum bloqueio futuro.</Bloco>
       ) : (
@@ -101,8 +103,15 @@ export function TimeOffSection({
       <ErroDeAcao mensagem={erroAoExcluir} />
 
       {/* A caixa do formulário já era um card à mão — mesmo fundo, mesmo raio.
-          Passa a ser o card da lib, como a lista acima. */}
-      <Card className="max-w-[520px]">
+          Passa a ser o card da lib, como a lista acima.
+
+          O card não tem largura própria: herda a da tela, que é a mesma da lista
+          logo acima (§3.7) — card de 520 embaixo de lista de 880 é o degrau que
+          este plano inteiro veio desfazer. O teto de `formulario` desce para o
+          `<form>`, que é onde ele quer dizer alguma coisa: linha de input larga
+          demais faz o olho perder o começo ao voltar. É a mesma anatomia de
+          `comissao-form`, `servico-form` e `staff-form`. */}
+      <Card>
         <CardContent>
           {/* O dia escolhido mora em estado do React, e o `reset()` do efeito
               acima só limpa os `<input>` nativos. Pendurar a limpeza no evento
@@ -114,7 +123,7 @@ export function TimeOffSection({
             ref={formRef}
             action={formAction}
             onReset={() => setDia(undefined)}
-            className="flex flex-col gap-3"
+            className={cn(larguraVariants({ tipo: 'formulario' }), 'flex flex-col gap-3')}
           >
             {/* O `Popover` envolve o `Campo` porque quem tem de ser o controle
                 rotulado é o gatilho: o `Campo` clona o filho para pendurar

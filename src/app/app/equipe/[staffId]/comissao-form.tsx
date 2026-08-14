@@ -6,6 +6,8 @@ import { ErroDeAcao } from '@/components/erro-de-acao';
 import { Botao } from '@/components/ui/botao';
 import { Campo } from '@/components/ui/campo';
 import { Card, CardContent } from '@/components/ui/card';
+import { larguraVariants } from '@/components/ui/largura';
+import { cn } from '@/lib/utils';
 import { saveCommissionAction, type FormState } from './actions';
 
 const ESTADO_INICIAL: FormState = {};
@@ -37,9 +39,16 @@ export function ComissaoForm({
   const [state, formAction, pending] = useActionState(action, ESTADO_INICIAL);
 
   return (
-    <Card className="max-w-[420px]">
+    // O card acompanha a largura da tela, dada uma vez em `page.tsx`; era ele o
+    // bloco de 420px que destoava dos três irmãos. Quem fica estreito é o
+    // *conteúdo*: `larguraVariants` dá o teto de formulário ao `<form>` sem
+    // pendurar mais um `<div>` só para carregar uma classe.
+    <Card>
       <CardContent>
-        <form action={formAction} className="flex flex-col gap-3">
+        <form
+          action={formAction}
+          className={cn(larguraVariants({ tipo: 'formulario' }), 'flex flex-col gap-3')}
+        >
           <Campo
             rotulo="Percentual de comissão"
             sufixo="%"

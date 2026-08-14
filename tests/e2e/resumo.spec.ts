@@ -1,9 +1,9 @@
 import { test, expect, type Page } from '@playwright/test';
-import { and, eq } from 'drizzle-orm';
 import { DateTime } from 'luxon';
 
 import { db } from '@/db/client';
-import { appointment, barbershop, customer, service, staff, staffService, user } from '@/db/schema';
+import { appointment, customer, service, staffService } from '@/db/schema';
+import { entrarNoPainel, TZ, type LojaDeTeste } from './fixtures/painel';
 
 /**
  * O caminho do dono até os números (§5 do spec), de ponta a ponta: cadastrar,
@@ -11,13 +11,9 @@ import { appointment, barbershop, customer, service, staff, staffService, user }
  * barbearia que ainda não atendeu ninguém — encontrar uma explicação no lugar
  * de `0,0%`.
  *
- * **Por que a semente mora aqui e não em `fixtures/seed.ts`.** A semente de lá
- * serve à grade pública, que é anônima: cria a loja com um `userId` de mentira
- * e nenhuma conta de acesso. O resumo é tela de painel e exige sessão de
- * verdade. Ela é criada pelo próprio `/signup` do produto, e não por chamada
- * direta ao Better-Auth: o plugin `nextCookies` grava o cookie de dentro de uma
- * requisição do Next, então fora dela a conta nasceria sem sessão. De quebra,
- * o cadastro já monta o expediente padrão — que é o denominador da ocupação.
+ * **O login mora em `fixtures/painel.ts`** desde 14/08/2026 — nasceu aqui e saiu
+ * quando o segundo spec de painel apareceu. A semente de movimento continua
+ * neste arquivo porque os números conferidos abaixo são dela, e de mais ninguém.
  *
  * **O relógio é da barbearia.** Todo atendimento semeado nasce de
  * `DateTime.now().setZone(TZ)`, nunca de `new Date('...')`: uma data literal é
@@ -32,56 +28,10 @@ import { appointment, barbershop, customer, service, staff, staffService, user }
  * passaria com a tela somando errado.
  */
 
-const TZ = 'America/Sao_Paulo';
-
 test.use({ timezoneId: TZ });
-
-const SENHA = 'resumo-e2e-2026';
-
-type LojaDeTeste = { slug: string; email: string };
 
 const COM_MOVIMENTO: LojaDeTeste = { slug: 'e2e-resumo', email: 'dono.resumo@e2e.test' };
 const SEM_MOVIMENTO: LojaDeTeste = { slug: 'e2e-resumo-vazia', email: 'dono.vazio@e2e.test' };
-
-/**
- * Apaga a loja e a conta de uma execução anterior.
- *
- * A barbearia cai por `slug` e leva staff, serviços e atendimentos em cascata;
- * a conta cai depois, por e-mail, porque `staff.userId` é texto solto e não uma
- * chave estrangeira — deixar o usuário para trás faria o cadastro seguinte
- * falhar com "e-mail já está em uso".
- */
-async function limpar(loja: LojaDeTeste) {
-  await db.delete(barbershop).where(eq(barbershop.slug, loja.slug));
-  await db.delete(user).where(eq(user.email, loja.email));
-}
-
-/** Cadastra a barbearia pelo próprio produto e devolve a página já logada. */
-async function cadastrar(page: Page, loja: LojaDeTeste) {
-  await limpar(loja);
-
-  await page.goto('/signup');
-  await page.getByLabel('Seu nome').fill('Dono do Resumo');
-  await page.getByLabel('E-mail').fill(loja.email);
-  await page.getByLabel('Senha').fill(SENHA);
-  await page.getByLabel('Nome da barbearia').fill('Barbearia E2E');
-  await page.getByLabel('Endereço da sua página').fill(loja.slug);
-  await page.getByRole('button', { name: /cadastrar/i }).click();
-
-  await page.waitForURL(/\/app\b/);
-
-  const [criada] = await db.select().from(barbershop).where(eq(barbershop.slug, loja.slug));
-  // O `/signup` tira o fuso do navegador; fixá-lo aqui deixa o teste imune a
-  // uma máquina de CI em UTC, mesmo que o `timezoneId` acima mude de valor.
-  await db.update(barbershop).set({ timeZone: TZ }).where(eq(barbershop.id, criada.id));
-
-  const [dono] = await db
-    .select()
-    .from(staff)
-    .where(and(eq(staff.barbershopId, criada.id), eq(staff.role, 'OWNER')));
-
-  return { barbershopId: criada.id, staffId: dono.id };
-}
 
 /**
  * Três atendimentos **de hoje** — o único dia que cabe ao mesmo tempo na semana
@@ -149,7 +99,7 @@ function valorDo(page: Page, titulo: string) {
 test('o dono chega ao Resumo pelo painel e lê os quatro números da primeira dobra', async ({
   page,
 }) => {
-  const ids = await cadastrar(page, COM_MOVIMENTO);
+  const ids = await entrarNoPainel(page, COM_MOVIMENTO);
   await semearMovimento(ids);
 
   // Pelo painel, não pela URL: o Resumo é a primeira seção da sidebar desde
@@ -177,7 +127,7 @@ test('o dono chega ao Resumo pelo painel e lê os quatro números da primeira do
 });
 
 test('trocar para Mês muda a URL e o período que a tela mostra', async ({ page }) => {
-  const ids = await cadastrar(page, COM_MOVIMENTO);
+  const ids = await entrarNoPainel(page, COM_MOVIMENTO);
   await semearMovimento(ids);
 
   await page.goto('/app/resumo');
@@ -197,7 +147,7 @@ test('trocar para Mês muda a URL e o período que a tela mostra', async ({ page
 });
 
 test('barbearia sem atendimento explica o que falta, em vez de mostrar zero', async ({ page }) => {
-  await cadastrar(page, SEM_MOVIMENTO);
+  await entrarNoPainel(page, SEM_MOVIMENTO);
 
   await page.goto('/app/resumo');
 

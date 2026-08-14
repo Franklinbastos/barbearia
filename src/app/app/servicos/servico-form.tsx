@@ -5,6 +5,8 @@ import { ErroDeAcao } from '@/components/erro-de-acao';
 import { Botao } from '@/components/ui/botao';
 import { Campo } from '@/components/ui/campo';
 import { Card, CardContent } from '@/components/ui/card';
+import { larguraVariants } from '@/components/ui/largura';
+import { cn } from '@/lib/utils';
 import { saveServiceAction, type ServiceFormState } from './actions';
 
 const ESTADO_INICIAL: ServiceFormState = {};
@@ -58,9 +60,19 @@ export function ServicoForm() {
     // A caixa do formulário já era um card desenhado à mão — mesmo fundo, mesmo
     // raio. Vira o card da lib para não conviver com a lista logo abaixo tendo
     // borda dura enquanto ela tem anel.
-    <Card className="max-w-[520px]">
+    //
+    // O card não tem largura própria: herda a da tela, que é a mesma da lista
+    // logo abaixo (§3.7) — 520 do formulário empilhado sobre 720 da lista era o
+    // degrau visível na primeira dobra. O teto de `formulario` desceu para os
+    // campos, que é onde ele quer dizer alguma coisa: linha de input larga
+    // demais faz o olho perder o começo ao voltar.
+    <Card>
       <CardContent>
-        <form ref={formRef} action={formAction} className="flex flex-col gap-3">
+        <form
+          ref={formRef}
+          action={formAction}
+          className={cn(larguraVariants({ tipo: 'formulario' }), 'flex flex-col gap-3')}
+        >
           <Campo rotulo="Nome">
             <input name="name" required minLength={2} autoComplete="off" />
           </Campo>

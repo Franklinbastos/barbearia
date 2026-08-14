@@ -11,6 +11,7 @@ import {
   listTimeOffForStaff,
 } from '@/db/repositories';
 import { CabecalhoDePagina } from '@/components/ui/cabecalho-de-pagina';
+import { Largura } from '@/components/ui/largura';
 import { ComissaoForm } from './comissao-form';
 import { ServicesForm } from './services-form';
 import { WorkingHoursForm } from './working-hours-form';
@@ -39,7 +40,12 @@ export default async function StaffDetailPage({
   const bloqueios = await listTimeOffForStaff(db, sessao.barbershopId, staffId, new Date());
 
   return (
-    <div className="flex flex-col gap-6">
+    // A régua fica aqui, uma vez, em volta de tudo — não repetida em cada bloco.
+    // Era assim que a tela desalinhava: quatro caixas empilhadas, cada uma com o
+    // próprio teto (720, 720, 720 e 420 na comissão), e a borda direita serrilhada.
+    // Com o teto num lugar só, o próximo bloco que alguém acrescentar aqui já
+    // nasce alinhado com os quatro.
+    <Largura tipo="tabela" className="flex flex-col gap-6">
       <div className="flex flex-col gap-2">
         <Link href="/app/equipe" className="text-sm leading-5">
           ← Equipe
@@ -65,8 +71,11 @@ export default async function StaffDetailPage({
       <section className="flex flex-col gap-3">
         <h2 className={TITULO_DE_SECAO}>Expediente</h2>
         {/* Sete formulários irmãos, um por dia: cada um salva sozinho e diz qual
-            dia salvou. Em ≥768px cabem dois por linha sem apertar as horas. */}
-        <div className="grid max-w-[720px] gap-3 md:grid-cols-2">
+            dia salvou. Em ≥768px cabem dois por linha, e o teto de `tabela` é
+            mais largo que os 720px de antes: os seis `input[type=time]` de cada
+            card ganham folga em vez de perder. Abaixo de 768px continua uma
+            coluna só — é isso que impede a tela de rolar de lado em 360px. */}
+        <div className="grid gap-3 md:grid-cols-2">
           {DIAS_SEMANA.map((weekday) => (
             <WorkingHoursForm
               key={weekday}
@@ -86,6 +95,6 @@ export default async function StaffDetailPage({
           timeZone={loja?.timeZone ?? 'America/Sao_Paulo'}
         />
       </section>
-    </div>
+    </Largura>
   );
 }

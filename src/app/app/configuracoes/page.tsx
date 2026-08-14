@@ -3,7 +3,7 @@ import { db } from '@/db/client';
 import { findBarbershopById } from '@/db/repositories';
 import { env } from '@/lib/env';
 import { CabecalhoDePagina } from '@/components/ui/cabecalho-de-pagina';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Largura } from '@/components/ui/largura';
 import { SettingsForm } from './settings-form';
 
 export default async function ConfiguracoesPage() {
@@ -20,20 +20,13 @@ export default async function ConfiguracoesPage() {
         descricao="O endereço público da loja e as regras da agenda."
       />
 
-      {/* Era `Bloco`, mas nunca foi mensagem: é o endereço da loja parado na
-          tela, ou seja, conteúdo. Card com cabeçalho é exatamente essa forma. */}
-      <Card className="max-w-[520px]">
-        <CardHeader>
-          <CardTitle>Endereço público</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {/* `break-all` porque o slug pode ser longo e em 360px o endereço é a
-              única coisa da tela que não tem onde quebrar. */}
-          <code className="block break-all text-base leading-6">{linkPublico}</code>
-        </CardContent>
-      </Card>
-
-      <SettingsForm loja={loja} />
+      {/* O teto da tela mora aqui, não dentro do formulário: a página decide
+          quanto ocupa, o formulário decide como se arruma por dentro. Era um
+          card de 520px sobre um formulário de 520px numa tela de 1400 — dois
+          terços vazios. */}
+      <Largura tipo="leitura">
+        <SettingsForm loja={loja} linkPublico={linkPublico} />
+      </Largura>
     </div>
   );
 }

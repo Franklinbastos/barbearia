@@ -463,6 +463,9 @@ dança quando o dígito muda é erro de instrumento.
 | entre blocos de assunto | 24px | 24px |
 | antes do rodapé | 32px | 32px |
 
+Os 1400px do painel são o teto do container, não a largura do conteúdo: quanto cada bloco de tela
+ocupa dentro dele é a régua da §3.7.
+
 ### 3.4 Marca da loja (enxerto da "Vitrine", versão travada)
 
 O jurado-balcão foi direto: "vou colar o link na bio do Instagram, abro pra conferir e é uma tela de
@@ -535,6 +538,37 @@ peso 700 na cor de tinta. Com mais de 8 barbeiros ativos as cores repetem — ac
 - **Alvo:** 44 (só inline) · 48 · 52 · 56 · 64. Folga mínima de 8px entre alvos vizinhos.
 - **Movimento:** 120ms linear em cor; `.barra-busca` é a única animação; folha entra em 160ms com
   `translateY(8px)`; tudo dentro de `prefers-reduced-motion: no-preference`.
+
+### 3.7 Régua de largura (a lacuna que produziu o defeito, fechada em 14/08/2026)
+
+Esta seção não existia, e a falta dela custou cinco telas. Sem régua, cada bloco escolheu a própria
+largura no olho — `1400`, `720`, `520`, `420` espalhados por vinte arquivos — e o resultado aparecia
+na primeira dobra: formulário de 520px empilhado sobre lista de 720px, com o degrau entre as duas
+caixas; comissão do barbeiro em 420px ao lado de três irmãos de 720px; conteúdo espremido no terço
+esquerdo de uma tela de 1400px.
+
+**Largura em px solta numa tela é defeito, não escolha.** Quem precisa de teto usa
+`<Largura tipo="…">` (`src/components/ui/largura.tsx`), quatro degraus e nada entre eles:
+
+| Degrau | Teto | Para quê, e por quê |
+|---|---|---|
+| `formulario` | 520px | Campo de formulário. Linha de input muito larga faz o olho perder o começo ao voltar, e alvo de clique não melhora depois de certa largura. |
+| `tabela` | 880px | Lista com coluna de ação. 720px apertava a ação e, pior, criava o degrau contra o formulário de 520 logo acima — que agora divide este mesmo teto. |
+| `leitura` | 1120px | Conteúdo corrido e grade de cards. Abaixo dos 1400px do container de propósito: texto que atravessa a tela inteira cansa. |
+| `cheia` | — | Grade que se vira sozinha. Sem teto. |
+
+O `<Largura>` é um `<div class="w-full">` e **nunca** `mx-auto`: o painel alinha à esquerda, e
+centralizar mudaria a posição de todas as telas de uma vez.
+
+**A forma certa é a do resumo** — a tela que o dono aprovou. Ela não tem largura mágica nenhuma:
+`grid-cols-1 sm:grid-cols-2 xl:grid-cols-4` ocupando o container, zero `max-w`
+(`src/app/app/resumo/page.tsx`). Declarar `cheia` é para quando o `<Largura>` já está no caminho;
+grade responsiva sem teto continua sendo o padrão de quem não precisa de teto.
+
+As exceções, e são só três: o container do painel (`app/layout.tsx`, `max-width: 1400px`, o teto de
+tudo — está na §3.3), a folha inferior (560px por decisão da §4.3) e o `52ch` do estado vazio do
+resumo, que é medida de texto e não de tela. `tests/unit/regua-de-largura.test.ts` trava o resto:
+qualquer `max-w-[…px]` novo numa tela do painel reprova.
 
 ---
 
