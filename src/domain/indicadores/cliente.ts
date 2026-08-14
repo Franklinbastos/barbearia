@@ -20,6 +20,12 @@ import type { Janela } from './periodo';
  * mediana do próprio cliente (que sofre o mesmo desvio) e o que vai para a tela
  * é arredondado. Dia civil só importaria se o corte fosse uma data fixa, e não
  * é.
+ *
+ * **`visitasDistintas`, `intervalos` e `mediana` são exportadas** porque
+ * `perfil-do-cliente.ts` faz a mesma conta para um cliente só, na ficha dele.
+ * Duas cópias da mediana divergiriam no primeiro ajuste, e é ela que faz a
+ * métrica funcionar — a lista de sumidos e a ficha têm que dizer o mesmo
+ * número.
  */
 
 export type VisitaDoCliente = {
@@ -97,7 +103,8 @@ export const INTERVALO_TIPICO_PADRAO = 30;
 /** Janela da coorte de retorno, em dias — "voltou em até 90 dias" (§3.3). */
 export const JANELA_DE_RETORNO = 90;
 
-function emDias(de: Date, ate: Date): number {
+/** Distância em dias corridos — fracionária de propósito, ver o cabeçalho. */
+export function emDias(de: Date, ate: Date): number {
   return (ate.getTime() - de.getTime()) / MS_POR_DIA;
 }
 
@@ -110,7 +117,7 @@ function emDias(de: Date, ate: Date): number {
  * sumidos gente que está em dia — exatamente o erro que a métrica existe para
  * evitar.
  */
-function visitasDistintas(visitas: Date[]): Date[] {
+export function visitasDistintas(visitas: Date[]): Date[] {
   const ordenadas = [...visitas].sort((a, b) => a.getTime() - b.getTime());
   const distintas: Date[] = [];
 
@@ -124,7 +131,7 @@ function visitasDistintas(visitas: Date[]): Date[] {
 }
 
 /** Os intervalos, em dias, entre visitas consecutivas já normalizadas. */
-function intervalos(visitas: Date[]): number[] {
+export function intervalos(visitas: Date[]): number[] {
   const dias: number[] = [];
   for (let i = 1; i < visitas.length; i += 1) dias.push(emDias(visitas[i - 1], visitas[i]));
   return dias;
@@ -136,7 +143,7 @@ function intervalos(visitas: Date[]): number[] {
  * Com intervalos de 15, 15, 15 e 90 dias, a média dá 34 e o corte vira 51,
  * deixando passar quem sumiu. A mediana dá 15 e o corte vira 22.
  */
-function mediana(valores: number[]): number {
+export function mediana(valores: number[]): number {
   const ordenados = [...valores].sort((a, b) => a - b);
   const meio = Math.floor(ordenados.length / 2);
   return ordenados.length % 2 === 1

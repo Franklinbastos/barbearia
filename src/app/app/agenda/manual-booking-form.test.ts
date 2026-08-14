@@ -1,6 +1,9 @@
+// @vitest-environment jsdom
 import { describe, it, expect, vi } from 'vitest';
-import { createElement } from 'react';
+import { act, createElement } from 'react';
+import { render, screen } from '@testing-library/react';
 import { renderToStaticMarkup } from 'react-dom/server';
+import { pedirEncaixe } from './vao-livre';
 
 // A action é server action e arrasta banco e sessão; o que este teste olha é o
 // formulário.
@@ -10,15 +13,18 @@ vi.mock('./actions', () => ({
 
 const { ManualBookingForm } = await import('./manual-booking-form');
 
-const html = renderToStaticMarkup(
-  createElement(ManualBookingForm, {
-    slug: 'barbearia',
-    services: [{ id: 'sv-1', name: 'Barba', durationMinutes: 20 }],
-    staffList: [{ id: 'st-1', name: 'João' }],
-    defaultDate: '2026-09-07',
-    timeZone: 'America/Sao_Paulo',
-  }),
-);
+const PROPS = {
+  slug: 'barbearia',
+  services: [{ id: 'sv-1', name: 'Barba', durationMinutes: 20 }],
+  staffList: [{ id: 'st-1', name: 'João' }],
+  defaultDate: '2026-09-07',
+  // Diferente do `defaultDate` de propósito: a agenda navega para qualquer dia,
+  // e é o `hojeISO` que diz ao `Calendar` qual deles é hoje **na loja**.
+  hojeISO: '2026-09-01',
+  timeZone: 'America/Sao_Paulo',
+};
+
+const html = renderToStaticMarkup(createElement(ManualBookingForm, PROPS));
 
 describe('ManualBookingForm', () => {
   it('o que fica na agenda é a barra fixa "Encaixe", não um formulário de oito campos', () => {
@@ -46,5 +52,39 @@ describe('ManualBookingForm', () => {
     // O `hidden md:*` é deste componente, não da barra: `display: none` no pai
     // levaria junto a barra fixa do celular, que é filha do mesmo fragmento.
     expect(html).toMatch(/hidden md:flex/);
+  });
+});
+
+describe('ManualBookingForm — o vão livre da lista', () => {
+  const valorDe = (nome: string) =>
+    document.querySelector<HTMLInputElement>(`input[name="${nome}"]`)?.value;
+
+  it('abre com a hora e o barbeiro que o dedo apontou', async () => {
+    // é o ponto inteiro do gesto: pedir de novo a hora que a pessoa acabou de
+    // apontar é o que fazia a folha desperdiçar o clique no vazio
+    render(createElement(ManualBookingForm, PROPS));
+    await act(async () => {
+      pedirEncaixe({ hora: '09:30', staffId: 'st-1' });
+    });
+
+    expect(screen.getByRole('dialog')).toBeDefined();
+    // o que vai no envio, não só o que aparece
+    expect(valorDe('horaLivre')).toBe('09:30');
+    expect(valorDe('staffId')).toBe('st-1');
+    expect(valorDe('date')).toBe('2026-09-07');
+    // e a hora fica à vista, no mostrador de ±5
+    expect(screen.getByText('09:30')).toBeDefined();
+  });
+
+  it('o botão "Encaixe" continua abrindo em branco, como sempre', async () => {
+    // sem pedido, o comportamento é o de hoje: hora de agora, barbeiro em aberto
+    render(createElement(ManualBookingForm, PROPS));
+    await act(async () => {
+      screen.getAllByRole('button', { name: 'Encaixe' })[0]!.click();
+    });
+
+    expect(screen.getByRole('dialog')).toBeDefined();
+    expect(valorDe('horaLivre')).not.toBe('09:30');
+    expect(valorDe('staffId')).toBe('');
   });
 });

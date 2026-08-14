@@ -1,5 +1,5 @@
 import { and, eq, ilike, or, desc, asc, sql } from 'drizzle-orm';
-import { customer, appointment } from '@/db/schema';
+import { customer, appointment, staff } from '@/db/schema';
 import type { Db } from './types';
 
 /** Transação aberta por `db.transaction`, aceita onde um `Db` é aceito. */
@@ -55,6 +55,14 @@ export async function findCustomerById(db: Db, barbershopId: string, customerId:
   return linha ?? null;
 }
 
+/**
+ * O histórico de um cliente, do mais recente para o mais antigo.
+ *
+ * O nome do barbeiro vem por `innerJoin`, e não por snapshot como o serviço:
+ * `appointment.staffId` é `onDelete: 'restrict'`, então a linha do barbeiro
+ * nunca some debaixo do atendimento. É o único campo que faltava para a ficha
+ * calcular os quatro indicadores em memória, sem consulta nova.
+ */
 export async function listCustomerHistory(db: Db, barbershopId: string, customerId: string) {
   return db
     .select({
@@ -63,8 +71,10 @@ export async function listCustomerHistory(db: Db, barbershopId: string, customer
       status: appointment.status,
       serviceName: appointment.serviceNameSnapshot,
       priceCents: appointment.servicePriceCentsSnapshot,
+      staffName: staff.name,
     })
     .from(appointment)
+    .innerJoin(staff, eq(staff.id, appointment.staffId))
     .where(
       and(eq(appointment.barbershopId, barbershopId), eq(appointment.customerId, customerId)),
     )

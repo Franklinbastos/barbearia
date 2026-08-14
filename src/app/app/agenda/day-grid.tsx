@@ -6,6 +6,7 @@ import { coresDeBarbeiro } from '@/lib/cores-de-barbeiro';
 import { formatTime, type AppointmentStatus } from '@/lib/format';
 import { CartaoDaAgenda } from './cartao-da-agenda';
 import { calcularProximosLivres } from './proximos-livres';
+import { buildVaosLivres, FaixaDeVaoLivre, recortarNoAgora, type VaoLivre } from './vao-livre';
 
 export type AgendaAppointment = {
   id: string;
@@ -51,14 +52,52 @@ export function buildDayList(
     );
 }
 
+/**
+ * Uma linha da lista: o cartão de um atendimento ou a faixa de um vão livre.
+ *
+ * As duas coisas moram na mesma `<ol>` e na mesma ordem de relógio — é isso que
+ * faz a faixa cair entre os dois cartões que a criaram, e não num rodapé de
+ * "horários livres" que ninguém relaciona com nada.
+ */
+type LinhaDaAgenda =
+  | { tipo: 'cartao'; instante: Date; item: AgendaItem }
+  | { tipo: 'vao'; instante: Date; vao: VaoLivre };
+
+function intercalarVaos(itens: AgendaItem[], vaos: VaoLivre[]): LinhaDaAgenda[] {
+  const linhas: LinhaDaAgenda[] = [
+    ...itens.map((item) => ({ tipo: 'cartao' as const, instante: item.startAt, item })),
+    ...vaos.map((vao) => ({ tipo: 'vao' as const, instante: vao.inicio, vao })),
+  ];
+
+  // Empate de horário vai para o cartão: o que está marcado se lê antes do que
+  // está vago. A ordenação é estável, então o desempate de `buildDayList` entre
+  // dois cartões da mesma hora continua valendo.
+  return linhas.sort(
+    (a, b) =>
+      a.instante.getTime() - b.instante.getTime() ||
+      (a.tipo === b.tipo ? 0 : a.tipo === 'cartao' ? -1 : 1),
+  );
+}
+
+/**
+ * Chave estável da linha. O vão não tem id no banco, e o `fim` dele é o único
+ * lado que não anda: o `inicio` do buraco em curso avança com o relógio, e
+ * chavear por ele remontaria a faixa a cada cinco minutos.
+ */
+function chaveDaLinha(linha: LinhaDaAgenda): string {
+  return linha.tipo === 'cartao'
+    ? linha.item.id
+    : `vao-${linha.vao.staffId}-${linha.vao.fim.getTime()}`;
+}
+
 /** Agrupa a lista já ordenada em blocos de uma hora, preservando a ordem. */
-function agruparPorHora(itens: AgendaItem[], timeZone: string) {
-  const grupos: { hora: string; itens: AgendaItem[] }[] = [];
-  for (const item of itens) {
-    const hora = formatTime(item.startAt, timeZone).slice(0, 2);
+function agruparPorHora(linhas: LinhaDaAgenda[], timeZone: string) {
+  const grupos: { hora: string; linhas: LinhaDaAgenda[] }[] = [];
+  for (const linha of linhas) {
+    const hora = formatTime(linha.instante, timeZone).slice(0, 2);
     const ultimo = grupos[grupos.length - 1];
-    if (ultimo && ultimo.hora === hora) ultimo.itens.push(item);
-    else grupos.push({ hora, itens: [item] });
+    if (ultimo && ultimo.hora === hora) ultimo.linhas.push(linha);
+    else grupos.push({ hora, linhas: [linha] });
   }
   return grupos;
 }
@@ -111,6 +150,16 @@ function LinhaDeProximosLivres({
   );
 }
 
+/**
+ * Piso do vão livre enquanto a página não passar o dela.
+ *
+ * O certo é o menor `durationMinutes` entre os serviços ativos — que
+ * `agenda/page.tsx` já carrega em `listActiveServices` — porque faixa em buraco
+ * onde não cabe ninguém é ruído com aparência de ação. Meia hora é o serviço
+ * mais curto de barbearia na prática, e serve de piso conservador até lá.
+ */
+const DURACAO_MINIMA_PADRAO = 30;
+
 export function DayGrid({
   appointments,
   staffList,
@@ -118,6 +167,7 @@ export function DayGrid({
   dataISO,
   hojeISO,
   agoraISO,
+  duracaoMinima = DURACAO_MINIMA_PADRAO,
 }: {
   appointments: AgendaAppointment[];
   staffList: AgendaStaff[];
@@ -128,6 +178,8 @@ export function DayGrid({
   hojeISO: string;
   /** Instante do servidor. Vira o relógio do cliente sem divergência de hidratação. */
   agoraISO: string;
+  /** Menor serviço da loja, em minutos: o piso do que vira faixa de vão livre. */
+  duracaoMinima?: number;
 }) {
   // UM relógio para a lista inteira: cada cartão recebe `agora` por prop em vez
   // de abrir o seu próprio intervalo.
@@ -139,7 +191,23 @@ export function DayGrid({
 
   const itens = useMemo(() => buildDayList(appointments, staffList), [appointments, staffList]);
   const cores = useMemo(() => coresDeBarbeiro(staffList), [staffList]);
-  const grupos = useMemo(() => agruparPorHora(itens, timeZone), [itens, timeZone]);
+  const nomes = useMemo(() => new Map(staffList.map((b) => [b.id, b.name])), [staffList]);
+
+  // O buraco é do dia; o que dá para vender dele é do relógio. `recortarNoAgora`
+  // resolve os três casos com uma regra: o dia de ontem some inteiro, a manhã de
+  // hoje some, o buraco em curso encolhe até agora e o dia de amanhã fica.
+  const vaos = useMemo(
+    () =>
+      recortarNoAgora(
+        buildVaosLivres(appointments, staffList, duracaoMinima),
+        agora,
+        duracaoMinima,
+      ),
+    [appointments, staffList, duracaoMinima, agora],
+  );
+
+  const linhas = useMemo(() => intercalarVaos(itens, vaos), [itens, vaos]);
+  const grupos = useMemo(() => agruparPorHora(linhas, timeZone), [linhas, timeZone]);
 
   const eHoje = dataISO === hojeISO;
   const regua = useRef<HTMLLIElement>(null);
@@ -177,10 +245,12 @@ export function DayGrid({
     );
   }
 
-  // A régua entra antes do primeiro atendimento que ainda não começou; se todos
-  // já passaram, ela fecha a lista.
-  const proximo = eHoje ? itens.find((i) => i.startAt.getTime() > agora.getTime()) : undefined;
-  const reguaNoFim = eHoje && proximo === undefined;
+  // A régua entra antes da primeira **linha** que ainda não começou — cartão ou
+  // faixa de vão livre. Olhar só os cartões deixava uma faixa das 10:30 acima da
+  // linha do agora das 10:15, e a régua existe justamente para separar o que já
+  // passou do que ainda vai acontecer. Se nada resta, ela fecha a lista.
+  const proxima = eHoje ? linhas.find((l) => l.instante.getTime() > agora.getTime()) : undefined;
+  const reguaNoFim = eHoje && proxima === undefined;
 
   const Regua = (
     <li ref={regua} aria-label="Agora" className="relative" style={{ border: 0, height: 2 }}>
@@ -214,15 +284,25 @@ export function DayGrid({
             >
               {grupo.hora}h
             </li>
-            {grupo.itens.map((item) => (
-              <Fragment key={item.id}>
-                {proximo?.id === item.id ? Regua : null}
-                <CartaoDaAgenda
-                  item={item}
-                  timeZone={timeZone}
-                  corDoBarbeiro={cores.get(item.staffId) ?? 'var(--linha)'}
-                  agora={agora}
-                />
+            {grupo.linhas.map((linha) => (
+              <Fragment key={chaveDaLinha(linha)}>
+                {proxima === linha ? Regua : null}
+                {linha.tipo === 'vao' ? (
+                  <FaixaDeVaoLivre
+                    vao={linha.vao}
+                    // Com um barbeiro só, repetir o nome dele em toda faixa não
+                    // informa nada — só ocupa a linha.
+                    nomeDoBarbeiro={staffList.length > 1 ? nomes.get(linha.vao.staffId) : undefined}
+                    timeZone={timeZone}
+                  />
+                ) : (
+                  <CartaoDaAgenda
+                    item={linha.item}
+                    timeZone={timeZone}
+                    corDoBarbeiro={cores.get(linha.item.staffId) ?? 'var(--linha)'}
+                    agora={agora}
+                  />
+                )}
               </Fragment>
             ))}
           </Fragment>

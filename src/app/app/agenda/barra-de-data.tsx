@@ -113,7 +113,13 @@ export function BarraDeData({ dataISO, hojeISO, contagens, acao }: BarraDeDataPr
   const diaSelecionado = isoParaData(dataISO);
 
   return (
-    <div className="-mx-3 mb-2 md:-mx-5">
+    // `mb-3` é o mesmo respiro que o `<CabecalhoDePagina>` dá às telas irmãs.
+    // A barra é o último bloco antes da lista nas duas larguras: no celular o
+    // cabeçalho da agenda é `sr-only` e nem ocupa fluxo, e no desktop ele fica
+    // acima com o `md:mb-3` do `page.tsx`. Com `mb-2` a lista começava 4px mais
+    // cedo que a de Clientes e a de Serviços — degrau que só se vê trocando de
+    // tela na navegação, e é justamente aí que ele incomoda.
+    <div className="-mx-3 mb-3 md:-mx-5">
       <div className="sticky top-0 z-10 flex h-16 flex-col justify-center border-b border-border bg-background px-3 md:px-5">
         <Largura tipo="tabela" className="flex flex-col gap-1">
           {/* A ação divide a linha com a navegação em vez de ganhar uma faixa

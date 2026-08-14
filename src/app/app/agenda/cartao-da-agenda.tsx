@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useRef, useState, useTransition } from 'react';
+import { cva } from 'class-variance-authority';
+import { useEffect, useRef, useState, useTransition, type ComponentProps } from 'react';
 import { executarAcao } from '@/components/action-error';
 import { ErroDeAcao } from '@/components/erro-de-acao';
 import { Badge } from '@/components/ui/badge';
@@ -12,6 +13,7 @@ import {
   formatTime,
   type AppointmentStatus,
 } from '@/lib/format';
+import { cn } from '@/lib/utils';
 import { VARIANTE_DO_ESTADO } from '../tom-do-estado';
 import { reopenAppointmentAction, setAppointmentStatusAction } from './actions';
 import type { AgendaItem } from './day-grid';
@@ -42,6 +44,20 @@ import type { AgendaItem } from './day-grid';
  * 3. o `sonner` puxa o `next-themes`, cujo provedor este projeto não monta, e o
  *    `<Toaster />` no layout raiz desceria junto com a página pública, que
  *    precisa abrir em 3G na porta da barbearia.
+ *
+ * **O que mudou em 14/08/2026, quando o dono disse que a tela estava feia.** O
+ * diagnóstico não foi o formato de lista — foi ruído. Três mudanças, todas no
+ * cartão:
+ *
+ * 1. **A ação recolhe onde há ponteiro** (ver `ACOES_RECOLHEM`). Num dia de
+ *    vinte atendimentos eram quarenta botões de ~400px empilhados no bloco de
+ *    880px, e a informação sumia no meio deles. No celular nada muda: lá os
+ *    botões são o motivo de a tela existir.
+ * 2. **A forma sai da duração** (ver `formaDoCartao`). Um corte de 20 min e uma
+ *    barba de 1h ocupavam a mesma altura — o tempo, que é o assunto da tela, não
+ *    aparecia em lugar nenhum.
+ * 3. **O estado se lê por forma** (ver `CONTORNO_DO_ESTADO`), porque a cor já é
+ *    identidade do barbeiro e não pode carregar dois significados.
  */
 
 /** Só depois disso um "não veio" é possível — antes, o botão nem existe. */
@@ -50,7 +66,95 @@ const MINUTOS_ATE_PODER_FALTAR = 10;
 /** Janela do "Desfazer" logo depois de mexer no estado. */
 const SEGUNDOS_DE_DESFAZER = 20;
 
-export type CartaoDaAgendaProps = {
+/**
+ * A forma sai da **duração**, e não da altura renderizada — é o `displayType` do
+ * Cal.com. Decidir pelo conteúdo aguenta mudança de densidade; decidir pela
+ * altura obriga a medir o DOM e volta a errar quando a fonte ou o zoom muda.
+ *
+ * Os cortes são os da spec: abaixo de 40 min o atendimento cabe numa linha, até
+ * 45 min em duas, e o que passa disso fica com a linha completa de hoje. É a
+ * régua que separa um corte rápido de uma barba — a diferença que o dono lê de
+ * longe sem precisar de eixo de tempo na tela.
+ */
+const MINUTOS_DO_CARTAO_CURTO = 40;
+const MINUTOS_DO_CARTAO_MEDIO = 45;
+
+export type FormaDoCartao = 'compacto' | 'medio' | 'completo';
+
+export function formaDoCartao(item: { startAt: Date; endAt: Date }): FormaDoCartao {
+  const minutos = (item.endAt.getTime() - item.startAt.getTime()) / 60_000;
+  if (minutos < MINUTOS_DO_CARTAO_CURTO) return 'compacto';
+  if (minutos <= MINUTOS_DO_CARTAO_MEDIO) return 'medio';
+  return 'completo';
+}
+
+/**
+ * Estado por **forma**, não por cor. A cor da aresta de 4px já é a identidade de
+ * quem atende (§3.5) e não pode virar status também; a §3.6 já reserva o
+ * tracejado para "vazio", que é exatamente o que estes dois estados são — o
+ * horário existiu e ninguém sentou na cadeira. `DONE` e `BOOKED` ficam cheios: um
+ * aconteceu, o outro ainda vai acontecer.
+ *
+ * A etiqueta de estado continua na linha. O que muda é que agora o estado se lê
+ * sem ela e sem cor nenhuma — a regra que `tom-do-estado.ts` fecha com "cor
+ * nunca é o único portador".
+ */
+const CONTORNO_DO_ESTADO = {
+  BOOKED: 'cheio',
+  DONE: 'cheio',
+  NO_SHOW: 'tracejado',
+  CANCELED: 'tracejado',
+} as const satisfies Record<AppointmentStatus, 'cheio' | 'tracejado'>;
+
+/**
+ * O `group` da raiz é o que faz `group-hover` e `group-focus-within` existirem
+ * lá embaixo: tirar essa classe daqui é recolher a ação e nunca mais mostrá-la.
+ */
+export const cartaoDaAgendaVariants = cva('group border-l-4 px-3', {
+  variants: {
+    forma: {
+      // A altura mínima é o único lugar em que a duração vira tamanho. Escala de
+      // 4px: 56, 68 e os 76px que o cartão sempre teve (§5.7, item 7).
+      compacto: 'min-h-14 py-2',
+      medio: 'min-h-17 py-2.5',
+      completo: 'min-h-19 py-2.5',
+    },
+    contorno: {
+      cheio: 'border-solid',
+      tracejado: 'border-dashed',
+    },
+  },
+  defaultVariants: { forma: 'completo', contorno: 'cheio' },
+});
+
+/**
+ * Onde há ponteiro fino, a linha em repouso mostra só informação e as ações
+ * aparecem no hover **ou** no foco de teclado. Três coisas aqui não são gosto:
+ *
+ * 1. **`opacity` + `pointer-events`, nunca `display:none` nem remoção do DOM.**
+ *    O botão continua na ordem de tabulação e no leitor de tela, e o espaço fica
+ *    reservado — a linha não salta quando ele aparece.
+ * 2. **`group-focus-within` junto com `group-hover`, sempre os dois.** Ação que
+ *    só existe no ponteiro não existe para quem navega por Tab. As duas regras
+ *    revelam por seletor mais específico que o de esconder, então vencem sem
+ *    depender da ordem em que o Tailwind imprime as classes.
+ * 3. **A condição de esconder é a MESMA de revelar: `(hover: hover)`, e não só a
+ *    largura.** Um tablet de 800px passa no `md:` e não tem hover nenhum; sem
+ *    essa guarda, "Compareceu" ficaria inalcançável justamente em quem só tem o
+ *    dedo. `md:group-hover:` já compila dentro de `@media (hover: hover)` — usar
+ *    a mesma consulta para esconder é o que garante que não sobra aparelho em
+ *    que a ação some e nada a traz de volta. `pointer-fine` cobriria o tablet,
+ *    mas deixaria de fora o aparelho de ponteiro fino sem hover (caneta), onde
+ *    "Compareceu" não tem segundo caminho: a folha do "⋯" não o carrega.
+ */
+const ACOES_RECOLHEM = [
+  'transition-opacity motion-reduce:transition-none',
+  'md:[@media(hover:hover)]:opacity-0 md:[@media(hover:hover)]:pointer-events-none',
+  'md:group-hover:opacity-100 md:group-hover:pointer-events-auto',
+  'md:group-focus-within:opacity-100 md:group-focus-within:pointer-events-auto',
+].join(' ');
+
+export type CartaoDaAgendaProps = ComponentProps<'li'> & {
   item: AgendaItem;
   timeZone: string;
   /** String CSS pronta, de `cores-de-barbeiro.ts`. */
@@ -129,7 +233,14 @@ function CancelarEmDoisTempos({
   );
 }
 
-export function CartaoDaAgenda({ item, timeZone, corDoBarbeiro, agora }: CartaoDaAgendaProps) {
+export function CartaoDaAgenda({
+  item,
+  timeZone,
+  corDoBarbeiro,
+  agora,
+  className,
+  ...resto
+}: CartaoDaAgendaProps) {
   const [pendente, iniciarTransicao] = useTransition();
   const [erro, setErro] = useState<string | null>(null);
   const [folhaAberta, setFolhaAberta] = useState(false);
@@ -192,14 +303,39 @@ export function CartaoDaAgenda({ item, timeZone, corDoBarbeiro, agora }: CartaoD
   const podeFaltar =
     agora.getTime() >= item.startAt.getTime() + MINUTOS_ATE_PODER_FALTAR * 60_000;
   const estadoNaEtiqueta = estadoNaEtiquetaDe(item.status);
+  const forma = formaDoCartao(item);
+
+  /**
+   * O "⋯" nomeia o cliente porque agora ele carrega muito mais: no desktop é a
+   * única afordância da linha em repouso, e no cartão curto é o único caminho
+   * para o telefone. Num dia de vinte atendimentos, vinte botões chamados só
+   * "Mais ações" deixam quem usa leitor de tela sem saber de quem é cada um.
+   */
+  const rotuloDoMais = `Mais ações para ${item.customerName}`;
+
+  /** "Corte · R$ 40,00 · **Marcão**", a linha que o cartão curto puxa para cima. */
+  const servicoPrecoBarbeiro = (
+    <>
+      {item.serviceName} · {formatPrice(item.servicePriceCents)} ·{' '}
+      <strong className="font-bold text-tinta">{item.staffName}</strong>
+    </>
+  );
 
   return (
     <li
-      className="px-3 py-2.5"
+      {...resto}
+      data-slot="cartao-da-agenda"
+      data-forma={forma}
+      className={cn(
+        cartaoDaAgendaVariants({ forma, contorno: CONTORNO_DO_ESTADO[item.status] }),
+        className,
+      )}
       style={{
-        minHeight: 76,
         background: pele.fundo,
-        borderLeft: `4px solid ${pele.aresta}`,
+        borderLeftColor: pele.aresta,
+        // O traço é do cartão, não da lista: a divisória de 1px entre linhas
+        // (`.lista > li`) continua cheia, senão o dia inteiro parece picotado.
+        borderBottomStyle: 'solid',
       }}
     >
       <div className="grid grid-cols-[64px_1fr] gap-x-3">
@@ -216,10 +352,30 @@ export function CartaoDaAgenda({ item, timeZone, corDoBarbeiro, agora }: CartaoD
         </div>
 
         <div className="min-w-0">
-          <div className="flex items-start gap-2">
+          {/* Só o cartão curto quebra linha, e só ele precisa da folga vertical.
+              As outras formas ficam com a linha única de sempre: nome à
+              esquerda, etiquetas encostadas na direita. */}
+          <div
+            className={cn(
+              'flex gap-x-2',
+              forma === 'compacto' ? 'flex-wrap items-baseline gap-y-1' : 'items-start',
+            )}
+          >
             <span
-              className="min-w-0 flex-1 truncate text-[17px] leading-[22px] font-bold"
-              style={cancelado ? { textDecoration: 'line-through', color: 'var(--tinta-3)' } : undefined}
+              data-slot="nome-do-cliente"
+              className={cn(
+                'min-w-0 truncate text-[17px] leading-[22px] font-bold',
+                // `flex-1` é base zero: o nome entrega toda a largura ao vizinho
+                // e vira "Marc…". No cartão curto ele mede o próprio conteúdo e
+                // só para de crescer a partir de `sm`, que é onde o serviço
+                // passa a caber ao lado. Abaixo disso o serviço desce sozinho —
+                // quem some da linha é a largura, nunca a informação. O corte é
+                // `sm` e não `md` de propósito: a pergunta aqui é se cabe, não
+                // que aparelho é.
+                forma === 'compacto' ? 'grow sm:grow-0' : 'flex-1',
+                // Riscar o nome é o que faz o cancelado se ler sem cor nenhuma.
+                cancelado && 'text-tinta-3 line-through',
+              )}
             >
               {item.customerName}
             </span>
@@ -238,19 +394,35 @@ export function CartaoDaAgenda({ item, timeZone, corDoBarbeiro, agora }: CartaoD
                 {formatAppointmentStatus(estadoNaEtiqueta)}
               </Badge>
             ) : null}
+            {/* O serviço vem DEPOIS das etiquetas de propósito. A quebra de
+                linha do flex respeita a ordem: pondo o serviço antes, é a
+                etiqueta que desce sozinha e o cartão curto ganha uma terceira
+                linha — o contrário do que ele existe para fazer. */}
+            {forma === 'compacto' ? (
+              <span
+                data-slot="servico-na-linha-do-nome"
+                className="min-w-0 truncate text-[14px] leading-5 text-tinta-2 sm:grow"
+              >
+                {servicoPrecoBarbeiro}
+              </span>
+            ) : null}
           </div>
 
-          <div className="text-[14px] leading-5 text-tinta-2">
-            {item.serviceName} · {formatPrice(item.servicePriceCents)} ·{' '}
-            <strong className="font-bold text-tinta">{item.staffName}</strong>
-          </div>
+          {forma === 'compacto' ? null : (
+            <div className="text-[14px] leading-5 text-tinta-2">{servicoPrecoBarbeiro}</div>
+          )}
 
-          <a
-            href={`tel:${item.customerPhone}`}
-            className="inline-flex min-h-11 items-center text-[14px] leading-5"
-          >
-            {item.customerPhone}
-          </a>
+          {/* O telefone é a terceira linha, e é ela que separa o cartão completo
+              do médio. Fora dele o número não se perde: mora na folha do "⋯",
+              com "Ligar para o cliente" e "Copiar telefone". */}
+          {forma === 'completo' ? (
+            <a
+              href={`tel:${item.customerPhone}`}
+              className="inline-flex min-h-11 items-center text-[14px] leading-5"
+            >
+              {item.customerPhone}
+            </a>
+          ) : null}
         </div>
       </div>
 
@@ -268,32 +440,39 @@ export function CartaoDaAgenda({ item, timeZone, corDoBarbeiro, agora }: CartaoD
           </Botao>
         </div>
       ) : item.status === 'BOOKED' ? (
-        <div
-          className="mt-2 grid gap-2"
-          style={{ gridTemplateColumns: podeFaltar ? '1fr 1fr 44px' : '1fr 44px' }}
-        >
-          <Botao
-            variante="ok"
-            pendente={pendente}
-            rotuloPendente="Salvando…"
-            onClick={() => marcar('DONE')}
+        <div className="mt-2 flex gap-2">
+          {/* Os dois verbos recolhem; o "⋯" fica. É um alvo de 44px contra os
+              ~400px de cada verbo, e é o único caminho para o telefone e para o
+              "Cancelar" — some ele no repouso e a linha em desktop fica sem
+              nenhuma afordância. */}
+          <div
+            data-slot="acoes-do-cartao"
+            className={cn('grid flex-1 gap-2', ACOES_RECOLHEM)}
+            style={{ gridTemplateColumns: podeFaltar ? '1fr 1fr' : '1fr' }}
           >
-            Compareceu
-          </Botao>
-          {podeFaltar ? (
             <Botao
-              variante="perigo-vazado"
+              variante="ok"
               pendente={pendente}
               rotuloPendente="Salvando…"
-              onClick={() => marcar('NO_SHOW')}
+              onClick={() => marcar('DONE')}
             >
-              Não veio
+              Compareceu
             </Botao>
-          ) : null}
+            {podeFaltar ? (
+              <Botao
+                variante="perigo-vazado"
+                pendente={pendente}
+                rotuloPendente="Salvando…"
+                onClick={() => marcar('NO_SHOW')}
+              >
+                Não veio
+              </Botao>
+            ) : null}
+          </div>
           <Botao
             variante="secundario"
-            aria-label="Mais ações"
-            className="px-0"
+            aria-label={rotuloDoMais}
+            className="w-11 shrink-0 px-0"
             onClick={() => setFolhaAberta(true)}
           >
             ⋯
@@ -303,9 +482,8 @@ export function CartaoDaAgenda({ item, timeZone, corDoBarbeiro, agora }: CartaoD
         <div className="mt-2 flex justify-end">
           <Botao
             variante="secundario"
-            aria-label="Mais ações"
-            className="min-h-11 px-0"
-            style={{ width: 44 }}
+            aria-label={rotuloDoMais}
+            className="min-h-11 w-11 px-0"
             onClick={() => setFolhaAberta(true)}
           >
             ⋯

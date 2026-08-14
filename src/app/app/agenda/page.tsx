@@ -43,6 +43,14 @@ export default async function AgendaPage({
     aAtender: appointments.filter((a) => a.status === 'BOOKED').length,
   };
 
+  // O piso do vão livre é o serviço mais curto que a loja de fato vende. Sem
+  // isto o `DayGrid` cai no padrão de 30 minutos, e a faixa mente nos dois
+  // sentidos: some um buraco de 20 numa loja que faz pezinho em 15, e oferece
+  // um buraco de 30 numa loja cujo corte mais rápido leva 45.
+  const duracaoMinima = servicos.length
+    ? Math.min(...servicos.map((s) => s.durationMinutes))
+    : undefined;
+
   return (
     // pb-16 reserva o rodapé para a barra fixa do celular; no desktop ela não existe
     <div className="pb-16 md:pb-0">
@@ -85,6 +93,7 @@ export default async function AgendaPage({
               services={servicos}
               staffList={staffList}
               defaultDate={dataISO}
+              hojeISO={hojeISO}
               timeZone={timeZone}
             />
           ) : null
@@ -108,6 +117,7 @@ export default async function AgendaPage({
           dataISO={dataISO}
           hojeISO={hojeISO}
           agoraISO={agora.toJSDate().toISOString()}
+          duracaoMinima={duracaoMinima}
         />
       </Largura>
     </div>

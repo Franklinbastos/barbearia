@@ -30,8 +30,26 @@ function Calendar({
   return (
     <DayPicker
       showOutsideDays={showOutsideDays}
+      // A única divergência nossa neste arquivo, e ela é de régua: o CLI entrega
+      // a célula em `--spacing(7)` (28px), e o dia do calendário é botão — na
+      // barra de data da agenda é o alvo mais tocado da tela. Passa a `--tap-min`
+      // (44px, `--spacing(11)`), que é o que o `globals.css` reserva para "alvo
+      // de dedo em barra fixa", exatamente o caso aqui.
+      //
+      // **Sem `md:` encolhendo para 36.** Ponto de quebra é largura, não dedo:
+      // um tablet em pé cai em `md` e continua sendo o polegar acertando o dia.
+      // E os três controles vizinhos na mesma barra — as duas setas (`size-11`)
+      // e o gatilho (`h-11`) — medem 44 em qualquer largura; um calendário que
+      // encolhesse embaixo deles seria degrau dentro do mesmo bloco.
+      //
+      // Cabe: 7 × 44 + 16 do `p-2` = 324px, contra os 336px úteis de uma tela de
+      // 360. Vale para os quatro consumidores (agenda, encaixe, equipe, resumo),
+      // porque a medida mora aqui e não em cada chamada.
+      //
+      // `npx shadcn@latest add calendar` regera o arquivo e devolve os 28px sem
+      // avisar; quem guarda isto é `tests/unit/padroes-de-controle.test.ts`.
       className={cn(
-        "group/calendar bg-background p-2 [--cell-radius:var(--radius-md)] [--cell-size:--spacing(7)] in-data-[slot=card-content]:bg-transparent in-data-[slot=popover-content]:bg-transparent",
+        "group/calendar bg-background p-2 [--cell-radius:var(--radius-md)] [--cell-size:--spacing(11)] in-data-[slot=card-content]:bg-transparent in-data-[slot=popover-content]:bg-transparent",
         String.raw`rtl:**:[.rdp-button\_next>svg]:rotate-180`,
         String.raw`rtl:**:[.rdp-button\_previous>svg]:rotate-180`,
         className

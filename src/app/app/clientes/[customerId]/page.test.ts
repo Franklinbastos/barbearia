@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeAll, afterAll } from 'vitest';
-import { isValidElement, type ReactNode } from 'react';
+import { isValidElement, type ReactElement, type ReactNode } from 'react';
 import { eq } from 'drizzle-orm';
 import { withTestDb } from '../../../../../tests/helpers/db';
 import { barbershop, staff, service, staffService, workingHours, customer } from '@/db/schema';
@@ -10,6 +10,9 @@ vi.mock('@/lib/session', () => ({ requireSession: vi.fn() }));
 
 import { requireSession } from '@/lib/session';
 import CustomerDetailPage from './page';
+import { AnonymizeButton } from './anonymize-button';
+import { Historico, type HistoricoProps } from './historico';
+import { IndicadoresDoCliente, type IndicadoresDoClienteProps } from './indicadores-do-cliente';
 
 /**
  * Concatena o texto de uma árvore de elementos React, sem precisar de DOM.
@@ -29,6 +32,31 @@ function textoDe(no: ReactNode): string {
   return '';
 }
 
+/**
+ * O primeiro elemento de um dado componente na árvore, com as props que a
+ * página entregou a ele.
+ *
+ * Existe desde que o histórico virou client component (14/08/2026): ele formata
+ * data, hora e status na tela do navegador, e este arquivo roda em Node, sem
+ * DOM. **A checagem de fuso não sumiu, mudou de casa** — `historico.test.tsx` e
+ * `indicadores-do-cliente.test.tsx` renderizam de verdade, com `TZ=UTC`, e
+ * cobrem "09:00 em São Paulo, 12:00 em UTC". O que sobra aqui é o que só um
+ * teste com banco pode provar: que a página passa adiante o fuso da loja e as
+ * linhas que vieram do Postgres.
+ */
+function acharComponente<P>(no: ReactNode, tipo: unknown): ReactElement<P> | null {
+  if (Array.isArray(no)) {
+    for (const filho of no) {
+      const achado = acharComponente<P>(filho, tipo);
+      if (achado) return achado;
+    }
+    return null;
+  }
+  if (!isValidElement(no)) return null;
+  if (no.type === tipo) return no as ReactElement<P>;
+  return acharComponente<P>((no.props as { children?: ReactNode }).children, tipo);
+}
+
 describe('ficha do cliente', () => {
   const tzOriginal = process.env.TZ;
   // O servidor da Vercel roda em UTC: é aí que a data sem fuso sai errada.
@@ -39,7 +67,7 @@ describe('ficha do cliente', () => {
     process.env.TZ = tzOriginal;
   });
 
-  it('mostra o horário no fuso da barbearia e o status em pt-BR', async () => {
+  it('entrega o fuso da loja e o histórico do banco a quem desenha a ficha', async () => {
     await withTestDb(async (db) => {
       const [loja] = await db
         .insert(barbershop)
@@ -98,11 +126,33 @@ describe('ficha do cliente', () => {
       const texto = textoDe(elemento);
 
       expect(texto).toContain('Cliente Um');
-      expect(texto).toContain('09:00');
-      expect(texto).not.toContain('12:00');
-      expect(texto).toContain('07/09/2026');
-      expect(texto).toContain('Agendado');
-      expect(texto).not.toContain('BOOKED');
+      // Um agendamento e nenhuma visita: o selo é "Cliente novo", e ele é um só.
+      expect(texto).toContain('Cliente novo');
+      expect(texto).not.toContain('Sumido');
+
+      const historico = acharComponente<HistoricoProps>(elemento, Historico);
+      expect(historico).not.toBeNull();
+      expect(historico!.props.timeZone).toBe('America/Sao_Paulo');
+      expect(historico!.props.atendimentos).toHaveLength(1);
+      expect(historico!.props.atendimentos[0].status).toBe('BOOKED');
+      expect(historico!.props.atendimentos[0].startAt.toISOString()).toBe(
+        '2026-09-07T12:00:00.000Z',
+      );
+
+      const indicadores = acharComponente<IndicadoresDoClienteProps>(
+        elemento,
+        IndicadoresDoCliente,
+      );
+      expect(indicadores).not.toBeNull();
+      expect(indicadores!.props.timeZone).toBe('America/Sao_Paulo');
+      // Agendado não é dinheiro nem base de falta: traço, nunca zero por cento.
+      expect(indicadores!.props.perfil.atendimentos).toBe(0);
+      expect(indicadores!.props.perfil.totalGastoCents).toBe(0);
+      expect(indicadores!.props.perfil.taxaDeFalta).toBeNull();
+
+      // A confirmação de anonimizar nomeia o cliente, e o nome vem daqui.
+      const remover = acharComponente<{ nome: string }>(elemento, AnonymizeButton);
+      expect(remover?.props.nome).toBe('Cliente Um');
     });
   });
 });

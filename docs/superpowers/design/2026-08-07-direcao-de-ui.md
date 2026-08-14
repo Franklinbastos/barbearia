@@ -1,7 +1,9 @@
 # Direção de UI — reforma de layout da Fase 1
 
 Data: 2026-08-07 · revisado em 2026-08-08 após o júri completo · **§4.1 revertida em 2026-08-13**
-(adoção do shadcn, decisão do dono — o resto do documento continua valendo palavra por palavra)
+(adoção do shadcn, decisão do dono — o resto do documento continua valendo palavra por palavra) ·
+**§3.3, §5.7, §5.11 e a nova §5.13 atualizadas em 2026-08-14** com o que a pesquisa de mercado fechou
+para a agenda e para a ficha do cliente
 Autor: direção de design
 Status: **decidido**. Esta é a fonte da verdade para o plano de implementação. Onde o documento
 der um número, o número é para ser usado. Onde der um texto entre aspas, o texto é literal — há
@@ -458,13 +460,21 @@ dança quando o dígito muda é erro de instrumento.
 | `<main>` público | `padding: 0 16px 96px`, coluna máx. 480px | coluna máx. 560px, centrada sobre `--superficie`, cartão em `--bg` com 1px `--linha` |
 | `<main>` painel | `padding: 12px` (sobram 336px úteis contra os 312px de hoje) | `padding: 20px`, `max-width: 1400px` |
 | linha de lista pública | mín. 72px | mín. 64px (o mouse precisa de menos) |
-| cartão da agenda | mín. 76px | mín. 72px |
+| cartão da agenda | mín. 56 · 68 · 76px, pela duração (§5.7) | idem |
 | entre título e conteúdo | 12px | 12px |
 | entre blocos de assunto | 24px | 24px |
 | antes do rodapé | 32px | 32px |
 
 Os 1400px do painel são o teto do container, não a largura do conteúdo: quanto cada bloco de tela
 ocupa dentro dele é a régua da §3.7.
+
+**A linha do cartão da agenda mudou em 14/08/2026.** Era uma altura mínima só — 76px no celular, 72px
+no desktop — e virou três, escolhidas pela **duração** do atendimento: 56px abaixo de 40 min, 68px
+até 45 e os 76px de sempre acima disso (§5.7). O piso de 76px valia para um cartão de três linhas —
+hora, serviço e telefone —, e o compacto tem uma linha, com o telefone na folha do "⋯". O alvo de
+toque não desceu junto: os controles dentro do cartão continuam em 36/44 (§3.6), e é a altura do
+bloco de texto que encolhe. A coluna do desktop repete a do celular porque a forma sai do conteúdo,
+não da largura — decidir pelo viewport é o que quebra quando a densidade ou o zoom muda.
 
 ### 3.4 Marca da loja (enxerto da "Vitrine", versão travada)
 
@@ -1267,6 +1277,88 @@ com "Use o encaixe para marcar quem chegou no balcão." em 14/20 `--tinta-2` e `
 mesma linha do nome. Barra de data em uma linha só com a legenda de contagem e a linha "próximo
 livre" à direita. **Sem quadro de colunas na Fase 1.**
 
+#### O que mudou em 14/08/2026 (spec: `docs/superpowers/specs/2026-08-14-agenda-e-ficha-do-cliente-design.md`)
+
+O dono olhou a tela pronta e disse que estava feia. A pesquisa de referência que veio antes do
+redesenho — sete produtos do ramo abertos e citados, mais os componentes de calendário do ecossistema
+shadcn — **não mexeu no formato**; mexeu no ruído. Cinco decisões, todas dentro do cartão e da lista.
+
+**1. A ação recolhe onde há ponteiro.** Num dia de vinte atendimentos os itens 8 e 9 acima produzem
+quarenta botões de ~400px empilhados no bloco de 880px, e a informação some no meio deles. No desktop
+"Compareceu" e "Não veio" passam a aparecer quando o ponteiro entra na linha **ou** quando qualquer
+filho recebe foco. No celular nada muda: lá não há ponteiro, e eles são o motivo de a tela existir.
+
+Três regras, e nenhuma é gosto:
+
+- **`opacity` + `pointer-events`, nunca `display:none` nem remoção do DOM.** O botão continua na ordem
+  de tabulação e no leitor de tela, e o espaço fica reservado — a linha não salta quando ele aparece.
+- **`group-hover` e `group-focus-within` sempre juntos.** Ação que só existe no ponteiro não existe
+  para quem navega por Tab.
+- **A condição de esconder é a MESMA de revelar: `(hover: hover)`, não a largura.** Um tablet de 800px
+  passa no `md:` e não tem hover nenhum. `(pointer: fine)` cobriria o tablet e deixaria de fora a
+  caneta, que tem ponteiro fino e não tem hover — e aí "Compareceu" ficaria inalcançável, porque a
+  folha do "⋯" não carrega esse verbo.
+
+`tests/e2e/painel-acabamento.spec.ts` navega por Tab em 1280px até o botão e mede a opacidade
+**calculada**. É a única prova possível: teste de fonte lê a classe, não a cascata.
+
+**2. A forma sai da duração** — o `displayType` do Cal.com, que decide pelo **conteúdo** e não pela
+altura renderizada (medir o DOM volta a errar quando a fonte ou o zoom muda). Abaixo de 40 min,
+`compacto`: hora, nome, etiquetas e serviço numa linha, e o telefone sai do cartão para a folha do
+"⋯". Até 45 min, `medio`: duas linhas. Acima, `completo`, que é o cartão do item 7. É o que resolve
+"um corte de 20 min e uma barba de 1h ocupam a mesma altura" sem trazer eixo de tempo para a tela; as
+três alturas estão na §3.3.
+
+**3. Status por forma, cor livre para o barbeiro.** A aresta de 4px já é identidade de quem atende
+(§3.5) e não pode carregar dois significados. A Fresha deixa colorir por membro, por categoria ou por
+status, e o mapa de status dela é bom — mas a cor nós já gastamos. O Cal.com resolve sem gastar cor
+nenhuma: `cva` por status, borda **tracejada** no que não aconteceu (`NO_SHOW`, `CANCELED`) e
+`line-through` no nome do cancelado. A §3.6 já reservava o tracejado para "vazio", que é exatamente o
+que esses dois estados são: o horário existiu e ninguém sentou na cadeira. A etiqueta continua; o que
+muda é que agora o estado se lê sem ela e sem cor nenhuma.
+
+**4. O vão livre é clicável, e vira o jeito primário de agendar.** Em Fresha, Square, Vagaro, Acuity e
+Cal.com, clicar no vazio é o gesto de marcar; aqui o encaixe era um botão no topo que abria uma folha
+pedindo a hora que a pessoa já tinha apontado com o dedo. Entre dois atendimentos do mesmo barbeiro,
+com folga suficiente para o menor serviço da loja, entra uma **faixa** — não um cartão: 44px de
+altura, borda tracejada, tinta secundária, "10:30 · 1 h 30 min livre com João". É `<button>` de
+verdade, nunca `<div onClick>`, com o nome acessível começando pelo verbo e contendo o texto visível
+inteiro (WCAG 2.5.3, para quem comanda por voz); clicar abre a folha de encaixe com hora e barbeiro
+**já preenchidos**. Com um barbeiro só, a faixa não repete o nome dele.
+
+Duas guardas seguram a ideia:
+
+- **O piso** é o menor serviço ativo da loja. Faixa em todo buraco de cinco minutos enche a tela e não
+  leva a lugar nenhum: é ruído com aparência de ação.
+- **O relógio.** Buraco que já passou não vira convite — marcaria cliente no passado, e nada no
+  servidor recusa isso. Buraco **em curso** é recortado a partir de agora, não descartado: às 10:15,
+  com a cadeira livre até meio-dia, o que está à venda é 1 h 45 min, e essa é a faixa mais útil do
+  dia. Oferecer "10:00 · 2 h" erraria a hora e o tamanho de uma vez.
+
+O `EmptyCell` do Cal.com é o padrão copiado — no hover, um bloco fantasma mostra hora e duração. A
+nossa faixa carrega o tamanho por escrito porque a lista não tem eixo de tempo.
+
+**5. O "⋯" nomeia o cliente.** Ele virou a única afordância da linha em repouso no desktop e o único
+caminho para o telefone no cartão curto; vinte botões chamados "Mais ações" deixam quem usa leitor de
+tela sem saber de quem é cada um.
+
+**O que a pesquisa NÃO achou**, e vale registrar para poupar a próxima busca:
+
+- **Não existe bloco oficial do shadcn** para calendário de dia. O pedido está aberto desde março de
+  2024, com 268 votos, sem entrega.
+- **Não existe estudo controlado** comparando lista contra grade de horas em tela pequena. Quem disser
+  que está provado, está inventando.
+- **Não existe post de engenharia** de quem construiu essas telas: Fresha e Booksy não têm blog
+  técnico, e o do Cal.com só tem incidente e CI.
+- O **ReUI Event Calendar** (`reui.io/components/event-calendar`) é o único componente do ecossistema
+  com resource view em `@base-ui/react` + `date-fns` — a nossa stack — e em MIT, enquanto o
+  FullCalendar cobra US$ 480/dev/ano pelo equivalente. **Vale ler, não instalar**: o registry puxa dez
+  submódulos, store própria e engine de ponteiro, e a documentação não trata de celular. Fica como
+  prova de que o desenho é viável no nosso stack e como fonte de detalhe para a Fase 2.
+- O **open-salon** (`github.com/clawnify/open-salon`) é um clone de Fresha em shadcn + Tailwind 4, com
+  colunas de barbeiro e ficha de cliente — mas é **AGPL-3.0**. Serve para olhar, nunca para copiar
+  código para dentro de um SaaS proprietário.
+
 ### 5.8 Painel — encaixe / walk-in
 
 Deixa de ser um formulário de oito controles em `flexWrap` pendurado no fim da agenda
@@ -1416,6 +1508,33 @@ O comentário de `day-grid.tsx:29-36` **fica** — está certo do jeito que foi 
 parágrafo dizendo que a lista é a agenda em toda largura e que o quadro é uma segunda vista opcional,
 com as regras abaixo já fechadas.
 
+**Em 14/08/2026 a decisão ganhou fonte externa.** Até aqui ela se sustentava em argumento interno —
+três jurados nossos —, e esse era o risco da seção. A pesquisa que antecedeu o redesenho da agenda
+abriu sete produtos do ramo (Fresha, Booksy, Square, Vagaro, Acuity, Zenoti, Cal.com) para ver se o
+mercado nos desmente. **Não desmente:**
+
+- **Todo produto desenha o dia como linha do tempo com uma coluna por profissional — e todos dobram no
+  celular, com a lista como escape.** A Booksy trava em duas colunas e a orientação oficial dela é
+  *girar o aparelho*; o app da Square reduz o menu a day / week / **list**; a Vagaro corta para sete
+  colunas no celular e **remove a linha do agora**, com o ajuste marcado "Computer only"; a Acuity
+  imprime em "Agenda list". A lista não é plano B de ninguém: é feature de primeira classe em todos
+  eles. Com 90% do uso em celular e tablet, construir colunas por padrão é construir a versão que os
+  outros escondem.
+- **Acessibilidade tem fonte primária, e ela aponta para a lista.** O Google, na página oficial de
+  acessibilidade do Calendar: *"We recommend the use of schedule view, also called agenda view, with a
+  screen reader"*. O W3C APG registra que grid com navegação bidimensional acrescenta complexidade
+  para o autor e para o usuário. A nossa lista é `<ol>` com cabeçalho de hora: navegação por lista e
+  por heading, de graça.
+- **Já foi rejeitado em campo.** Em fevereiro de 2025 o Google Calendar trocou o toque no dia de
+  Schedule para grade no celular e levou reclamação suficiente para virar notícia.
+
+**Onde a timeline ganha, e é honesto dizer:** duração vira comprimento, e comprimento se lê sem ler —
+o buraco na agenda só existe se for desenhado, e é por isso que a Booksy vende o modo "Fit to page…
+easily spot any empty slots". Nós compramos isso por dois centavos duas vezes: a linha "próximo livre"
+(§5.7, item 3) e, desde 14/08/2026, a **faixa de vão livre** dentro da própria lista, que além de
+mostrar o buraco ainda o vende num clique. A Square oferece `combined` e `side-by-side` como escolha
+do usuário, que é exatamente o desenho das cinco regras abaixo.
+
 **Quando o quadro for feito, estas cinco decisões já estão tomadas:**
 
 1. **Formato é escolha do usuário, não do viewport:** segmentado "Lista | Colunas" na barra de data,
@@ -1503,6 +1622,101 @@ passa: o dono quer o total e a variação, e os dois são número.
   nenhum atendimento fechado, retorno de coorte que ainda não amadureceu e comissão de barbeiro sem
   percentual. Os três primeiros viram `—`; o último vira **link para configurar**. `R$ 0,00` ali
   afirmaria que o barbeiro não tem nada a receber, quando o que houve foi um campo em branco.
+
+### 5.13 Painel — ficha do cliente
+
+Acrescentada em 14/08/2026 (spec:
+`docs/superpowers/specs/2026-08-14-agenda-e-ficha-do-cliente-design.md`). **A ficha não tinha seção
+nenhuma aqui**: esta direção foi escrita para telas de operação e de cadastro, e o registro de uma
+**pessoa** ficou de fora — que é por que ela envelheceu sozinha enquanto as outras cinco eram
+reformadas.
+
+O diagnóstico foi o oposto do da agenda. Lá sobrava ruído; aqui faltava informação: nome, telefone,
+histórico, notas, botão de anonimizar — **e nenhum número**, com `src/domain/indicadores/` calculando,
+desde o resumo, tudo o que o mercado mostra nessa tela. O único dado que faltava de verdade era o
+barbeiro no histórico, um campo a mais no `select`.
+
+**O que treze produtos fazem** (Stripe, Shopify, HubSpot, Salesforce, Attio, Intercom, Pipedrive,
+mais Fresha, Booksy, Vagaro, Phorest, Square e Zenoti):
+
+- **Identidade e fatos numa coluna estreita, atividade na larga** — o Polaris da Shopify prescreve
+  2/3 + 1/3, o Material 3 usa ~66/34, e o `atomic-crm` da Marmelab (MIT, shadcn) implementa isso
+  literalmente: `flex-1` no corpo, `w-92` no aside.
+- **Número na ficha é minoria.** Stripe, Intercom e Pipedrive não têm nenhum. Quem tem — Vagaro,
+  Phorest, Zenoti, Booksy — usa o mesmo trio: total gasto, total de atendimentos, última visita.
+- **Histórico é lista ou tabela, nunca linha do tempo**, e todos têm **filtro por status**.
+- **"Sumido" é lista à parte, não etiqueta**: `Slipping Away` na Booksy, `Lapsed` na Square, `Client
+  Reconnect` na Phorest.
+- **Ação destrutiva mora em menu de overflow** — `⋯`, `⋮`, "More actions". A danger zone existe como
+  padrão documentado, e nenhum sistema corporativo grande usa.
+
+Os dois do nosso ramo que mais ensinam: o **Phorest**, cujo Client Card tem uma seção `Spend` com
+gasto total e número de faltas, e cujo "sumido" é calculado **por cliente, depois de três visitas** —
+exatamente a regra de mediana que o nosso `cliente.ts` já implementava; e a **Booksy**, o único que
+mostra **taxa** em vez de contagem.
+
+**A forma: coluna única, com rolagem, sem abas.** São quatro assuntos e nenhuma tabela de duzentas
+linhas. A SAP dá o limiar mais útil — âncora e rolagem é o padrão, aba é exceção acima de quatro
+tabelas grandes —, e a aba custaria um clique justamente no que o dono mais quer, o histórico.
+**Também não são duas colunas:** o 2/3 + 1/3 do Polaris existe para guardar quinze atributos de CRM, e
+o nosso cliente tem dois, nome e telefone.
+
+De cima para baixo:
+
+1. **Identidade** — `← Clientes`, `<Monograma tamanho={56}>`, nome em 22/28/700, telefone. Ao lado do
+   nome, **no máximo um** selo, e só quando for verdade: `Sumido há N dias` ou `Cliente novo`. Nunca
+   os dois — destacar às vezes é remover, não acrescentar. Batendo as duas condições ganha o sumido,
+   que é a que pede ação; "cliente novo" é contexto, não tarefa.
+2. **Quatro cartões de indicador**, o tijolo da §5.12, na mesma grade dela (1 · 2 · 4 colunas) e com o
+   `Popover` de explicação obrigatório. A faixa deles é o degrau **`leitura`** (1120px), e não o
+   `tabela` (880px) das seções de baixo: a §3.7 dá `leitura` para grade de cards, e o que decide não é
+   o alinhamento, é o número caber — em 880px a fileira de quatro dá cartões de 208px, e o valor de
+   34px quebra "R$ 1.250,00" com o "R$" numa linha só dele, justamente no cliente regular, que é quem
+   o dono abre nessa tela. O degrau contra a lista é o preço, e é o barato dos dois.
+
+| Cartão | Valor | Apoio | Por que este |
+|---|---|---|---|
+| **Total gasto** | `R$ 255,00` | "em 3 atendimentos" | o rótulo universal do setor. Só `DONE` entra: o agendado ainda não aconteceu, a falta não rendeu |
+| **Corta a cada** | `15 dias` | "última visita em 12 de julho" | **mediana** dos intervalos dele. Nenhum concorrente brasileiro tem, e é o que dá sentido ao "sumido" |
+| **Faltas** | `25%` | "1 falta de 4 horários marcados" | a Booksy é a única que mostra taxa. Cancelado fica fora do divisor: o horário voltou para a grade |
+| **Preferidos** | `Corte` | "com Marcão" | não é número, e cabe no card como duas linhas de texto. Empate não elege |
+
+Dinheiro **com centavo** (`formatMoney`, não `formatPrice` — "Grátis" em total gasto é absurdo),
+porque o dono confere esse número contra as linhas do histórico logo abaixo, que mostram centavo.
+**Traço, nunca zero**, é a mesma regra da §5.12: "0% de falta" e "nunca teve chance de faltar" são
+coisas diferentes, e "corta a cada 0 dias" não é frase. A explicação do `Popover` pesa aqui mais que
+no resumo: "corta a cada 15 dias" sem dizer que é a **mediana** dos intervalos dele não é número em
+que o dono confia — e é justamente o número que ele vai usar para mandar mensagem para quem sumiu.
+
+3. **Histórico** — a lista de 72px que já existia, mais o filtro **Todos / Concluídos / Faltas** no
+   `<Segmentado>`, que é o padrão de Fresha e Square. Não vira linha do tempo: nenhum produto do ramo
+   desenhou uma, e o que se lê ali é "quando, o quê, quanto, veio ou não" — isso é linha de lista.
+   - **O filtro é estado de cliente, não querystring**: é leitura rápida durante um atendimento
+     ("esse aí já me deu bolo?"), não link para mandar para alguém.
+   - **O vazio diz qual filtro está ligado** — "Nenhuma falta registrada", nunca "Nenhum atendimento
+     ainda", que é a frase de quem nunca veio.
+   - **O filtro responde a quem não enxerga a lista.** O `aria-pressed` anuncia o botão apertado e mais
+     nada; a lista encolhendo logo abaixo não faz barulho. Uma linha `role="status"` visualmente
+     oculta e **sempre montada** diz quantos ficaram — é o mesmo recurso do encaixe (§5.8), e ela nasce
+     junto com a tela porque região viva criada no mesmo quadro do texto não é anunciada por todo
+     leitor.
+4. **Notas** — como estavam.
+5. **Privacidade** — no rodapé, separada por `border-t`, só para o dono. Os grandes enterrariam isso
+   num menu de overflow; aqui a seção ganha por três motivos: é ação rara, e escondê-la num `⋮` de
+   44px no celular é pior que deixá-la no fim de uma rolagem; o texto "o histórico de atendimentos
+   continua na agenda" **precisa** de espaço, e é a lição do `Erase personal data` da Shopify e do
+   `Forget` da Phorest — anonimizar sem furar o relatório; e é o que o `atomic-crm` faz, com o delete
+   isolado no fim do aside por `border-t`. O botão **nomeia o objeto**: "Confirmar remoção" virou
+   **"Remover os dados de Marcos"**, que é o que o NN/g manda (rotular pelo resultado, nunca "Sim").
+
+**O que a ficha não vai ter:** abas; duas colunas; e a **nota do cliente aparecendo na tela do
+agendamento** — que é o padrão mais consolidado do setor (Staff alert na Fresha, Popup note na Vagaro,
+pop-up da Phorest, três gatilhos no Zenoti) e a melhor ideia que a pesquisa trouxe, mas é outra tela.
+Fica registrada como próximo passo.
+
+**O que a pesquisa NÃO achou:** não existe bloco oficial do shadcn para página de detalhe de pessoa —
+o mais próximo é o `atomic-crm`, que é aplicação e não registry. Vale para as duas telas desta
+rodada; o resto do que a busca não encontrou está no fim da §5.7.
 
 ---
 

@@ -2,7 +2,7 @@
 
 import { CalendarDays } from 'lucide-react';
 import { ptBR } from 'react-day-picker/locale';
-import { useActionState, useEffect, useMemo, useState } from 'react';
+import { useActionState, useCallback, useEffect, useMemo, useState } from 'react';
 import { carregarHorarios, type HorarioDisponivel } from '@/components/availability';
 import { ErroDeAcao } from '@/components/erro-de-acao';
 import { Bloco } from '@/components/ui/bloco';
@@ -20,6 +20,7 @@ import { formatDayLabelLong, formatDuration, formatTime } from '@/lib/format';
 import { aplicarMascaraTelefone } from '@/lib/telefone';
 import { createManualAppointmentAction, type ManualBookingState } from './actions';
 import { avisoDeHorarioLivre, deslocarHora, horaDeAgoraArredondada } from './encaixe';
+import { assinarPedidoDeEncaixe, type PedidoDeEncaixe } from './vao-livre';
 
 /**
  * Encaixe / walk-in (§5.8).
@@ -57,12 +58,20 @@ export function ManualBookingForm({
   services,
   staffList,
   defaultDate,
+  hojeISO,
   timeZone,
 }: {
   slug: string;
   services: Servico[];
   staffList: Barbeiro[];
   defaultDate: string;
+  /**
+   * O "hoje" da barbearia, produzido pelo servidor com Luxon. O `Calendar`
+   * marcaria o hoje do relógio do navegador, que é o de quem olha e não o da
+   * loja — às 21h em São Paulo o navegador de um cliente em Lisboa já virou o
+   * dia. Mesma razão pela qual a `barra-de-data.tsx` passa `today`.
+   */
+  hojeISO: string;
   timeZone: string;
 }) {
   const [state, formAction, pending] = useActionState(createManualAppointmentAction, ESTADO_INICIAL);
@@ -147,13 +156,38 @@ export function ManualBookingForm({
     }
   }, [state]);
 
-  function abrir() {
-    setModo('agora');
-    setForaDaGrade(false);
-    setDate(defaultDate);
-    setHoraLivre(horaDeAgoraArredondada(new Date(), timeZone));
-    setAberta(true);
-  }
+  /**
+   * Abre a folha.
+   *
+   * **Sem argumento** é o botão "Encaixe": dia mostrado e hora de agora
+   * arredondada para baixo, como sempre foi.
+   *
+   * **Com `pedido`** é o vão livre da lista — a hora e o barbeiro que o dedo
+   * apontou já chegam escolhidos, que é o ponto inteiro do gesto: pedir de novo
+   * a hora que a pessoa acabou de apontar é o que os outros produtos não fazem.
+   * O modo continua sendo "Agora" porque é ele que mostra a hora no mostrador
+   * de ±5 — a hora fica à vista e ainda dá para empurrar cinco minutos, sem
+   * depender de a grade ter carregado.
+   */
+  const abrir = useCallback(
+    (pedido?: PedidoDeEncaixe) => {
+      setModo('agora');
+      setForaDaGrade(false);
+      setDate(defaultDate);
+      setHoraLivre(pedido?.hora ?? horaDeAgoraArredondada(new Date(), timeZone));
+      // Sem pedido o barbeiro fica como estava: quem abre pela barra não pediu
+      // para trocar de cadeira.
+      if (pedido) setStaffId(pedido.staffId);
+      setAberta(true);
+    },
+    [defaultDate, timeZone],
+  );
+
+  // A faixa de vão livre mora na lista e esta folha mora na barra de data —
+  // irmãs debaixo de `agenda/page.tsx`, que é Server Component e não guarda
+  // estado para ninguém. O clique chega pelo canal de `vao-livre.tsx` em vez de
+  // uma prop que teria de subir até a página e descer de novo.
+  useEffect(() => assinarPedidoDeEncaixe(abrir), [abrir]);
 
   function trocarModo(novo: Modo) {
     setModo(novo);
@@ -210,7 +244,10 @@ export function ManualBookingForm({
           paddingBottom: 'calc(6px + env(safe-area-inset-bottom))',
         }}
       >
-        <Botao largura="total" onClick={abrir}>
+        {/* `() => abrir()` e não `abrir`: o handler passaria o evento de clique
+            no lugar do pedido de encaixe, e a folha abriria com um `staffId`
+            que não existe. */}
+        <Botao largura="total" onClick={() => abrir()}>
           Encaixe
         </Botao>
       </div>
@@ -222,7 +259,7 @@ export function ManualBookingForm({
           continua sendo dele porque no celular quem manda é a barra fixa do
           rodapé, e esconder pelo lado da barra apagaria ela junto. */}
       <div className="hidden md:flex">
-        <Botao onClick={abrir}>Encaixe</Botao>
+        <Botao onClick={() => abrir()}>Encaixe</Botao>
       </div>
 
       {/* Permanente e fora da folha: o leitor de tela precisa ouvir a
@@ -311,6 +348,7 @@ export function ManualBookingForm({
                     locale={ptBR}
                     selected={isoParaData(date)}
                     defaultMonth={isoParaData(date)}
+                    today={isoParaData(hojeISO)}
                     onSelect={(escolhido) => {
                       if (!escolhido) return;
                       setDate(dataParaISO(escolhido));
