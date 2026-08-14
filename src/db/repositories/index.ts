@@ -3,4 +3,5 @@ export * from './staff.repo';
 export * from './service.repo';
 export * from './customer.repo';
 export * from './appointment.repo';
+export * from './indicadores.repo';
 export type { Db } from './types';

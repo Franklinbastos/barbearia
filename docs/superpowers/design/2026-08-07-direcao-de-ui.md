@@ -1397,6 +1397,66 @@ com as regras abaixo já fechadas.
    testável ao lado de `buildDayList`, **mais** `listWorkingHours` do dia carregado na página — sem
    ele, folga do Rui e agenda vazia ficam idênticas, que é fonte real de erro no balcão.
 
+### 5.12 Painel — resumo do dono (indicadores)
+
+Acrescentado em 14/08/2026, quando `/app/resumo` entrou (spec:
+`docs/superpowers/specs/2026-08-13-indicadores-design.md`). Esta direção foi escrita para telas de
+**operação** — agenda, cadastro, grade pública — e não tinha nada a dizer sobre tela de **número**.
+As regras abaixo valem para qualquer superfície de indicador que o produto ganhar depois, não só
+para o resumo.
+
+**O tijolo é o card de número, e ele tem quatro partes fixas** (`cartao-indicador.tsx`):
+
+1. **Título** no `micro` da §3.2 — 12/16/700, caixa alta, tracking .06em, em `muted-foreground` (o
+   `--tinta-2` da §3.1 depois da migração para os tokens do shadcn, §4.1). Nunca no tamanho do
+   corpo: o título é etiqueta do número, não frase.
+2. **Número** em 34/40/700 com `tabular-nums`, e é o maior tipo da escala — o teto de 34px da §3.2
+   continua valendo, aqui ele é gasto no número em vez da hora de confirmação. `tabular-nums` não é
+   preferência: o valor troca a cada navegação de período, e sem largura fixa de dígito ele dança de
+   posição. Coluna que dança é erro de instrumento.
+3. **Linha de apoio** em `sm` (14/20) `muted-foreground` — horas vagas, receita perdida, quantidade
+   de atendimentos. É onde o segundo número mora, para o principal não ter concorrente.
+4. **Explicação do cálculo** num `Tooltip`, atrás de um alvo de 24px com o ícone `Info`. **É
+   obrigatória**, e é o princípio nº 3 do spec: o dono que não sabe o que entra no denominador não
+   usa o número para decidir nada. Em comissão, onde o barbeiro confere linha a linha, é a diferença
+   entre relatório e discussão.
+
+**A comparação com o período anterior é um `Badge`** ao lado do número, em `ok`/`perigo`, e **nunca
+depende só de cor**: um `sr-only` com "melhor que" / "pior que" vai antes do texto. Quem decide o
+sentido é quem chama o card — falta que cai melhorou, faturamento que cai piorou —, e sem base no
+período anterior o selo simplesmente não aparece, em vez de inventar "+100%".
+
+**Grade:** a primeira dobra é uma coluna até 640px, duas até 1280px e quatro acima disso. Tabela de
+mais de quatro colunas vira lista de cards abaixo de 768px, como a agenda (§5.11). Nada rola de lado
+em 360px, aqui como no resto do produto.
+
+**Gráfico só entra quando a forma da curva é a informação.**
+
+É a regra do produto inteiro, não uma preferência desta tela. O dono decide com "68% de ocupação na
+terça"; uma barra que diz a mesma coisa custa uma dependência de gráfico, um componente client, um
+estado de carregamento e um modo escuro a mais para dizer menos. Total, comparação e taxa são
+**número**. Gráfico só quando a pergunta é *onde afunda* ou *onde sobe* — quando o formato responde
+algo que nenhum dígito responde sozinho.
+
+**Hoje isso vale para exatamente um: a ocupação por hora do dia.** Ali a curva é a resposta, porque
+o que o dono procura é o buraco — o horário onde há cadeira para vender é o horário onde promover. É
+o único client component com recharts do produto, e acrescentar um segundo gráfico exige passar por
+esta regra e mostrar qual pergunta a curva responde. Faturamento por dia, por exemplo, **não**
+passa: o dono quer o total e a variação, e os dois são número.
+
+**Zero é resposta, e tem três formas** (§5 do spec; `estado-vazio.tsx`):
+
+- **Sem histórico** — a barbearia ainda não atendeu ninguém. Substitui a tela inteira, seletor de
+  período incluído, e diz que os números aparecem depois dos primeiros atendimentos. `0%` de
+  ocupação numa loja que nunca abriu a agenda lê como cadeira parada, que é acusação falsa.
+- **Período sem atendimento** — houve movimento antes, não nesta janela. Os cards saem, o seletor
+  fica e um atalho leva ao período anterior, onde o número existe. A lista de clientes sumidos
+  permanece: ela não depende da janela e é justamente o que o dono pode fazer numa semana parada.
+- **Sem dado para aquela célula** — traço, nunca zero. Ocupação sem expediente cadastrado, falta sem
+  nenhum atendimento fechado, retorno de coorte que ainda não amadureceu e comissão de barbeiro sem
+  percentual. Os três primeiros viram `—`; o último vira **link para configurar**. `R$ 0,00` ali
+  afirmaria que o barbeiro não tem nada a receber, quando o que houve foi um campo em branco.
+
 ---
 
 ## 6. O que o sistema ainda não tem

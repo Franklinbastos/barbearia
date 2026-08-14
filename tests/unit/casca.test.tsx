@@ -17,10 +17,14 @@ import { SidebarProvider } from '@/components/ui/sidebar';
  * horizontal para rolar, e a asserção passou a guardar uma estrutura que não
  * existe mais.
  *
- * **O que continua valendo**, e é o que os casos abaixo guardam: as cinco
- * seções, o `aria-current` na ativa, o logout (que não existia no produto antes
- * da reforma e é o mais fácil de perder numa troca de casca) e o nome da loja,
- * que também é o atalho de um toque para a agenda.
+ * **O que continua valendo**, e é o que os casos abaixo guardam: as seções, o
+ * `aria-current` na ativa, o logout (que não existia no produto antes da
+ * reforma e é o mais fácil de perder numa troca de casca) e o nome da loja, que
+ * também é o atalho de um toque para a agenda.
+ *
+ * Eram cinco seções; em 14/08/2026 o Resumo entrou na frente da Agenda e são
+ * seis. A lista da asserção é a única cópia dela no teste — quem acrescentar
+ * seção acrescenta ali, e quem tirar tem de explicar o que sumiu do painel.
  *
  * **O logout mudou de forma, não de existência.** Até 13/08/2026 ele era um
  * botão solto no rodapé e bastava `getByRole('button', { name: /sair/i })`.
@@ -82,9 +86,9 @@ function montaCasca() {
 }
 
 describe('PanelNav', () => {
-  it('lista as cinco seções do painel', () => {
+  it('lista as seis seções do painel', () => {
     montaCasca();
-    for (const secao of ['Agenda', 'Serviços', 'Equipe', 'Clientes', 'Configurações']) {
+    for (const secao of ['Resumo', 'Agenda', 'Serviços', 'Equipe', 'Clientes', 'Configurações']) {
       expect(screen.getByRole('link', { name: secao })).toBeDefined();
     }
   });

@@ -2,6 +2,7 @@
 
 import {
   CalendarDays,
+  ChartColumn,
   ChevronsUpDown,
   Contact,
   LogOut,
@@ -47,8 +48,9 @@ import {
  *
  * O que a barra antiga resolvia e esta continua resolvendo:
  *
- * - As cinco seções, com `aria-current="page"` na ativa (o realce de cor
- *   sozinho nunca foi o contrato — ver `tests/unit/casca.test.tsx`).
+ * - As seções — cinco na reforma, seis desde que o Resumo entrou —, com
+ *   `aria-current="page"` na ativa (o realce de cor sozinho nunca foi o
+ *   contrato — ver `tests/unit/casca.test.tsx`).
  * - O **logout**, que não existia no produto antes da reforma. Continua no
  *   rodapé — desde 13/08/2026 dentro do menu de conta, não mais como botão
  *   solto (ver `ContaDoRodape` abaixo).
@@ -69,6 +71,11 @@ import {
  * precisa ser revisto.
  */
 const ITENS = [
+  // Resumo vem antes da Agenda desde 14/08/2026: a agenda continua sendo o que
+  // o balcão abre o dia inteiro, mas quem entra no painel para *decidir* entra
+  // pelos números. A identidade no topo da sidebar continua atalhando para a
+  // agenda, então o balcão não perdeu o caminho de um toque.
+  { href: '/app/resumo', label: 'Resumo', Icone: ChartColumn },
   { href: '/app/agenda', label: 'Agenda', Icone: CalendarDays },
   { href: '/app/servicos', label: 'Serviços', Icone: Scissors },
   { href: '/app/equipe', label: 'Equipe', Icone: Users },

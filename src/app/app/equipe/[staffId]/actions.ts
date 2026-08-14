@@ -105,6 +105,60 @@ export async function saveStaffServicesAction(
   return { ok: true };
 }
 
+/**
+ * O percentual de comissão (§4 do spec), inteiro de 0 a 100.
+ *
+ * **Vazio grava `null`, e `null` não é zero.** Nulo quer dizer "este barbeiro
+ * não trabalha por comissão" — o dono que não tira, quem aluga a cadeira — e a
+ * linha dele some do relatório. Zero é uma configuração de verdade, que alguém
+ * digitou, e aparece zerada. Se o campo vazio virasse `0`, o barbeiro sem
+ * configuração apareceria no fechamento com comissão zero, que é a linha mais
+ * perigosa do relatório: parece número conferido e não é.
+ *
+ * Só dígito passa: `'40%'`, `'0,4'` e `'quarenta'` viram erro em vez de `NaN`
+ * gravado. E o teto de 100 impede a comissão maior que o faturamento.
+ */
+const percentualDeComissao = z
+  .string()
+  .trim()
+  .refine(
+    (v) => v === '' || /^\d+$/.test(v),
+    'O percentual de comissão precisa ser um número inteiro',
+  )
+  .transform((v) => (v === '' ? null : Number(v)))
+  .refine(
+    (v) => v === null || (v >= 0 && v <= 100),
+    'O percentual de comissão precisa ficar entre 0 e 100',
+  );
+
+export async function saveCommissionAction(
+  staffId: string,
+  _prev: FormState,
+  formData: FormData,
+): Promise<FormState> {
+  const carregado = await carregarBarbeiro(staffId);
+  if (!carregado.ok) return { erro: carregado.erro };
+  const { sessao } = carregado;
+
+  const parsed = percentualDeComissao.safeParse(String(formData.get('commissionPercent') ?? ''));
+  if (!parsed.success) return { erro: parsed.error.issues[0].message };
+
+  await db
+    .update(staff)
+    .set({ commissionPercent: parsed.data })
+    // O escopo por barbearia é o mesmo de `carregarBarbeiro`, repetido aqui de
+    // propósito: quem lê o `UPDATE` vê que ele não alcança a loja do vizinho
+    // sem precisar subir até a função que carregou o barbeiro.
+    .where(and(eq(staff.barbershopId, sessao.barbershopId), eq(staff.id, staffId)));
+
+  revalidatePath(`/app/equipe/${staffId}`);
+  // A comissão aparece em três telas; sem isto o dono muda o percentual e o
+  // fechamento continua mostrando o número antigo.
+  revalidatePath('/app/resumo');
+  revalidatePath('/app/comissao');
+  return { ok: true };
+}
+
 const DIAS_SEMANA = [1, 2, 3, 4, 5, 6, 7];
 const MAX_BLOCOS_POR_DIA = 3;
 

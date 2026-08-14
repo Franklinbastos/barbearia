@@ -11,6 +11,7 @@ import {
   listTimeOffForStaff,
 } from '@/db/repositories';
 import { CabecalhoDePagina } from '@/components/ui/cabecalho-de-pagina';
+import { ComissaoForm } from './comissao-form';
 import { ServicesForm } from './services-form';
 import { WorkingHoursForm } from './working-hours-form';
 import { TimeOffSection } from './time-off-section';
@@ -48,6 +49,13 @@ export default async function StaffDetailPage({
           descricao={barbeiro.role === 'OWNER' ? 'Dono' : 'Barbeiro'}
         />
       </div>
+
+      {/* A comissão vem antes dos serviços de propósito: é a maior despesa da
+          barbearia e o único número desta tela que o barbeiro confere. */}
+      <section className="flex flex-col gap-3">
+        <h2 className={TITULO_DE_SECAO}>Comissão</h2>
+        <ComissaoForm staffId={staffId} percentual={barbeiro.commissionPercent} />
+      </section>
 
       <section className="flex flex-col gap-3">
         <h2 className={TITULO_DE_SECAO}>Serviços</h2>

@@ -1,4 +1,4 @@
-import { pgTable, uuid, text, boolean, time, smallint, timestamp, index } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, text, boolean, integer, time, smallint, timestamp, index } from 'drizzle-orm/pg-core';
 import { barbershop } from './barbershop';
 
 export const staff = pgTable(
@@ -11,6 +11,12 @@ export const staff = pgTable(
     photoUrl: text('photo_url'),
     role: text('role', { enum: ['OWNER', 'BARBER'] }).notNull().default('BARBER'),
     active: boolean('active').notNull().default(true),
+    /**
+     * Percentual de comissão do barbeiro, inteiro de 0 a 100. Nulo = barbeiro
+     * sem comissão (dono que não tira, ou quem aluga a cadeira), e a linha some
+     * do relatório em vez de aparecer zerada — nulo não é zero.
+     */
+    commissionPercent: integer('commission_percent'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [index('staff_barbershop_idx').on(t.barbershopId)],
