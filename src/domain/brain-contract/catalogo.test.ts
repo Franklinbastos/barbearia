@@ -26,10 +26,10 @@ describe('montarCatalogo', () => {
     expect(cat.operations).toEqual([OP_MARCAR, OP_CANCELAR]);
   });
 
-  it('monta os slots de marcar com serviço, profissional, data e horário', () => {
+  it('monta os slots de marcar com serviço, profissional, data, horário e nome', () => {
     const cat = montarCatalogo(loja, servicos, equipe);
     const nomes = cat.intentSlots[OP_MARCAR].map((s) => s.name);
-    expect(nomes).toEqual(['serviceName', 'staffName', 'sessionDate', 'sessionTime']);
+    expect(nomes).toEqual(['serviceName', 'staffName', 'sessionDate', 'sessionTime', 'clientName']);
   });
 
   it('embute os serviços e a equipe reais da barbearia', () => {

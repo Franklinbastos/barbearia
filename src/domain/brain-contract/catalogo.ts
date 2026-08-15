@@ -69,6 +69,14 @@ export function montarCatalogo(
           resolutionStrategy: 'CANDIDATES',
           minimumSlots: ['serviceName', 'sessionDate'],
         },
+        {
+          // O telefone é o remetente do WhatsApp (o brain semeia sozinho); o nome, não —
+          // por isso é o único dado de cliente que o bot pergunta. Fica por último, depois
+          // dos detalhes da reserva.
+          name: 'clientName',
+          format: 'text',
+          hint: 'Beleza! E qual o seu nome pra reserva?',
+        },
       ],
       [OP_CANCELAR]: [
         {
