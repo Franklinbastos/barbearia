@@ -61,19 +61,23 @@ export async function resolverCandidatos(
 
   if (alvo === 'serviceName') {
     const candidates: Candidato[] = servicos.map((s) => ({
-      value: s.name,
+      id: s.name,
       label: `${s.name} · ${s.durationMinutes} min · ${formatarPreco(s.priceCents)}`,
-      serviceId: s.id,
+      fields: {
+        serviceId: s.id,
+        serviceName: s.name,
+        durationMinutes: String(s.durationMinutes),
+        priceCents: String(s.priceCents),
+      },
     }));
     return { ...base, candidates };
   }
 
   if (alvo === 'staffName') {
     const candidates: Candidato[] = equipe.map((b) => ({
-      value: b.name,
+      id: b.name,
       label: b.name,
-      staffId: b.id,
-      staffName: b.name,
+      fields: { staffId: b.id, staffName: b.name },
     }));
     return { ...base, candidates };
   }
@@ -117,11 +121,14 @@ export async function resolverCandidatos(
       if (vistos.has(hora)) continue;
       vistos.add(hora);
       candidates.push({
-        value: hora,
+        id: hora,
         label: hora,
-        staffId: slot.staffId,
-        staffName: slot.staffName,
-        startAt: slot.start.toISOString(),
+        fields: {
+          sessionTime: hora,
+          staffId: slot.staffId,
+          staffName: slot.staffName,
+          startAt: slot.start.toISOString(),
+        },
       });
       if (teto && candidates.length >= teto) break;
     }

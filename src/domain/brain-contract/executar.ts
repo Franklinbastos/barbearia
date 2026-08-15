@@ -34,15 +34,12 @@ function classificarAcao(nome: string): typeof OP_MARCAR | typeof OP_CANCELAR | 
   return 'desconhecido';
 }
 
-function recusar(pedido: PedidoDeExecucao, message: string, code: string | null = null): ResultadoDaAcao {
-  return {
-    status: 'REJECTED',
-    code,
-    actionName: pedido.actionName,
-    idempotencyKey: pedido.idempotencyKey,
-    externalReference: pedido.externalReference ?? null,
-    message,
-  };
+function recusar(summary: string, code: string | null = null): ResultadoDaAcao {
+  return { status: 'REJECTED', code, summary };
+}
+
+function sucesso(summary: string): ResultadoDaAcao {
+  return { status: 'SUCCEEDED', code: null, summary };
 }
 
 /**
@@ -50,10 +47,11 @@ function recusar(pedido: PedidoDeExecucao, message: string, code: string | null 
  * ou cancela, reusando `createAppointment`/`cancelAppointment`. Nenhuma regra
  * nova — só a tradução do contrato para as funções que a barbearia já tem.
  *
- * Idempotência: a chave é aceita e ecoada, mas a de-duplicação real (mesma
- * chave = mesmo resultado) depende de um armazém de chaves, que é aditivo e
- * ficou para depois; a constraint `EXCLUDE` do banco já barra marcar o mesmo
- * horário duas vezes (vira SlotTaken).
+ * Idempotência: a chave é exigida (vira `MISSING_IDEMPOTENCY_KEY` se faltar),
+ * mas a de-duplicação real (mesma chave = mesmo `SUCCEEDED`, sem repetir a
+ * escrita) depende de um armazém de chaves, que é aditivo e ficou para
+ * depois — por enquanto ninguém devolve `DUPLICATE`. A constraint `EXCLUDE`
+ * do banco já barra marcar o mesmo horário duas vezes (vira SlotTaken).
  */
 export async function executar(
   db: Db,
@@ -63,7 +61,7 @@ export async function executar(
   pedido: PedidoDeExecucao,
 ): Promise<ResultadoDaAcao> {
   if (!pedido.idempotencyKey || pedido.idempotencyKey.trim() === '') {
-    return recusar({ ...pedido, idempotencyKey: '' }, 'idempotencyKey é obrigatório.', 'MISSING_IDEMPOTENCY_KEY');
+    return recusar('idempotencyKey é obrigatório.', 'MISSING_IDEMPOTENCY_KEY');
   }
 
   const acao = classificarAcao(pedido.actionName);
@@ -73,15 +71,15 @@ export async function executar(
     const nome = (p.clientName ?? '').trim();
     const telefone = (p.customerPhone ?? '').replace(/\D/g, '');
     if (nome === '' || telefone === '') {
-      return recusar(pedido, 'Preciso do nome e do telefone do cliente para marcar.', 'MISSING_CUSTOMER');
+      return recusar('Preciso do nome e do telefone do cliente para marcar.', 'MISSING_CUSTOMER');
     }
     const servico = acharPorNome(servicos, p.serviceName);
     if (!servico) {
-      return recusar(pedido, 'Não encontrei esse serviço no cardápio.', 'SERVICE_NOT_FOUND');
+      return recusar('Não encontrei esse serviço no cardápio.', 'SERVICE_NOT_FOUND');
     }
     const inicio = montarInicio(p.sessionDate, p.sessionTime, loja.timeZone);
     if (!inicio) {
-      return recusar(pedido, 'Data ou horário inválidos.', 'INVALID_DATETIME');
+      return recusar('Data ou horário inválidos.', 'INVALID_DATETIME');
     }
     const barbeiro = acharPorNome(equipe, p.staffName);
 
@@ -95,20 +93,12 @@ export async function executar(
         origin: 'BOT',
       });
       const escolhido = equipe.find((b) => b.id === criado.staffId);
-      return {
-        status: 'CREATED',
-        actionName: pedido.actionName,
-        idempotencyKey: pedido.idempotencyKey,
-        externalReference: pedido.externalReference ?? null,
-        appointmentId: criado.appointmentId,
-        startAt: criado.startAt.toISOString(),
-        staffId: criado.staffId,
-        staffName: escolhido?.name,
-        message: 'Horário marcado.',
-      };
+      return sucesso(
+        `Horário marcado: ${servico.name} com ${escolhido?.name ?? 'a equipe'} em ${p.sessionDate} às ${p.sessionTime}.`,
+      );
     } catch (erro) {
       const negocio = comoErroDeNegocio(erro);
-      if (negocio) return recusar(pedido, negocio.message, negocio.code);
+      if (negocio) return recusar(negocio.message, negocio.code);
       throw erro;
     }
   }
@@ -116,26 +106,19 @@ export async function executar(
   if (acao === OP_CANCELAR) {
     const id = p.appointmentId ?? pedido.externalReference ?? undefined;
     if (!id) {
-      return recusar(pedido, 'Me diga qual agendamento cancelar.', 'MISSING_APPOINTMENT');
+      return recusar('Me diga qual agendamento cancelar.', 'MISSING_APPOINTMENT');
     }
     try {
       // Origem CUSTOMER: o bot age em nome do cliente, então vale a mesma
       // guarda restrita do link (só BOOKED e ainda no futuro).
       await cancelAppointment(db, loja.id, id, { origin: 'CUSTOMER' });
-      return {
-        status: 'CANCELED',
-        actionName: pedido.actionName,
-        idempotencyKey: pedido.idempotencyKey,
-        externalReference: pedido.externalReference ?? null,
-        appointmentId: id,
-        message: 'Horário cancelado.',
-      };
+      return sucesso('Horário cancelado.');
     } catch (erro) {
       const negocio = comoErroDeNegocio(erro);
-      if (negocio) return recusar(pedido, negocio.message, negocio.code);
+      if (negocio) return recusar(negocio.message, negocio.code);
       throw erro;
     }
   }
 
-  return recusar(pedido, 'Operação desconhecida.', 'UNKNOWN_ACTION');
+  return recusar('Operação desconhecida.', 'UNKNOWN_ACTION');
 }

@@ -5,7 +5,7 @@ import { listActiveServices, listActiveStaff } from '@/db/repositories';
 import { executar } from '@/domain/brain-contract/executar';
 import type { ResultadoDaAcao } from '@/domain/brain-contract/tipos';
 import { toApiError, invalidInput } from '@/lib/api-error';
-import { abrirContexto, lerCorpoJson, contaConfere, contaInvalida } from '@/app/api/brain/contexto';
+import { abrirContexto, lerCorpoJson, contaConfere, contaInvalida } from '@/lib/contexto-do-brain';
 
 export const dynamic = 'force-dynamic';
 
@@ -28,7 +28,7 @@ const corpo = z.object({
     .optional(),
 });
 
-/** Códigos de recusa por entrada malformada → 400; recusa de negócio → 409. */
+/** Recusa por entrada malformada → 400; recusa de negócio → 409. */
 const RECUSA_DE_ENTRADA = new Set([
   'MISSING_IDEMPOTENCY_KEY',
   'MISSING_CUSTOMER',
@@ -38,16 +38,15 @@ const RECUSA_DE_ENTRADA = new Set([
   'UNKNOWN_ACTION',
 ]);
 
+/** `SUCCEEDED`/`DUPLICATE` são sempre 2xx — o brain só olha `is2xxSuccessful()`. */
 function statusHttp(resultado: ResultadoDaAcao): number {
-  if (resultado.status === 'CREATED') return 201;
-  if (resultado.status === 'CANCELED') return 200;
+  if (resultado.status !== 'REJECTED') return 200;
   return RECUSA_DE_ENTRADA.has(resultado.code ?? '') ? 400 : 409;
 }
 
-/** POST /api/brain/[slug]/execute — cria (origin BOT) ou cancela de verdade. */
-export async function POST(req: Request, { params }: { params: Promise<{ slug: string }> }) {
-  const { slug } = await params;
-  const ctx = await abrirContexto(req, slug);
+/** POST /api/external-actions/execute — cria (origin BOT) ou cancela de verdade. */
+export async function POST(req: Request) {
+  const ctx = await abrirContexto(req);
   if (!ctx.ok) return ctx.resposta;
 
   const parsed = corpo.safeParse(await lerCorpoJson(req));

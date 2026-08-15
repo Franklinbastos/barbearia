@@ -41,7 +41,8 @@ describe('resolverCandidatos', () => {
       slotToResolve: 'serviceName',
       slots: {},
     });
-    expect(r.candidates.map((c) => c.serviceId)).toEqual(['s1']);
+    expect(r.candidates.map((c) => c.id)).toEqual(['Corte']);
+    expect(r.candidates.map((c) => c.fields.serviceId)).toEqual(['s1']);
     expect(disponivel).not.toHaveBeenCalled();
   });
 
@@ -51,7 +52,8 @@ describe('resolverCandidatos', () => {
       slotToResolve: 'staffName',
       slots: {},
     });
-    expect(r.candidates.map((c) => c.staffId)).toEqual(['b1', 'b2']);
+    expect(r.candidates.map((c) => c.id)).toEqual(['João', 'Pedro']);
+    expect(r.candidates.map((c) => c.fields.staffId)).toEqual(['b1', 'b2']);
   });
 
   it('resolve sessionTime pela grade, um candidato por horário', async () => {
@@ -67,7 +69,10 @@ describe('resolverCandidatos', () => {
       slots: { serviceName: 'Corte', sessionDate: '2026-08-20' },
     });
 
-    expect(r.candidates.map((c) => c.value)).toEqual(['09:00', '09:30']);
+    expect(r.candidates.map((c) => c.id)).toEqual(['09:00', '09:30']);
+    // Um candidato por horário: o primeiro da grade segura a hora, mesmo com
+    // outro barbeiro livre no mesmo horário (o desempate é no createAppointment).
+    expect(r.candidates.map((c) => c.fields.staffName)).toEqual(['João', 'João']);
     expect(disponivel).toHaveBeenCalledWith(db, expect.objectContaining({ serviceId: 's1', date: '2026-08-20' }));
   });
 

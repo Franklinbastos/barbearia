@@ -2,31 +2,31 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { db } from '@/db/client';
 import { listActiveServices, listActiveStaff } from '@/db/repositories';
-import { resolverCandidatos } from '@/domain/brain-contract/resolver';
+import { autorizar } from '@/domain/brain-contract/autorizar';
 import { toApiError, invalidInput } from '@/lib/api-error';
-import { abrirContexto, lerCorpoJson, contaConfere, contaInvalida } from '@/app/api/brain/contexto';
+import { abrirContexto, lerCorpoJson, contaConfere, contaInvalida } from '@/lib/contexto-do-brain';
 
 export const dynamic = 'force-dynamic';
 
 const corpo = z.object({
   accountId: z.string().optional(),
-  slotToResolve: z.string().min(1, 'slotToResolve é obrigatório'),
-  resolverKey: z.string().optional(),
+  intent: z.string().min(1, 'intent é obrigatório'),
+  externalReference: z.string().nullish(),
   slots: z
     .object({
       serviceName: z.string().optional(),
       staffName: z.string().optional(),
       sessionDate: z.string().optional(),
+      sessionTime: z.string().optional(),
+      appointmentId: z.string().optional(),
     })
     .passthrough()
     .optional(),
-  limit: z.number().int().positive().nullish(),
 });
 
-/** POST /api/brain/[slug]/resolve — candidatos para o slot que falta. */
-export async function POST(req: Request, { params }: { params: Promise<{ slug: string }> }) {
-  const { slug } = await params;
-  const ctx = await abrirContexto(req, slug);
+/** POST /api/operation-candidates/authorize — valida a escolha sem gravar (dry-run). */
+export async function POST(req: Request) {
+  const ctx = await abrirContexto(req);
   if (!ctx.ok) return ctx.resposta;
 
   const parsed = corpo.safeParse(await lerCorpoJson(req));
@@ -39,7 +39,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ slug: s
   ]);
 
   try {
-    const resposta = await resolverCandidatos(db, ctx.loja, servicos, equipe, parsed.data);
+    const resposta = await autorizar(db, ctx.loja, servicos, equipe, parsed.data);
     return NextResponse.json(resposta, { headers: { 'Cache-Control': 'no-store' } });
   } catch (erro) {
     return toApiError(erro);

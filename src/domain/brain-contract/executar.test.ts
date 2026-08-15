@@ -53,9 +53,8 @@ describe('executar — marcar', () => {
       payload: payloadValido,
     });
 
-    expect(r.status).toBe('CREATED');
-    expect(r.appointmentId).toBe('ap1');
-    expect(r.staffName).toBe('João');
+    expect(r.status).toBe('SUCCEEDED');
+    expect(r.summary).toContain('João');
     expect(criar).toHaveBeenCalledWith(
       db,
       expect.objectContaining({
@@ -127,7 +126,7 @@ describe('executar — cancelar', () => {
       idempotencyKey: 'k2',
       payload: { appointmentId: 'ap1' },
     });
-    expect(r.status).toBe('CANCELED');
+    expect(r.status).toBe('SUCCEEDED');
     expect(cancelar).toHaveBeenCalledWith(db, 'loja-1', 'ap1', { origin: 'CUSTOMER' });
   });
 
@@ -139,7 +138,7 @@ describe('executar — cancelar', () => {
       externalReference: 'ap9',
       payload: {},
     });
-    expect(r.status).toBe('CANCELED');
+    expect(r.status).toBe('SUCCEEDED');
     expect(cancelar).toHaveBeenCalledWith(db, 'loja-1', 'ap9', { origin: 'CUSTOMER' });
   });
 

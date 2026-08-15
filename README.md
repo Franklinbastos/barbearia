@@ -82,10 +82,32 @@ src/app/
   app/                     painel (agenda, serviços, equipe, clientes, configurações)
   api/public/[slug]/       API pública consumida pela página do cliente
   api/cron/reminders/       rota de cron dos lembretes
+  api/operation-candidates/  plug do brain: catalog/resolve/authorize
+  api/external-actions/       plug do brain: execute
 
 src/notifications/    envio de WhatsApp, templates, log idempotente
 src/lib/               env, tokens, rate limit, formatação
 ```
+
+## Plug do brain (atendente agnóstico)
+
+Quatro endpoints em paths fixos — `/api/operation-candidates/{catalog,resolve,authorize}`
+e `/api/external-actions/execute` — para o brain (`interpreter-orchestrator`)
+marcar e cancelar horário dentro da conversa. Sem slug na URL: o tenant é a
+barbearia dona da chave enviada no header `X-Internal-Api-Key`.
+
+Cadastrar a chave de uma barbearia (gerar um segredo aleatório e gravar na
+coluna `barbershop.internal_api_key`):
+
+```bash
+node -e "console.log(require('crypto').randomBytes(32).toString('base64url'))"
+docker exec barbearia-postgres psql -U barbearia -d barbearia -c \
+  "UPDATE barbershop SET internal_api_key = 'A_CHAVE_GERADA' WHERE slug = 'o-slug-da-loja'"
+```
+
+Sem chave cadastrada (`internal_api_key IS NULL`), a barbearia responde 401 em
+todos os quatro endpoints — a integração fica desligada por padrão. Detalhe do
+contrato e o mapeamento para o domínio em `src/domain/brain-contract/`.
 
 ## Deploy
 

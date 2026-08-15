@@ -43,6 +43,13 @@
       "when": 1786714173814,
       "tag": "0005_flat_spot",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1786806234247,
+      "tag": "0006_red_thundra",
+      "breakpoints": true
     }
   ]
 }

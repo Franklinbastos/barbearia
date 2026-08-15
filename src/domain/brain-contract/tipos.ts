@@ -84,14 +84,19 @@ export type BarbeiroDoBrain = {
   name: string;
 };
 
-/** Um candidato devolvido pelo `resolve` (o brain oferece como botão/lista). */
+/**
+ * Um candidato devolvido pelo `resolve` (o brain oferece como botão/lista).
+ *
+ * `id` é o valor que o brain devolve depois, como o slot resolvido — para
+ * `sessionTime` é o "HH:mm" escolhido, para `serviceName`/`staffName` é o
+ * nome. `fields` carrega o resto (ids internos, horário absoluto) como texto:
+ * o `CandidateItem` do brain é `{ id, fields: Map<String,String>, label }`
+ * sem tolerância a campo desconhecido, então nada solto fora de `fields`.
+ */
 export type Candidato = {
-  value: string;
-  label: string;
-  serviceId?: string;
-  staffId?: string;
-  staffName?: string;
-  startAt?: string;
+  id: string;
+  fields: Record<string, string>;
+  label?: string | null;
 };
 
 export type RespostaDeResolucao = {
@@ -107,18 +112,22 @@ export type RespostaDeAutorizacao = {
   message: string | null;
 };
 
-export type StatusDaAcao = 'CREATED' | 'CANCELED' | 'REJECTED';
+/**
+ * Vocabulário do brain para o resultado do `execute` — não é "criado ou
+ * cancelado", é "aplicado, já tinha sido aplicado, ou recusado"
+ * (`ExternalActionStatus` no orchestrator, sem tolerância a valor fora
+ * desses três).
+ */
+export type StatusDaAcao = 'SUCCEEDED' | 'DUPLICATE' | 'REJECTED';
 
-/** Resultado do `execute`. `status` é a chave que o brain lê; o route mapeia para HTTP. */
+/**
+ * Resultado do `execute`. Só isso: o `ExternalActionResponse` do brain é
+ * `{ status, code, summary }` e não tolera campo a mais — nada de
+ * `appointmentId`/`staffName`/etc. soltos aqui; quem quiser esse detalhe lê
+ * do texto de `summary`.
+ */
 export type ResultadoDaAcao = {
   status: StatusDaAcao;
-  code?: string | null;
-  actionName: string;
-  idempotencyKey: string;
-  message: string | null;
-  appointmentId?: string;
-  startAt?: string;
-  staffId?: string;
-  staffName?: string;
-  externalReference?: string | null;
+  code: string | null;
+  summary: string | null;
 };

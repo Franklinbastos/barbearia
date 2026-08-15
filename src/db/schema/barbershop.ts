@@ -17,7 +17,18 @@ export const barbershop = pgTable(
      * escolhe **um número** e nenhuma escolha produz botão ilegível.
      */
     accentHue: integer('accent_hue'),
+    /**
+     * Credencial do plug do brain (atendente agnóstico): cada barbearia tem a
+     * própria chave, enviada no header `X-Internal-Api-Key`. É o único sinal de
+     * tenant nos endpoints `/api/operation-candidates/*` e
+     * `/api/external-actions/execute` — não há slug na URL deles. Nulo é o
+     * padrão (integração desligada) até o dono gerar a chave.
+     */
+    internalApiKey: text('internal_api_key').unique(),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [index('barbershop_slug_idx').on(t.slug)],
+  (t) => [
+    index('barbershop_slug_idx').on(t.slug),
+    index('barbershop_internal_api_key_idx').on(t.internalApiKey),
+  ],
 );

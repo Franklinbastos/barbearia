@@ -37,12 +37,6 @@ const schema = z
       .int()
       .min(60, 'REMINDER_WINDOW_MINUTES precisa ser pelo menos 60, o intervalo do cron')
       .default(180),
-    // Chave do plug do "brain" (atendente agnóstico) nos endpoints
-    // `/api/brain/*`. Opcional: sem ela o plug fica desligado e a guarda recusa
-    // toda requisição (falha fechada), então quem não usa o brain não precisa
-    // configurar nada. Quando definida, vale como segredo de verdade — nunca o
-    // placeholder. É uma chave própria, separada de AUTH/CRON/MANAGE.
-    BRAIN_API_KEY: segredo(16, 'BRAIN_API_KEY').optional(),
   })
   // Com o WhatsApp ligado e sem credencial, todo envio vira uma linha FAILED no
   // log que ninguém olha — o cliente simplesmente não recebe a confirmação.
