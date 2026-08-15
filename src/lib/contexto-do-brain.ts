@@ -51,19 +51,7 @@ export async function lerCorpoJson(req: Request): Promise<unknown> {
   }
 }
 
-/**
- * O contrato manda `accountId` no corpo; a chave já resolveu o tenant. Os
- * dois têm que apontar para a mesma barbearia — divergência é o brain
- * configurado errado (chave de uma conta, `accountId` de outra), não ação em
- * dado alheio. `accountId` ausente também recusa: o schema o exige.
- */
-export function contaConfere(accountId: unknown, loja: LojaDoBrain): boolean {
-  return typeof accountId === 'string' && accountId === loja.slug;
-}
-
-export function contaInvalida(): NextResponse {
-  return NextResponse.json(
-    { error: 'INVALID_INPUT', message: 'accountId ausente ou diferente da barbearia da chave' },
-    { status: 400 },
-  );
-}
+// O `accountId` do corpo é o identificador da conta no brain (opaco para a
+// barbearia) e é só informativo: a chave já resolveu o tenant e todo dado sai de
+// `ctx.loja`, nunca do corpo. Por isso não há guarda por `accountId` aqui — não
+// daria para exigir que ele batesse com o slug, e a chave é a autoridade única.

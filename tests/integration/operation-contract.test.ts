@@ -140,17 +140,22 @@ describe('resolve — shape casa com CandidateItem(id, fields, label) do brain',
     });
   });
 
-  it('recusa quando accountId do corpo não é o dono da chave (400)', async () => {
+  it('a chave decide o tenant: accountId divergente no corpo não muda a loja', async () => {
     await withTestDb(async (db) => {
       const { lojaA, lojaB } = await semearDuasLojas(db);
+      expect(lojaA.id).not.toBe(lojaB.id);
       const res = await resolvePost(
         req('POST', '/api/operation-candidates/resolve', {
           chave: CHAVE_LOJA_A,
+          // accountId de outra loja no corpo: opaco e informativo. A chave (de lojaA)
+          // é a autoridade — os candidatos têm de ser os de lojaA ('Corte'), não os
+          // de lojaB ('Barba').
           body: { accountId: lojaB.slug, slotToResolve: 'serviceName', resolverKey: 'session', slots: {} },
         }),
       );
-      expect(res.status).toBe(400);
-      expect(lojaA.id).not.toBe(lojaB.id);
+      expect(res.status).toBe(200);
+      const corpo = await res.json();
+      expect(corpo.candidates.map((c: { id: string }) => c.id)).toEqual(['Corte']);
     });
   });
 });

@@ -4,7 +4,7 @@ import { db } from '@/db/client';
 import { listActiveServices, listActiveStaff } from '@/db/repositories';
 import { resolverCandidatos } from '@/domain/brain-contract/resolver';
 import { toApiError, invalidInput } from '@/lib/api-error';
-import { abrirContexto, lerCorpoJson, contaConfere, contaInvalida } from '@/lib/contexto-do-brain';
+import { abrirContexto, lerCorpoJson } from '@/lib/contexto-do-brain';
 
 export const dynamic = 'force-dynamic';
 
@@ -30,7 +30,6 @@ export async function POST(req: Request) {
 
   const parsed = corpo.safeParse(await lerCorpoJson(req));
   if (!parsed.success) return invalidInput(parsed.error.issues[0].message);
-  if (!contaConfere(parsed.data.accountId, ctx.loja)) return contaInvalida();
 
   const [servicos, equipe] = await Promise.all([
     listActiveServices(db, ctx.loja.id),
