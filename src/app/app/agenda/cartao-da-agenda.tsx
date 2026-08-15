@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { cva } from 'class-variance-authority';
 import { useEffect, useRef, useState, useTransition, type ComponentProps } from 'react';
 import { executarAcao } from '@/components/action-error';
@@ -13,6 +14,7 @@ import {
   formatTime,
   type AppointmentStatus,
 } from '@/lib/format';
+import { telefoneParaWaMe } from '@/lib/telefone';
 import { cn } from '@/lib/utils';
 import { VARIANTE_DO_ESTADO } from '../tom-do-estado';
 import { reopenAppointmentAction, setAppointmentStatusAction } from './actions';
@@ -60,8 +62,29 @@ import type { AgendaItem } from './day-grid';
  *    identidade do barbeiro e não pode carregar dois significados.
  */
 
+/**
+ * **O que este arquivo exporta para a linha do desktop.** Desde 15/08/2026 o
+ * mesmo atendimento é desenhado duas vezes: aqui no cartão do celular e em
+ * `linha-da-agenda.tsx`, em colunas, no desktop. Dois layouts é o preço aceito
+ * (o Outlook e o Todoist pagam o mesmo); duas verdades não é. Então tudo que é
+ * **regra** — quanto dura, quando cabe um "não veio", que contorno cada estado
+ * tem, quem ganha etiqueta — mora aqui, exportado, e a linha importa. O que fica
+ * em cada arquivo é só a arrumação visual.
+ */
+
 /** Só depois disso um "não veio" é possível — antes, o botão nem existe. */
 const MINUTOS_ATE_PODER_FALTAR = 10;
+
+/** A duração do atendimento em minutos: a conta que a forma do cartão e a coluna
+ *  de hora da linha faziam cada uma por conta própria. */
+export function duracaoEmMinutos(item: { startAt: Date; endAt: Date }): number {
+  return (item.endAt.getTime() - item.startAt.getTime()) / 60_000;
+}
+
+/** Se o "Não veio" já pode ser oferecido para este atendimento, agora. */
+export function jaPodeFaltar(item: { startAt: Date }, agora: Date): boolean {
+  return agora.getTime() >= item.startAt.getTime() + MINUTOS_ATE_PODER_FALTAR * 60_000;
+}
 
 /** Janela do "Desfazer" logo depois de mexer no estado. */
 const SEGUNDOS_DE_DESFAZER = 20;
@@ -82,7 +105,7 @@ const MINUTOS_DO_CARTAO_MEDIO = 45;
 export type FormaDoCartao = 'compacto' | 'medio' | 'completo';
 
 export function formaDoCartao(item: { startAt: Date; endAt: Date }): FormaDoCartao {
-  const minutos = (item.endAt.getTime() - item.startAt.getTime()) / 60_000;
+  const minutos = duracaoEmMinutos(item);
   if (minutos < MINUTOS_DO_CARTAO_CURTO) return 'compacto';
   if (minutos <= MINUTOS_DO_CARTAO_MEDIO) return 'medio';
   return 'completo';
@@ -99,7 +122,7 @@ export function formaDoCartao(item: { startAt: Date; endAt: Date }): FormaDoCart
  * sem ela e sem cor nenhuma — a regra que `tom-do-estado.ts` fecha com "cor
  * nunca é o único portador".
  */
-const CONTORNO_DO_ESTADO = {
+export const CONTORNO_DO_ESTADO = {
   BOOKED: 'cheio',
   DONE: 'cheio',
   NO_SHOW: 'tracejado',
@@ -192,7 +215,7 @@ function peleDoEstado(item: AgendaItem, agora: Date, corDoBarbeiro: string): Pel
  * ainda não aconteceu é a maioria do dia, e uma etiqueta em toda linha não
  * distingue nada. Só os três desfechos aparecem.
  */
-function estadoNaEtiquetaDe(status: AppointmentStatus) {
+export function estadoNaEtiquetaDe(status: AppointmentStatus) {
   return status === 'BOOKED' ? null : status;
 }
 
@@ -300,8 +323,7 @@ export function CartaoDaAgenda({
   const pele = peleDoEstado(item, agora, corDoBarbeiro);
   const cancelado = item.status === 'CANCELED';
   const finalizado = item.status === 'DONE' || item.status === 'NO_SHOW';
-  const podeFaltar =
-    agora.getTime() >= item.startAt.getTime() + MINUTOS_ATE_PODER_FALTAR * 60_000;
+  const podeFaltar = jaPodeFaltar(item, agora);
   const estadoNaEtiqueta = estadoNaEtiquetaDe(item.status);
   const forma = formaDoCartao(item);
 
@@ -510,6 +532,19 @@ export function CartaoDaAgenda({
           <Botao variante="secundario" largura="total" onClick={copiarTelefone}>
             Copiar telefone
           </Botao>
+
+          <a
+            href={`https://wa.me/${telefoneParaWaMe(item.customerPhone)}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="btn btn--sec btn--tot"
+          >
+            Abrir no WhatsApp
+          </a>
+
+          <Link href={`/app/clientes/${item.customerId}`} className="btn btn--sec btn--tot">
+            Ver ficha do cliente
+          </Link>
 
           {finalizado ? (
             <Botao

@@ -43,6 +43,7 @@ export async function listAppointmentsBetween(db: Db, barbershopId: string, from
     .select({
       id: appointment.id,
       staffId: appointment.staffId,
+      customerId: appointment.customerId,
       startAt: appointment.startAt,
       endAt: appointment.endAt,
       status: appointment.status,

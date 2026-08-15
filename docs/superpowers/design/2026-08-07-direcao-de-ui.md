@@ -1359,6 +1359,135 @@ tela sem saber de quem é cada um.
   colunas de barbeiro e ficha de cliente — mas é **AGPL-3.0**. Serve para olhar, nunca para copiar
   código para dentro de um SaaS proprietário.
 
+#### O que mudou em 15/08/2026 (spec: `docs/superpowers/specs/2026-08-15-agenda-redesenho-design.md`)
+
+O dono olhou a tela pronta **de novo** e disse que continuava horrível. Desta vez a razão só apareceu
+quando a tela foi **fotografada** em vez de lida — ver "O método", no fim desta seção. O diagnóstico
+foi um só: **no celular a tela está boa; no desktop não existe layout de desktop — existe o layout de
+celular esticado.** Cada atendimento era um cartão de 880×100px com ~380px de vazio entre o texto e o
+"⋯", e o fundo inteiro pintado de verde ou vermelho.
+
+**1. A barra vira uma linha só.** Ordem, da esquerda para a direita:
+
+```
+[ Hoje ] [ ‹ ] [ › ]   [ sexta, 15 de agosto ▾ ]   6 no dia · 3 a atender  ·········  [ Encaixe ]
+```
+
+É a do Google, a do exemplo canônico do FullCalendar (`end: 'today prev,next'`), a do
+react-big-calendar e a do ReUI — **nenhuma fonte cerca o rótulo com uma seta de cada lado**, que era o
+`44px 1fr 44px` do item 2 acima. O item 4 (a faixa "Voltar para hoje") **sai**: `Hoje` vira botão fixo
+que **desabilita** em vez de sumir, como no FullCalendar, porque botão que aparece e desaparece muda a
+largura dos vizinhos a cada dia. Ele desabilita sem sair da tabulação (`focusableWhenDisabled` +
+`aria-disabled`) — `disabled` de verdade seria o mesmo sumiço, para quem navega por teclado. A
+contagem do item 2, linha B, deixa de ser faixa de 20px e vira `titleMetadata` do Polaris na própria
+linha ("brief, important and non-interactive status information"), em `--tinta-3`, e **some no dia
+vazio**: "0 no dia · 0 a atender" é ruído com forma de dado. Ganho medido: ~36px da primeira dobra,
+com o subtítulo "Quem vem, a que horas e com quem." indo junto — ele falhava nos três critérios do
+Polaris para o que acompanha um título.
+
+**No celular a ordem continua `[ ‹ ] [ data ▾ ] [ › ]`**, e a contagem continua sendo a linha de
+baixo: o rótulo precisa de ~250px e três botões antes dele truncariam "sexta, 15 de agosto", o que o
+Material 3 proíbe em letra ("Don't truncate the headline text"). O "ir para hoje" do celular é **item
+dentro do popover do calendário**.
+
+Duas armadilhas que custaram uma reprovação, e ficam escritas: **duas ordens não podem virar dois
+blocos irmãos escondidos por `md:`** — o `PopoverContent` sai por `Portal`, o `hidden` do pai não o
+alcança, e os dois calendários abrem juntos em qualquer largura. A troca é de `order`, com o **DOM na
+ordem do desktop** e o celular reordenando: onde a ordem visual diverge da de foco, quem paga é o
+teclado, e o teclado está no desktop. E o vão que empurra o "Encaixe" para a ponta é `mr-auto` na
+contagem, **não** `flex-1`: com `flex-1` o vão sumiria junto com o texto no dia vazio.
+
+**O gatilho de data perdeu o `aria-label="Data"`** (WCAG 2.5.3, Label in Name): rótulo escondido que
+*cobre* o texto visível deixa quem comanda por voz falando "sexta, 15 de agosto" sem casar com nada. O
+nome acessível passa a começar pelo próprio dia — a mesma regra que a faixa de vão livre já seguia.
+
+**2. No desktop a lista vira colunas alinhadas de 48px.** O Polaris diz o que fazer com os 880px:
+*"On wide screens, a resource list often looks like a table, especially if some content is aligned in
+columns."* 880 − 4 de aresta − 24 de recheio = 852 úteis, com seis vãos de 12px:
+
+| Faixa | Largura | Conteúdo | Alinhamento |
+|---|---|---|---|
+| aresta | 4px | cor do barbeiro; cheia ou tracejada conforme o desfecho | — |
+| Hora | 72px | `09:00` 16/700 tabular; `30 min` 12px em `--tinta-3` | esquerda |
+| Cliente | `1.3fr` | 15/600, `truncate` | esquerda |
+| Serviço | `1fr` | 14px `--tinta-2`, `truncate` | esquerda |
+| Barbeiro | 116px | ponto de 8px na cor + nome | esquerda |
+| Preço | 76px | 14px tabular | **direita** (Polaris) |
+| Estado | 92px | o badge; vazio em `BOOKED` | esquerda, **x fixo** |
+| Ações | 108px | três alvos de 32px | direita |
+
+**Altura 48px, igual em toda linha** — o "default" do Carbon, que também manda *"use the same row
+height … don't mix row heights"*. Isso **mata a altura-por-duração** do item 2 de 14/08, e é honesto
+dizer que é um recuo: aquilo veio do Cal.com e faz sentido numa timeline; em colunas alinhadas, altura
+variável quebra o ritmo de varredura sem entregar precisão. **A duração vira número escrito** na
+coluna 1. **O telefone sai da linha** — era ele que obrigava a terceira linha de conteúdo; vive na
+ficha e no menu. A etiqueta numa coluna de x fixo é o que corrige a **etiqueta errante**, que aparecia
+ora colada no nome, ora no canto oposto da mesma tela.
+
+**O cartão continua existindo e continua sendo o do celular.** Os dois no DOM, trocados por CSS
+(`md:hidden` no cartão, `hidden md:block` na linha) — condicional de JS por largura não serve, porque
+o servidor não sabe a largura da janela e decidir num `useEffect` faria a lista piscar. `display:none`
+**aqui** é o certo, ao contrário das ações recolhidas: é layout alternativo, não ação escondida.
+
+**O preço disso é duplicação de layout**, e é o mesmo que Outlook (Compact) e Todoist (Mini view)
+pagam. A mitigação é a linha que separa as duas coisas: **o que é regra sai dos dois e vira função
+pura exportada** (`duracaoEmMinutos`, `jaPodeFaltar`, `CONTORNO_DO_ESTADO`, `estadoNaEtiquetaDe`, e o
+`formatDuration` que já existia em `src/lib/format.ts`); o que fica em cada arquivo é só a arrumação
+visual. Duas verdades era o que não dava para pagar.
+
+**3. O fundo pintado sai.** É a decisão com mais fontes da rodada, e a §5.7, item 7 acima ("Tinta de
+estado na linha inteira") fica **revogada no desktop**: (a) o fundo é o canal do hover — o Carbon
+manda o hover de linha estar sempre ligado *"as it can help the user visually scan the columns of data
+in a row"*, e com a linha já verde ele não tem para onde ir; (b) área grande não é ênfase, é alarme —
+Carbon: *"having more than five or six indicators can overwhelm users"*, e vinte linhas pintadas são
+vinte alarmes; (c) a cor já tem dono desde a §3.5; (d) cor sozinha não é status — o Carbon exige três
+dos quatro portadores (símbolo, forma, cor, tipo) e um fundo verde entrega um; (e) a Fresha pinta, mas
+lá o bloco é pequeno numa timeline e a cor é o único portador possível. No lugar: badge na coluna de x
+fixo, contorno tracejado e nome riscado no cancelado. **Fundo pintado sobra para `--agora-bg`**, que
+não é status: é "onde estamos no dia", é uma linha só e some sozinho.
+
+**Esta é a decisão que uma revisão quase deixou passar**, e o motivo fica escrito: a função de pele do
+cartão foi copiada inteira para a linha e pintava `var(--ok-bg)` por **`style` inline**, enquanto o
+teste olhava só `className` — e dava verde. Teste de fundo varre `style` **e** classe, e o e2e mede a
+cor calculada.
+
+**4. O `⋯` deixa de ser só "cancelar".** Ele carrega **Compareceu / Não veio**, Remarcar, Abrir no
+WhatsApp, Ver ficha do cliente, Ligar e Cancelar. Os dois verbos estarem aqui **é a correção de
+acessibilidade que justifica a rodada**: na linha eles recolhem para 60% e só sobem no ponteiro ou no
+foco, e o Polaris é explícito — ação revelada no hover *"must also be accessible in another way"*.
+`DropdownMenu` no desktop, `FolhaInferior` no celular: folha de 560px para sete itens no desktop é
+desperdício, menu suspenso no celular é alvo pequeno demais.
+
+Duas armadilhas registradas: **os itens são `DropdownMenuItem` com `onClick`, nunca `<button>` dentro
+deles** — o `Menu.Item` do base-ui é um `<div role="menuitem">` e é ele quem recebe o foco do menu; um
+botão aninhado fica fora do percurso de setas e o `Enter` não faz nada. A primeira versão era assim: o
+menu abria, "Compareceu" aparecia, e o teclado não marcava ninguém. E o link do WhatsApp usa
+`telefoneParaWaMe` de `src/lib/telefone.ts` — normalizar o número à mão, como duas telas faziam, abria
+conversa vazia porque faltava o 55.
+
+**5. Remarcar sem cancelar** — ver §5.11, que era onde isso estava adiado.
+
+**6. Duas correções que a captura mostrou.** Dois barbeiros livres no mesmo instante viram **uma
+faixa** que nomeia os dois ("11:45 · livre com Marcão (2 h 45 min) e Tiago (1 h 15 min)") em vez de
+duas linhas repetindo a hora; descartar o menor faria o balcão queimar a cadeira de 2 h 45 min com um
+corte de 30 min. E a linha "Fulano livre · Beltrano livre" (item 3 acima) passa a exigir **diferença
+entre os barbeiros**: todo mundo livre não é notícia, todo mundo ocupado também não. No **dia vazio**
+ela some junto com a lista — sobra uma frase e o botão, que é o "user action empty state" do Carbon:
+*"more content doesn't necessarily mean it's a better solution as there is a cognitive cost for having
+more content on the page."* Sem ilustração.
+
+**O método, que é o que evita a próxima rodada perdida.** Duas rodadas anteriores leram
+`cartao-da-agenda.tsx` e `day-grid.tsx`, discutiram lista contra timeline e mediram largura no
+navegador — **três análises de código não acharam o que uma captura de tela mostrou em cinco
+segundos**. Cartão de 100px carregando duas linhas de texto, o "⋯" a 380px do texto mais próximo, o
+fundo inteiro colorido, a etiqueta em dois lugares na mesma tela: nada disso se vê lendo JSX.
+
+**A regra: tela que o dono vai olhar, o assistente olha antes — renderizada, e com dados que pareçam
+um dia real.** Um dia real é seis atendimentos, dois barbeiros, nomes compridos e os quatro estados;
+uma linha de teste com "Cliente 1" cabe em qualquer layout e não revela nada. O que dá para
+automatizar disso mora em `tests/e2e/painel-acabamento.spec.ts`, que mede geometria e cor
+**calculadas** — teste de fonte lê a classe, e foi exatamente por lá que o fundo verde passou.
+
 ### 5.8 Painel — encaixe / walk-in
 
 Deixa de ser um formulário de oito controles em `flexWrap` pendurado no fim da agenda
@@ -1534,6 +1663,49 @@ easily spot any empty slots". Nós compramos isso por dois centavos duas vezes: 
 (§5.7, item 3) e, desde 14/08/2026, a **faixa de vão livre** dentro da própria lista, que além de
 mostrar o buraco ainda o vende num clique. A Square oferece `combined` e `side-by-side` como escolha
 do usuário, que é exatamente o desenho das cinco regras abaixo.
+
+**Em 15/08/2026 o argumento mais forte a favor das colunas caiu** — e é o registro mais importante
+desta seção, porque ele sustentava adiar a feature que mais faltava no produto.
+
+Reagendar estava parado "até ter colunas": a decisão anterior tratava arrastar-para-remarcar como o
+gesto de remarcar, e arrastar precisa de eixo de tempo. A pesquisa que antecedeu o redesenho da agenda
+mostrou que **o gesto do setor não é arrastar**. O **Boulevard faz select-and-place**: clica no
+atendimento, clica em remarcar, o cartão fica hachurado, rola a agenda, clica no novo horário. **Não
+depende de colunas, não depende de gesto contínuo, e funciona no celular do balcão** — ou seja,
+funciona na nossa lista, hoje. E o **Mangomint** entrega a peça que faltava: ao remarcar, um
+interruptor **"avisar o cliente"**, que é literalmente a diferença entre remarcar e cancelar. Arrastar
+e redimensionar continuam classificados como enfeite (§2.2 da spec).
+
+Ou seja: **a dependência era imaginada, não medida.** Fica a lição de método junto com a decisão —
+quando uma feature é adiada "porque depende de X", vale conferir se ela depende mesmo de X ou só do
+jeito de fazer X que veio à cabeça primeiro. Aqui custou uma fase inteira.
+
+O que entrou por causa disso, e as regras que já estão fechadas:
+
+- **`rescheduleAppointment` reusa a guarda de colisão do encaixe.** Quem decide é a constraint
+  `EXCLUDE` do Postgres, traduzida por `isExclusionViolation` para `SlotTakenError`; **não existe uma
+  segunda verificação de conflito** — checagem prévia passa sob corrida, e a constraint é a verdade.
+  Snapshot de nome, preço e duração não muda: remarcar não é renegociar, e o fim recalcula do início.
+- **O aviso ao cliente é fila, não envio.** Os templates da Meta continuam presos em burocracia, então
+  a intenção vira linha em `notificationLog` com `type: 'RESCHEDULE'` e `status: 'FAILED'`. O único
+  por `(appointmentId, type)` **não pode ganhar uma terceira coluna**: ele é o alvo do `ON CONFLICT`
+  do `notify.ts`, e acrescentar `created_at` derruba confirmação, lembrete e cancelamento inteiros com
+  `42P10`. Remarcar duas vezes **atualiza** a linha pendente — o aviso que interessa é o da última.
+- **O modo é o primeiro estado modal da tela**, e por isso o aviso é fixo com `role="status"`, `Esc` e
+  "Desistir" sempre desligam, e o rótulo de toda faixa troca de verbo ("Encaixar às…" → "Remarcar
+  Fulano para…"): estado que se lê só por realce não existe para quem não vê o realce.
+- **O canal do clique na faixa é estendido, não duplicado.** `pedirEncaixe` ganha um desvio
+  (`desviarPedidoDeVao`) enquanto o modo está ligado. Um segundo canal faria a folha de encaixe abrir
+  por cima da confirmação de remarcação, porque as duas assinariam o mesmo clique.
+- **Navegar para outro dia mantém o modo** — "semana que vem, mesma hora" é o caso mais comum —, o que
+  obriga o estado a morar em módulo, e não dentro da lista, que remonta a cada troca de data.
+- **O piso das faixas passa a ser a duração daquele atendimento**, não o serviço mais curto da loja:
+  oferecer um vão de 30 min para um atendimento de uma hora é oferecer um clique que a constraint vai
+  recusar.
+
+**O que ainda falta do gesto:** a hachura na linha do atendimento sendo remarcado, e o caminho no
+celular — hoje o único gatilho do modo é o `⋯` da linha do desktop. Sem a hachura o estado não fica
+ilegível (o aviso fixo nomeia o cliente e cada faixa diz para quem vai), mas é polimento devido.
 
 **Quando o quadro for feito, estas cinco decisões já estão tomadas:**
 

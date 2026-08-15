@@ -2,7 +2,7 @@
 
 import type { ComponentProps } from 'react';
 import { cva } from 'class-variance-authority';
-import { Plus } from 'lucide-react';
+import { CalendarClock, Plus } from 'lucide-react';
 
 import { cn } from '@/lib/utils';
 import { formatDuration, formatTime, type AppointmentStatus } from '@/lib/format';
@@ -117,6 +117,54 @@ export function buildVaosLivres(
   );
 }
 
+/** Um vão e os outros barbeiros que estão livres no mesmo instante. */
+export type VaoLivreAgrupado = VaoLivre & {
+  /** Do maior buraco para o menor. Vazio quando só um barbeiro está livre ali. */
+  outros: { staffId: string; minutos: number }[];
+};
+
+/**
+ * Uma faixa por instante, e não uma por barbeiro.
+ *
+ * A captura de 15/08/2026 mostrou "11:45 · 1 h 15 min livre com Tiago" logo
+ * acima de "11:45 · 2 h 45 min livre com Dono E2E": duas linhas repetindo a
+ * mesma hora para dizer a mesma notícia — às 11:45 tem cadeira vaga. O que
+ * decide é o instante; o barbeiro é detalhe de quem atende.
+ *
+ * A cabeça do grupo é o **maior** buraco, porque é ele que responde "cabe o
+ * serviço longo?". Os menores viram `outros` em vez de sumir: mandar um corte
+ * de 30 min para a cadeira de 2 h 45 min quando havia uma de 1 h 15 min queima
+ * o buraco grande à toa — o balcão precisa ver as duas para escolher.
+ *
+ * Vem depois de `recortarNoAgora` de propósito: o recorte alinha o início ao
+ * passo de ±5, e é ele que faz dois buracos de horas diferentes começarem no
+ * mesmo instante.
+ */
+export function agruparVaosLivres(vaos: VaoLivre[]): VaoLivreAgrupado[] {
+  const porInstante = new Map<number, VaoLivre[]>();
+  for (const vao of vaos) {
+    const chave = vao.inicio.getTime();
+    const grupo = porInstante.get(chave);
+    if (grupo) grupo.push(vao);
+    else porInstante.set(chave, [vao]);
+  }
+
+  const agrupados: VaoLivreAgrupado[] = [];
+  for (const grupo of porInstante.values()) {
+    // `staffId` desempata durações iguais para a cabeça — e portanto o clique —
+    // não variar entre renders.
+    const [maior, ...resto] = [...grupo].sort(
+      (x, y) => y.minutos - x.minutos || x.staffId.localeCompare(y.staffId),
+    );
+    agrupados.push({
+      ...maior!,
+      outros: resto.map((v) => ({ staffId: v.staffId, minutos: v.minutos })),
+    });
+  }
+
+  return agrupados.sort((x, y) => x.inicio.getTime() - y.inicio.getTime());
+}
+
 /**
  * Passo do mostrador de ±5 da folha de encaixe. A hora oferecida cai no mesmo
  * passo para o número da faixa e o do mostrador serem o mesmo número.
@@ -175,7 +223,13 @@ export function recortarNoAgora(
 /** Hora (`HH:mm` no fuso da loja) e barbeiro que o dedo apontou. */
 export type PedidoDeEncaixe = { hora: string; staffId: string };
 
-type Ouvinte = (pedido: PedidoDeEncaixe) => void;
+/**
+ * `pedido` é opcional porque nem todo chamador apontou uma hora: o estado vazio
+ * do dia só quer abrir a folha, e quem decide a hora padrão dali é a própria
+ * folha (`horaDeAgoraArredondada`). Copiar esse arredondamento aqui seria uma
+ * segunda regra para a mesma pergunta.
+ */
+type Ouvinte = (pedido?: PedidoDeEncaixe) => void;
 const ouvintes = new Set<Ouvinte>();
 
 /**
@@ -197,7 +251,39 @@ export function assinarPedidoDeEncaixe(ouvinte: Ouvinte): () => void {
   };
 }
 
-export function pedirEncaixe(pedido: PedidoDeEncaixe): void {
+/**
+ * O desvio do canal — **um canal só, com dois destinos possíveis**.
+ *
+ * A remarcação (§2.1 do plano de 15/08/2026) precisa exatamente do mesmo
+ * recado que o encaixe: "o dedo apontou este vão". Um segundo canal para o
+ * mesmo clique seria duas listas de ouvintes para a mesma pergunta — e, pior,
+ * as duas responderiam: a `ManualBookingForm` assina este aqui e abriria a
+ * folha de encaixe por cima da confirmação de remarcação.
+ *
+ * Por isso quem entra em modo remarcação registra um desvio. Enquanto ele
+ * existe, o pedido vai para ele e **não** chega aos ouvintes de encaixe. Sair do
+ * modo devolve o canal ao dono de sempre.
+ *
+ * Fica em `vao-livre.tsx`, e não em `remarcacao.tsx`, porque o dono do canal é
+ * quem o publica; o modo continua sendo estado de `remarcacao.tsx`, que só
+ * pendura e despendura a função daqui.
+ */
+let desvio: ((pedido: PedidoDeEncaixe) => void) | null = null;
+
+export function desviarPedidoDeVao(destino: (pedido: PedidoDeEncaixe) => void): () => void {
+  desvio = destino;
+  return () => {
+    if (desvio === destino) desvio = null;
+  };
+}
+
+export function pedirEncaixe(pedido?: PedidoDeEncaixe): void {
+  // Sem pedido é o botão "Encaixe" do dia vazio, não uma faixa: ele nunca vira
+  // remarcação, porque não apontou hora nenhuma.
+  if (pedido && desvio) {
+    desvio(pedido);
+    return;
+  }
   for (const ouvinte of [...ouvintes]) ouvinte(pedido);
 }
 
@@ -208,28 +294,100 @@ export function pedirEncaixe(pedido: PedidoDeEncaixe): void {
  * diferença de conteúdo (nomear ou não o barbeiro) é dado, não aparência.
  */
 export const faixaDeVaoLivreVariants = cva(
-  'flex w-full min-h-11 items-center gap-2 rounded-cx border border-dashed border-linha px-3 text-left text-[14px] leading-5 text-tinta-2 hover:bg-superficie active:bg-superficie-2',
+  'flex w-full min-h-11 items-center gap-2 rounded-cx border px-3 text-left text-[14px] leading-5 hover:bg-superficie active:bg-superficie-2',
+  {
+    variants: {
+      /**
+       * `destino` é a faixa em modo remarcação: ela deixa de ser convite e passa
+       * a ser onde o atendimento vai pousar. A borda fecha e a tinta sobe — e o
+       * que diz o estado de verdade não é isso, é o nome acessível do botão, que
+       * troca de "Encaixar às…" para "Remarcar Fulano para…". Estado que se lê
+       * só por cor (ou só por borda) é defeito.
+       */
+      papel: {
+        convite: 'border-dashed border-linha text-tinta-2',
+        destino: 'border-solid border-tinta-2 text-tinta',
+      },
+    },
+    defaultVariants: { papel: 'convite' },
+  },
 );
+
+/** "A e B"; "A, B e C". O último separador é "e", como se fala. */
+function juntarNomes(nomes: string[]): string {
+  if (nomes.length <= 1) return nomes[0] ?? '';
+  return `${nomes.slice(0, -1).join(', ')} e ${nomes[nomes.length - 1]}`;
+}
+
+/**
+ * O texto da faixa, no mesmo idioma de separador do cartão e da linha de
+ * próximos livres: "10:30 · 1 h 30 min livre com João".
+ *
+ * Com mais de um barbeiro livre no mesmo instante há dois casos, e a diferença
+ * importa:
+ *
+ * - **Durações iguais** — "11:45 · 1 h 30 min livre com Tiago e Marcão". A
+ *   duração é uma só; repeti-la por nome seria relatório.
+ * - **Durações diferentes** — "11:45 · livre com Marcão (2 h 45 min) e Tiago
+ *   (1 h 15 min)". O maior vem primeiro porque é ele que responde "cabe o
+ *   serviço longo?", e o menor fica à vista porque é ele que evita queimar a
+ *   cadeira grande com um corte de 30 minutos.
+ */
+function textoDaFaixa(
+  hora: string,
+  minutos: number,
+  nomeDoBarbeiro: string | undefined,
+  outros: { nome: string; minutos: number }[],
+): string {
+  if (nomeDoBarbeiro === undefined || outros.length === 0) {
+    const comQuem = nomeDoBarbeiro ? ` com ${nomeDoBarbeiro}` : '';
+    return `${hora} · ${formatDuration(minutos)} livre${comQuem}`;
+  }
+
+  if (outros.every((o) => o.minutos === minutos)) {
+    return `${hora} · ${formatDuration(minutos)} livre com ${juntarNomes([
+      nomeDoBarbeiro,
+      ...outros.map((o) => o.nome),
+    ])}`;
+  }
+
+  return `${hora} · livre com ${juntarNomes([
+    `${nomeDoBarbeiro} (${formatDuration(minutos)})`,
+    ...outros.map((o) => `${o.nome} (${formatDuration(o.minutos)})`),
+  ])}`;
+}
 
 export type FaixaDeVaoLivreProps = Omit<ComponentProps<'li'>, 'children'> & {
   vao: VaoLivre;
   /** Ausente com um barbeiro só: repetir o nome dele em toda faixa não informa nada. */
   nomeDoBarbeiro?: string;
+  /**
+   * Os outros barbeiros livres no mesmo instante, do maior buraco para o menor.
+   * Quem resolve nome é a lista, que já tem o mapa de `staffId` → nome; aqui só
+   * chega o que vai virar texto.
+   */
+  outrosBarbeiros?: { nome: string; minutos: number }[];
   timeZone: string;
+  /**
+   * Nome de quem está sendo remarcado, quando o modo está ligado. Presente ⇒ a
+   * faixa é destino, e o clique cai no desvio do canal em vez de abrir a folha
+   * de encaixe.
+   */
+  remarcandoPara?: string;
 };
 
 export function FaixaDeVaoLivre({
   vao,
   nomeDoBarbeiro,
+  outrosBarbeiros = [],
   timeZone,
+  remarcandoPara,
   className,
   ...resto
 }: FaixaDeVaoLivreProps) {
   const hora = formatTime(vao.inicio, timeZone);
-  const comQuem = nomeDoBarbeiro ? ` com ${nomeDoBarbeiro}` : '';
-  // Uma linha só, no mesmo idioma de separador do cartão e da linha de próximos
-  // livres: "10:30 · 1 h 30 min livre com João".
-  const texto = `${hora} · ${formatDuration(vao.minutos)} livre${comQuem}`;
+  const texto = textoDaFaixa(hora, vao.minutos, nomeDoBarbeiro, outrosBarbeiros);
+  const destino = remarcandoPara !== undefined;
 
   return (
     <li data-slot="vao-livre" className={cn('px-3 py-1', className)} {...resto}>
@@ -242,12 +400,25 @@ export function FaixaDeVaoLivre({
       <button
         type="button"
         data-slot="vao-livre-acao"
-        aria-label={`Encaixar às ${texto}`}
-        className={cn(faixaDeVaoLivreVariants())}
+        // O verbo troca junto com o papel: em modo remarcação este botão não
+        // encaixa ninguém novo, move quem já estava marcado — e quem ouve o
+        // rótulo precisa saber disso antes de apertar.
+        aria-label={destino ? `Remarcar ${remarcandoPara} para ${texto}` : `Encaixar às ${texto}`}
+        className={cn(faixaDeVaoLivreVariants({ papel: destino ? 'destino' : 'convite' }))}
         onClick={() => pedirEncaixe({ hora, staffId: vao.staffId })}
       >
-        <Plus aria-hidden="true" className="size-4 shrink-0" />
-        <span className="truncate">{texto}</span>
+        {destino ? (
+          <CalendarClock aria-hidden="true" className="size-4 shrink-0" />
+        ) : (
+          <Plus aria-hidden="true" className="size-4 shrink-0" />
+        )}
+        {/* Com um barbeiro a frase cabe numa linha e `truncate` protege o
+            layout de um nome absurdo. Com dois ela passa de 50 caracteres e
+            cortar esconderia justamente o segundo nome — aí ela quebra, e o
+            `min-h-11` já reserva a altura. */}
+        <span className={outrosBarbeiros.length > 0 ? 'min-w-0 break-words' : 'truncate'}>
+          {texto}
+        </span>
       </button>
     </li>
   );

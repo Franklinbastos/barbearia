@@ -20,6 +20,7 @@ function agendamento(over: Partial<AgendaAppointment> & { id: string; staffId: s
     origin: 'PUBLIC',
     serviceName: 'Corte',
     servicePriceCents: 4000,
+    customerId: 'c1',
     customerName: 'Cliente',
     customerPhone: '11999998888',
     ...resto,
@@ -245,5 +246,93 @@ describe('DayGrid — o vão livre', () => {
     expect(html).toContain('aria-label="Encaixar às 11:00 · 1 h livre com João"');
     // e a régua do agora fica acima da faixa, que é futuro
     expect(html.indexOf('aria-label="Agora"')).toBeLessThan(html.indexOf('Encaixar às'));
+  });
+
+  it('dois barbeiros livres no mesmo instante viram uma faixa que nomeia os dois', () => {
+    // a captura de 15/08/2026 mostrou "11:45 · 1 h 15 min com Tiago" logo acima
+    // de "11:45 · 2 h 45 min com Dono E2E": duas linhas repetindo a hora para
+    // dizer a mesma notícia. O maior vem primeiro (cabe o serviço longo?) e o
+    // menor fica à vista (não queimar a cadeira grande com um corte de 30 min).
+    const html = desenhar({
+      appointments: [
+        agendamento({ id: 'j1', staffId: 'st-joao', hora: '13:00' }),
+        agendamento({ id: 'j2', staffId: 'st-joao', hora: '15:00' }),
+        agendamento({ id: 'm1', staffId: 'st-maria', hora: '13:00' }),
+        agendamento({ id: 'm2', staffId: 'st-maria', hora: '16:00' }),
+      ],
+    });
+
+    expect(html).toContain(
+      'aria-label="Encaixar às 10:30 · livre com Maria (2 h 30 min) e João (1 h 30 min)"',
+    );
+    expect(html.match(/Encaixar às 10:30/g)).toHaveLength(1);
+  });
+});
+
+describe('DayGrid — o dia vazio e a linha de próximos livres', () => {
+  const CONTEXTO = {
+    staffList: EQUIPE,
+    timeZone: TZ,
+    dataISO: '2026-09-09',
+    hojeISO: '2026-09-09',
+    agoraISO: '2026-09-09T17:00:00.000Z',
+  };
+
+  const desenhar = (props: Partial<Parameters<typeof DayGrid>[0]> = {}) =>
+    renderToStaticMarkup(createElement(DayGrid, { appointments: [], ...CONTEXTO, ...props }));
+
+  it('o dia vazio não diz "livre · livre"', () => {
+    // se não há nada marcado, todo mundo está livre — não é notícia, é o custo
+    // cognitivo que o Carbon manda cortar do estado vazio
+    const html = desenhar();
+    expect(html).not.toContain('livre');
+  });
+
+  it('o dia vazio é uma frase e a ação, no lugar da lista', () => {
+    const html = desenhar();
+    expect(html).toContain('Nenhum agendamento neste dia.');
+    expect(html).toContain('Encaixe');
+    // no lugar da lista, não acima dela
+    expect(html).not.toContain('<ol');
+  });
+
+  it('todo mundo livre não rende a linha: não escolhe nada', () => {
+    // o dia tem atendimento, mas já resolvido — os dois barbeiros estão livres
+    const html = desenhar({
+      appointments: [
+        agendamento({ id: 'a1', staffId: 'st-joao', hora: '13:00', status: 'DONE' }),
+        agendamento({ id: 'a2', staffId: 'st-maria', hora: '13:00', status: 'DONE' }),
+      ],
+    });
+    expect(html).not.toContain('>livre<');
+  });
+
+  it('todo mundo ocupado também não rende a linha', () => {
+    const ocupado = { endAt: new Date('2026-09-09T20:00:00.000Z') };
+    const html = desenhar({
+      appointments: [
+        agendamento({ id: 'a1', staffId: 'st-joao', hora: '16:00', ...ocupado }),
+        agendamento({ id: 'a2', staffId: 'st-maria', hora: '16:00', ...ocupado }),
+      ],
+    });
+    expect(html).not.toContain('>livre<');
+    expect(html).not.toContain('font-bold">João');
+  });
+
+  it('um ocupado e outro livre: aí a linha informa e aparece', () => {
+    const html = desenhar({
+      appointments: [
+        agendamento({
+          id: 'a1',
+          staffId: 'st-joao',
+          hora: '16:00',
+          endAt: new Date('2026-09-09T20:00:00.000Z'),
+        }),
+        agendamento({ id: 'a2', staffId: 'st-maria', hora: '13:00', status: 'DONE' }),
+      ],
+    });
+    expect(html).toContain('>livre<');
+    expect(html).toContain('João');
+    expect(html).toContain('Maria');
   });
 });

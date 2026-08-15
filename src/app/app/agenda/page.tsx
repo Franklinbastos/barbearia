@@ -71,7 +71,6 @@ export default async function AgendaPage({
       <Largura tipo="tabela" className="md:mb-3">
         <CabecalhoDePagina
           titulo="Agenda"
-          descricao="Quem vem, a que horas e com quem."
           className="mb-0 sr-only md:not-sr-only"
         />
       </Largura>

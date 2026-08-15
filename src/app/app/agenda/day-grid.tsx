@@ -2,15 +2,26 @@
 
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import { Bloco } from '@/components/ui/bloco';
+import { Botao } from '@/components/ui/botao';
 import { coresDeBarbeiro } from '@/lib/cores-de-barbeiro';
 import { formatTime, type AppointmentStatus } from '@/lib/format';
-import { CartaoDaAgenda } from './cartao-da-agenda';
-import { calcularProximosLivres } from './proximos-livres';
-import { buildVaosLivres, FaixaDeVaoLivre, recortarNoAgora, type VaoLivre } from './vao-livre';
+import { CartaoDaAgenda, duracaoEmMinutos } from './cartao-da-agenda';
+import { LinhaDaAgenda } from './linha-da-agenda';
+import { calcularProximosLivres, type ProximoLivre } from './proximos-livres';
+import { Remarcacao, useRemarcacao } from './remarcacao';
+import {
+  agruparVaosLivres,
+  buildVaosLivres,
+  FaixaDeVaoLivre,
+  pedirEncaixe,
+  recortarNoAgora,
+  type VaoLivreAgrupado,
+} from './vao-livre';
 
 export type AgendaAppointment = {
   id: string;
   staffId: string;
+  customerId: string;
   startAt: Date;
   endAt: Date;
   status: AppointmentStatus;
@@ -58,13 +69,18 @@ export function buildDayList(
  * As duas coisas moram na mesma `<ol>` e na mesma ordem de relógio — é isso que
  * faz a faixa cair entre os dois cartões que a criaram, e não num rodapé de
  * "horários livres" que ninguém relaciona com nada.
+ *
+ * `LinhaDaLista`, e não `LinhaDaAgenda`: desde 15/08/2026 esse nome é o do
+ * componente de colunas do desktop, importado logo acima. TypeScript separa tipo
+ * de valor e as duas coisas conviviam sem erro — mas quem lê `chaveDaLinha(linha:
+ * LinhaDaAgenda)` num arquivo que renderiza `<LinhaDaAgenda>` lê a coisa errada.
  */
-type LinhaDaAgenda =
+type LinhaDaLista =
   | { tipo: 'cartao'; instante: Date; item: AgendaItem }
-  | { tipo: 'vao'; instante: Date; vao: VaoLivre };
+  | { tipo: 'vao'; instante: Date; vao: VaoLivreAgrupado };
 
-function intercalarVaos(itens: AgendaItem[], vaos: VaoLivre[]): LinhaDaAgenda[] {
-  const linhas: LinhaDaAgenda[] = [
+function intercalarVaos(itens: AgendaItem[], vaos: VaoLivreAgrupado[]): LinhaDaLista[] {
+  const linhas: LinhaDaLista[] = [
     ...itens.map((item) => ({ tipo: 'cartao' as const, instante: item.startAt, item })),
     ...vaos.map((vao) => ({ tipo: 'vao' as const, instante: vao.inicio, vao })),
   ];
@@ -84,15 +100,15 @@ function intercalarVaos(itens: AgendaItem[], vaos: VaoLivre[]): LinhaDaAgenda[] 
  * lado que não anda: o `inicio` do buraco em curso avança com o relógio, e
  * chavear por ele remontaria a faixa a cada cinco minutos.
  */
-function chaveDaLinha(linha: LinhaDaAgenda): string {
+function chaveDaLinha(linha: LinhaDaLista): string {
   return linha.tipo === 'cartao'
     ? linha.item.id
     : `vao-${linha.vao.staffId}-${linha.vao.fim.getTime()}`;
 }
 
 /** Agrupa a lista já ordenada em blocos de uma hora, preservando a ordem. */
-function agruparPorHora(linhas: LinhaDaAgenda[], timeZone: string) {
-  const grupos: { hora: string; linhas: LinhaDaAgenda[] }[] = [];
+function agruparPorHora(linhas: LinhaDaLista[], timeZone: string) {
+  const grupos: { hora: string; linhas: LinhaDaLista[] }[] = [];
   for (const linha of linhas) {
     const hora = formatTime(linha.instante, timeZone).slice(0, 2);
     const ultimo = grupos[grupos.length - 1];
@@ -100,6 +116,32 @@ function agruparPorHora(linhas: LinhaDaAgenda[], timeZone: string) {
     else grupos.push({ hora, linhas: [linha] });
   }
   return grupos;
+}
+
+/**
+ * A linha só vale a linha quando os barbeiros **não** estão todos no mesmo
+ * estado.
+ *
+ * "Marcão livre · Tiago livre" não é notícia: se todo mundo está livre, a
+ * própria lista vazia já disse isso. Todo mundo ocupado também não escolhe nada
+ * — o balcão vai ter que remarcar de qualquer jeito. O que faz a pergunta "quem
+ * está livre agora?" valer uma linha é haver um sim e um não na mesma resposta.
+ *
+ * `horaISO` nulo é atendimento com data inválida: vira "—" na tela e não conta
+ * para nenhum dos dois lados, porque um travessão não é resposta.
+ */
+function haDiferencaEntreBarbeiros(livres: ProximoLivre[], agora: Date): boolean {
+  let temLivre = false;
+  let temOcupado = false;
+
+  for (const livre of livres) {
+    if (livre.horaISO === null) continue;
+    if (new Date(livre.horaISO).getTime() <= agora.getTime()) temLivre = true;
+    else temOcupado = true;
+    if (temLivre && temOcupado) return true;
+  }
+
+  return false;
 }
 
 /**
@@ -122,10 +164,15 @@ function LinhaDeProximosLivres({
   timeZone: string;
 }) {
   const livres = calcularProximosLivres(appointments, staffList, agora);
+  if (!haDiferencaEntreBarbeiros(livres, agora)) return null;
+
   const nomes = new Map(staffList.map((b) => [b.id, b.name]));
 
   return (
-    <p className="flex min-h-8 flex-wrap items-center gap-x-2 gap-y-1 text-[14px] leading-5">
+    <p
+      data-slot="proximos-livres"
+      className="flex min-h-8 flex-wrap items-center gap-x-2 gap-y-1 text-[14px] leading-5"
+    >
       {livres.map((livre, indice) => {
         const instante = livre.horaISO ? new Date(livre.horaISO) : null;
         const jaEstaLivre = instante !== null && instante.getTime() <= agora.getTime();
@@ -193,17 +240,43 @@ export function DayGrid({
   const cores = useMemo(() => coresDeBarbeiro(staffList), [staffList]);
   const nomes = useMemo(() => new Map(staffList.map((b) => [b.id, b.name])), [staffList]);
 
+  // A lista sabe do modo para acender as faixas e trocar o verbo do rótulo
+  // delas. Quem guarda o modo é o módulo de `remarcacao.tsx`, porque ele tem que
+  // atravessar a troca de dia.
+  const remarcacao = useRemarcacao();
+  const remarcandoPara = remarcacao.customerName ?? undefined;
+
+  // O caminho de volta: a lista é a única que sabe quanto dura o atendimento
+  // escolhido, e o modo precisa disso para o piso das faixas. Roda uma vez, no
+  // dia em que o "Remarcar" foi clicado — depois o número viaja com o modo.
+  const remarcado = useMemo(
+    () => itens.find((i) => i.id === remarcacao.appointmentId),
+    [itens, remarcacao.appointmentId],
+  );
+  const { informarDuracao } = remarcacao;
+  useEffect(() => {
+    if (remarcado) informarDuracao(remarcado.id, duracaoEmMinutos(remarcado));
+  }, [remarcado, informarDuracao]);
+
+  // Vão de 30 min não é destino para um atendimento de uma hora: em modo
+  // remarcação o piso é a duração **daquele** atendimento, e não o serviço mais
+  // curto da loja. Oferecer o buraco pequeno seria oferecer um clique que a
+  // constraint recusa.
+  const piso = remarcacao.duracaoMinutos ?? duracaoMinima;
+
   // O buraco é do dia; o que dá para vender dele é do relógio. `recortarNoAgora`
   // resolve os três casos com uma regra: o dia de ontem some inteiro, a manhã de
   // hoje some, o buraco em curso encolhe até agora e o dia de amanhã fica.
+  //
+  // O agrupamento vem por último: é o recorte que alinha o início ao passo de
+  // ±5, e dois buracos que começavam em horas diferentes só viram o mesmo
+  // instante depois dele.
   const vaos = useMemo(
     () =>
-      recortarNoAgora(
-        buildVaosLivres(appointments, staffList, duracaoMinima),
-        agora,
-        duracaoMinima,
+      agruparVaosLivres(
+        recortarNoAgora(buildVaosLivres(appointments, staffList, piso), agora, piso),
       ),
-    [appointments, staffList, duracaoMinima, agora],
+    [appointments, staffList, piso, agora],
   );
 
   const linhas = useMemo(() => intercalarVaos(itens, vaos), [itens, vaos]);
@@ -221,27 +294,41 @@ export function DayGrid({
     regua.current?.scrollIntoView?.({ block: 'center' });
   }, [eHoje]);
 
+  // O dia vazio é uma frase e a ação, no lugar da lista — sem ilustração e sem
+  // a linha de próximos livres por cima. O Carbon classifica isto como *user
+  // action empty state* e cobra equilíbrio: "more content doesn't necessarily
+  // mean it's a better solution as there is a cognitive cost for having more
+  // content on the page". "Marcão livre · Tiago livre" era o exemplo perfeito do
+  // custo sem a notícia — se não há nada marcado, todo mundo está livre.
+  //
+  // O botão sai do texto e vira botão: "use o encaixe" mandava procurar a ação
+  // em outro canto da tela, e a ação é a única coisa que se faz num dia vazio.
+  // O aviso do modo entra também no dia vazio: navegar para um dia sem nada não
+  // pode apagar da tela o único sinal de que a próxima faixa clicada remarca
+  // alguém. Sem faixa aqui não há o que apontar, mas `Esc` e "Desistir"
+  // continuam à mão.
+  const modoDeRemarcacao = (
+    <Remarcacao dataISO={dataISO} timeZone={timeZone} nomePorStaff={nomes} />
+  );
+
   if (itens.length === 0) {
     return (
-      <>
-        {eHoje && staffList.length > 1 ? (
-          <LinhaDeProximosLivres
-            appointments={appointments}
-            staffList={staffList}
-            cores={cores}
-            agora={agora}
-            timeZone={timeZone}
-          />
-        ) : null}
-        <div className="text-center">
-          <Bloco>
-            <p className="text-[16px] leading-6">Nenhum agendamento neste dia.</p>
-            <p className="text-[14px] leading-5 text-tinta-2">
-              Use o encaixe para marcar quem chegou no balcão.
-            </p>
-          </Bloco>
-        </div>
-      </>
+      <div data-slot="agenda-vazia" className="text-center">
+        {modoDeRemarcacao}
+        <Bloco
+          acao={
+            // `() => pedirEncaixe()` e não `pedirEncaixe`: o handler passaria o
+            // evento de clique no lugar do pedido, e a folha abriria com um
+            // `staffId` que não existe. Sem pedido ela escolhe o dia mostrado e
+            // a hora de agora, que é o padrão do botão "Encaixe" da barra.
+            <Botao type="button" onClick={() => pedirEncaixe()}>
+              Encaixe
+            </Botao>
+          }
+        >
+          <p className="text-[16px] leading-6">Nenhum agendamento neste dia.</p>
+        </Bloco>
+      </div>
     );
   }
 
@@ -265,6 +352,8 @@ export function DayGrid({
 
   return (
     <>
+      {modoDeRemarcacao}
+
       {eHoje && staffList.length > 1 ? (
         <LinhaDeProximosLivres
           appointments={appointments}
@@ -293,15 +382,37 @@ export function DayGrid({
                     // Com um barbeiro só, repetir o nome dele em toda faixa não
                     // informa nada — só ocupa a linha.
                     nomeDoBarbeiro={staffList.length > 1 ? nomes.get(linha.vao.staffId) : undefined}
+                    outrosBarbeiros={linha.vao.outros.map((o) => ({
+                      nome: nomes.get(o.staffId) ?? BARBEIRO_DESCONHECIDO,
+                      minutos: o.minutos,
+                    }))}
                     timeZone={timeZone}
+                    remarcandoPara={remarcandoPara}
                   />
                 ) : (
-                  <CartaoDaAgenda
-                    item={linha.item}
-                    timeZone={timeZone}
-                    corDoBarbeiro={cores.get(linha.item.staffId) ?? 'var(--linha)'}
-                    agora={agora}
-                  />
+                  // Os dois no DOM, trocados por CSS. Condicional de JS por
+                  // largura não serve: o servidor não sabe a largura da janela, e
+                  // decidir num `useEffect` faria a lista inteira piscar na
+                  // primeira pintura. `display:none` **aqui** é o certo, ao
+                  // contrário das ações recolhidas: é layout alternativo, não
+                  // ação escondida — o leitor de tela lê um dos dois, nunca os
+                  // dois, e nenhum caminho se perde.
+                  <>
+                    <CartaoDaAgenda
+                      item={linha.item}
+                      timeZone={timeZone}
+                      corDoBarbeiro={cores.get(linha.item.staffId) ?? 'var(--linha)'}
+                      agora={agora}
+                      className="md:hidden"
+                    />
+                    <LinhaDaAgenda
+                      item={linha.item}
+                      timeZone={timeZone}
+                      corDoBarbeiro={cores.get(linha.item.staffId) ?? 'var(--linha)'}
+                      agora={agora}
+                      className="hidden md:block"
+                    />
+                  </>
                 )}
               </Fragment>
             ))}

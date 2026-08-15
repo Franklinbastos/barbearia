@@ -53,10 +53,28 @@ import { cn } from '@/lib/utils';
  * outro é o degrau que o teto existe para não ter.
  *
  * Conter a faixa não bastava para o botão do meio: mesmo dentro do teto ele
- * herdava o `1fr` da grade e chegava a 932px para escrever "sexta, 14 de
- * agosto", ~150px de texto. No desktop a coluna do meio passa a ter largura
- * fixa, medida pelo rótulo mais longo do ano ("quarta, 30 de setembro"); no
- * celular ela continua sendo o `1fr` entre as duas setas, que lá é o certo.
+ * esticava para 932px para escrever "sexta, 14 de agosto", ~150px de texto. No
+ * desktop ele passa a ter largura fixa (`md:w-60`, 240px), medida pelo rótulo
+ * mais longo do ano ("quarta, 30 de setembro"); no celular continua esticando
+ * entre as duas setas, que lá é o certo.
+ *
+ * **Duas ordens, uma árvore.** No desktop a linha é `Hoje ‹ › data contagem …
+ * ação` — a ordem do Google, do exemplo canônico do FullCalendar
+ * (`end: 'today prev,next'`), do react-big-calendar e do ReUI: nenhum deles
+ * cerca o rótulo com uma seta de cada lado. No celular ela continua
+ * `‹ data ›`, porque o rótulo precisa de ~250px e três botões antes dele o
+ * truncariam — coisa que o Material 3 proíbe em letra ("Don't truncate the
+ * headline text").
+ *
+ * A troca é de `order`, nunca de dois blocos duplicados: **dois `Popover`
+ * irmãos escondidos por `md:` não funcionam**, porque o `PopoverContent` sai
+ * por `Portal` e o `hidden` do pai não o alcança — abririam dois calendários
+ * sobrepostos, e o gatilho de data que `tests/unit/seletor-de-data.test.tsx`
+ * procura por nome acessível passaria a aparecer duas vezes.
+ *
+ * O DOM segue a ordem do desktop e é o celular que reordena: onde a ordem
+ * visual e a de foco divergem, quem paga é o teclado, e o teclado está no
+ * desktop.
  */
 export type BarraDeDataProps = {
   dataISO: string;
@@ -112,6 +130,33 @@ export function BarraDeData({ dataISO, hojeISO, contagens, acao }: BarraDeDataPr
   const eHoje = dataISO === hojeISO;
   const diaSelecionado = isoParaData(dataISO);
 
+  // **WCAG 2.5.3 (Label in Name).** Era um `aria-label` fixo na palavra Data. Um
+  // rótulo escondido que **cobre** o texto visível reprova de duas maneiras:
+  // quem comanda por voz fala o que está escrito na tela ("sexta, 15 de agosto")
+  // e não casa com nada, e quem ouve o leitor de tela ouve "Data" no lugar do
+  // dia em que a agenda está — que é a única coisa que este botão informa.
+  //
+  // O texto visível vem primeiro, e não no fim: o casamento por voz é por
+  // prefixo na maioria dos motores. O que sobra depois dele é a afordância, que
+  // o dia sozinho não entrega — é a mesma regra da faixa de vão livre, cujo nome
+  // acessível também começa pelo verbo e contém a frase inteira da tela.
+  const rotuloDaData = `${rotuloDoDia(diaSelecionado)}, escolher outro dia`;
+
+  // No dia vazio a contagem some: "0 no dia · 0 a atender" é ruído com forma de
+  // dado, e quem fala num dia sem nada é o estado vazio da lista. Uma string só
+  // para os dois lugares onde ela aparece — a linha do desktop e a linha de
+  // baixo do celular —, senão são duas verdades para manter.
+  const contagem =
+    contagens.total > 0 ? `${contagens.total} no dia · ${contagens.aAtender} a atender` : null;
+
+  // `/app/agenda` sem `?data=`, e não `?data=${hojeISO}`: o servidor recalcula o
+  // dia da loja a cada visita, então o botão continua acertando o dia numa aba
+  // que ficou aberta desde ontem.
+  const irParaHoje = () => {
+    setAberto(false);
+    router.push('/app/agenda');
+  };
+
   return (
     // `mb-3` é o mesmo respiro que o `<CabecalhoDePagina>` dá às telas irmãs.
     // A barra é o último bloco antes da lista nas duas larguras: no celular o
@@ -127,87 +172,125 @@ export function BarraDeData({ dataISO, hojeISO, contagens, acao }: BarraDeDataPr
               que o chamador manda para cá é `hidden` ou fora de fluxo — e por
               isso o `gap-2` não abre buraco nos 360px. */}
           <div className="flex h-11 items-center gap-2">
-            {/* A grade continua `flex-1` no desktop de propósito: é ela que
-                empurra a ação para a ponta direita da faixa, como o cabeçalho
-                das outras telas faz. Com as três colunas fixas a sobra fica
-                dentro da grade, à direita das setas, em vez de esticar o botão
-                do meio. */}
-            <div className="grid min-w-0 flex-1 grid-cols-[44px_1fr_44px] items-center gap-2 md:grid-cols-[44px_240px_44px]">
-              <Link
-                href={`/app/agenda?data=${ontem}`}
-                aria-label="Ontem"
-                className={cn(buttonVariants({ variant: 'outline', size: 'icon' }), ALVO_44)}
-              >
-                <ChevronLeft aria-hidden="true" />
-              </Link>
+            {/* Desabilita quando o dia mostrado já é hoje, e **não** some: um
+                botão que aparece e desaparece muda a largura dos vizinhos a
+                cada dia, que era o defeito da faixa de baixo. `disabled` de
+                verdade tiraria o botão da ordem de tabulação — o mesmo sumiço,
+                para quem navega por teclado —, então é `focusableWhenDisabled`:
+                fica focável e se anuncia como indisponível.
 
-              <Popover open={aberto} onOpenChange={setAberto}>
-                <PopoverTrigger
-                  render={
-                    <Button
-                      variant="outline"
-                      aria-label="Data"
-                      className="h-11 w-full justify-between px-3 font-normal"
-                    >
-                      <span className="truncate">{rotuloDoDia(diaSelecionado)}</span>
-                      <CalendarDays aria-hidden="true" />
-                    </Button>
-                  }
+                É `<Button>` e não `<Link>` como as setas justamente por causa
+                desse estado: link desabilitado não existe em HTML. */}
+            <Button
+              variant="outline"
+              disabled={eHoje}
+              focusableWhenDisabled
+              onClick={irParaHoje}
+              className="hidden h-11 px-4 md:inline-flex aria-disabled:opacity-50"
+            >
+              Hoje
+            </Button>
+
+            <Link
+              href={`/app/agenda?data=${ontem}`}
+              aria-label="Ontem"
+              className={cn(
+                buttonVariants({ variant: 'outline', size: 'icon' }),
+                ALVO_44,
+                '-order-3 md:order-none',
+              )}
+            >
+              <ChevronLeft aria-hidden="true" />
+            </Link>
+
+            <Link
+              href={`/app/agenda?data=${amanha}`}
+              aria-label="Amanhã"
+              className={cn(
+                buttonVariants({ variant: 'outline', size: 'icon' }),
+                ALVO_44,
+                '-order-1 md:order-none',
+              )}
+            >
+              <ChevronRight aria-hidden="true" />
+            </Link>
+
+            <Popover open={aberto} onOpenChange={setAberto}>
+              <PopoverTrigger
+                render={
+                  <Button
+                    variant="outline"
+                    aria-label={rotuloDaData}
+                    className="-order-2 h-11 min-w-0 flex-1 justify-between px-3 font-normal md:order-none md:w-60 md:flex-none"
+                  >
+                    <span className="truncate">{rotuloDoDia(diaSelecionado)}</span>
+                    <CalendarDays aria-hidden="true" />
+                  </Button>
+                }
+              />
+              {/* `gap-0` porque o popover empilha com 10px de folga por padrão,
+                  e aqui o que separa o calendário do "Hoje" é o fio de 1px. */}
+              <PopoverContent align="center" className="w-auto gap-0 p-0">
+                <Calendar
+                  mode="single"
+                  locale={ptBR}
+                  autoFocus
+                  selected={diaSelecionado}
+                  defaultMonth={diaSelecionado}
+                  // "Hoje" é o de quem abriu a loja, não o do relógio do
+                  // navegador: o servidor já mandou `hojeISO` no fuso dela.
+                  today={isoParaData(hojeISO)}
+                  onSelect={(escolhido) => {
+                    if (!escolhido) return;
+                    setAberto(false);
+                    // Mesma URL que as setas montam — a agenda continua sendo
+                    // uma tela endereçável por `?data=`.
+                    router.push(`/app/agenda?data=${dataParaISO(escolhido)}`);
+                  }}
                 />
-                <PopoverContent align="center" className="w-auto p-0">
-                  <Calendar
-                    mode="single"
-                    locale={ptBR}
-                    autoFocus
-                    selected={diaSelecionado}
-                    defaultMonth={diaSelecionado}
-                    // "Hoje" é o de quem abriu a loja, não o do relógio do
-                    // navegador: o servidor já mandou `hojeISO` no fuso dela.
-                    today={isoParaData(hojeISO)}
-                    onSelect={(escolhido) => {
-                      if (!escolhido) return;
-                      setAberto(false);
-                      // Mesma URL que as setas montam — a agenda continua sendo
-                      // uma tela endereçável por `?data=`.
-                      router.push(`/app/agenda?data=${dataParaISO(escolhido)}`);
-                    }}
-                  />
-                </PopoverContent>
-              </Popover>
+                {/* O "ir para hoje" do celular. Lá ele não cabe na linha — o
+                    rótulo da data come a largura toda entre as duas setas —,
+                    e o lugar dele é aqui dentro, junto do resto da navegação
+                    por data. No desktop o botão da barra já faz isso. */}
+                <div className="border-t border-border p-2 md:hidden">
+                  <Button
+                    variant="outline"
+                    disabled={eHoje}
+                    focusableWhenDisabled
+                    onClick={irParaHoje}
+                    className="h-11 w-full aria-disabled:opacity-50"
+                  >
+                    Hoje
+                  </Button>
+                </div>
+              </PopoverContent>
+            </Popover>
 
-              <Link
-                href={`/app/agenda?data=${amanha}`}
-                aria-label="Amanhã"
-                className={cn(buttonVariants({ variant: 'outline', size: 'icon' }), ALVO_44)}
-              >
-                <ChevronRight aria-hidden="true" />
-              </Link>
-            </div>
+            {/* `titleMetadata` do Polaris: status curto, importante e que não se
+                clica. O `md:mr-auto` é o mesmo elemento fazendo de vão — é ele
+                que empurra a ação para a ponta direita —, e é margem e não
+                `flex-1` porque o vão tem que existir também no dia vazio, com o
+                texto ausente: `flex-1` esticaria o cinza do texto pela barra
+                toda, e um vão que some com o texto devolveria o "Encaixe" para
+                o meio da linha. */}
+            <span className="hidden min-w-0 truncate text-[12px] leading-4 text-tinta-3 md:block md:mr-auto">
+              {contagem}
+            </span>
 
             {acao}
           </div>
 
-          <p className="h-5 text-[12px] leading-4 font-bold tracking-wide text-muted-foreground uppercase">
-            {contagens.total} no dia · {contagens.aAtender} a atender
-          </p>
+          {/* No celular a contagem continua sendo a linha de baixo, com a mesma
+              letra de sempre: em 360px não há vão nenhum na linha de cima. O que
+              saiu foi a altura fixa de 20px — sem ela a faixa fecha nos 64px que
+              o `h-16` promete, em vez de vazar 4px. */}
+          {contagem ? (
+            <p className="text-[12px] leading-4 font-bold tracking-wide text-muted-foreground uppercase md:hidden">
+              {contagem}
+            </p>
+          ) : null}
         </Largura>
       </div>
-
-      {eHoje ? null : (
-        <div className="px-3 pt-2 md:px-5">
-          {/* `w-full` sozinho fazia um botão de 1400px no desktop. No celular a
-              largura total continua certa: é alvo de dedo na faixa toda. */}
-          <Link
-            href="/app/agenda"
-            className={cn(
-              buttonVariants({ variant: 'outline', size: 'lg' }),
-              'w-full no-underline md:w-auto',
-            )}
-          >
-            Voltar para hoje
-          </Link>
-        </div>
-      )}
     </div>
   );
 }

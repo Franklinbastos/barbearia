@@ -7,7 +7,7 @@ import { db } from '@/db/client';
 import { appointment } from '@/db/schema';
 import { findBarbershopById, listBusyRanges, listStaffForService } from '@/db/repositories';
 import { requireSession } from '@/lib/session';
-import { cancelAppointment, createWalkInAppointment } from '@/domain/booking';
+import { cancelAppointment, createWalkInAppointment, rescheduleAppointment } from '@/domain/booking';
 import { countAppointmentsByStaff } from '@/domain/booking/staff-load';
 import { resolverInicioDoEncaixe } from './encaixe';
 
@@ -177,3 +177,57 @@ export async function createManualAppointmentAction(
   revalidatePath('/app/agenda');
   return { ok: true };
 }
+
+export type RescheduleAppointmentState = { erro?: string; ok?: boolean };
+
+/**
+ * Remarcar sem cancelar (§2.1 do plano de 15/08/2026).
+ *
+ * O dia e a hora vêm separados, como no encaixe, e a tradução para instante é a
+ * **mesma** `resolverInicioDoEncaixe`: `HH:mm` só vira instante com o fuso da
+ * barbearia junto, e uma segunda cópia dessa conta divergiria no primeiro
+ * ajuste. O dia vem no formulário porque quem está escolhendo pode ter rolado
+ * para outra data — "semana que vem, mesma hora" é o caso mais comum.
+ *
+ * `staffId` é o dono do vão que o dedo apontou: a faixa é por barbeiro, e
+ * ignorá-lo mandaria o cliente para a cadeira errada — ou para cima de quem já
+ * está nela.
+ */
+export async function rescheduleAppointmentAction(
+  _prev: RescheduleAppointmentState,
+  formData: FormData,
+): Promise<RescheduleAppointmentState> {
+  const sessao = await requireSession();
+
+  const loja = await findBarbershopById(db, sessao.barbershopId);
+  if (!loja) return { erro: 'Barbearia não encontrada.' };
+
+  const appointmentId = texto(formData, 'appointmentId');
+  const staffId = texto(formData, 'staffId');
+  if (!UUID.test(appointmentId)) return { erro: 'Agendamento não informado.' };
+  // Vazio é "mantém o barbeiro": o domínio decide isso, não o formulário.
+  if (staffId !== '' && !UUID.test(staffId)) return { erro: 'Barbeiro inválido.' };
+
+  const novoInicio = resolverInicioDoEncaixe({
+    date: texto(formData, 'date'),
+    hora: texto(formData, 'hora'),
+    timeZone: loja.timeZone,
+  });
+  if (!novoInicio) return { erro: 'Informe um horário válido.' };
+
+  try {
+    await rescheduleAppointment(db, {
+      appointmentId,
+      barbershopId: sessao.barbershopId,
+      novoInicio,
+      novoStaffId: staffId === '' ? undefined : staffId,
+      avisarCliente: formData.get('avisarCliente') !== null,
+    });
+  } catch (erro) {
+    return { erro: erro instanceof Error ? erro.message : 'Não foi possível remarcar' };
+  }
+
+  revalidatePath('/app/agenda');
+  return { ok: true };
+}
+

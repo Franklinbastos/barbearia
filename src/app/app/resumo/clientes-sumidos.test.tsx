@@ -3,7 +3,8 @@ import { describe, it, expect } from 'vitest';
 import { render, screen } from '@testing-library/react';
 
 import type { ClienteSumido } from '@/domain/indicadores/cliente';
-import { ClientesSumidos, mensagemDeRetorno, telefoneParaWaMe } from './clientes-sumidos';
+import { telefoneParaWaMe } from '@/lib/telefone';
+import { ClientesSumidos, mensagemDeRetorno } from './clientes-sumidos';
 
 /**
  * A frase de cada linha é o que torna a lista confiável (§2.5 do spec): ela

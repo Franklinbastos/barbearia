@@ -199,7 +199,7 @@ describe('navegação de data', () => {
     // `size-11` e `h-11` são 44px: o `size-8` que o `buttonVariants` traz da lib
     // é controle de formulário, e esta barra é alvo de dedo em rolagem.
     expect(barra).toMatch(/const ALVO_44 = 'size-11/);
-    expect(barra).toMatch(/aria-label="Data"[\s\S]{0,120}h-11/);
+    expect(barra).toMatch(/aria-label=\{rotuloDaData\}[\s\S]{0,120}h-11/);
   });
 
   it('o dia do calendário mede 44 em qualquer largura, e não os 28px do CLI', () => {

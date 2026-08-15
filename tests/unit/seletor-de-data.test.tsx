@@ -30,6 +30,12 @@ import userEvent from '@testing-library/user-event';
  *
  * São UTC+14 e UTC-11: se sobrar qualquer passagem por UTC no caminho, o dia
  * escorrega num dos dois e um dos casos abaixo cai.
+ *
+ * **O gatilho da barra é procurado por `/escolher outro dia/`, e não por
+ * "Data".** Em 15/08/2026 o `aria-label="Data"` saiu: rótulo escondido que cobre
+ * o texto visível reprova na WCAG 2.5.3 (Label in Name), e o nome acessível
+ * passou a ser o próprio dia mais a afordância. O trecho fixo é o que sobra de
+ * estável — o começo do nome muda todo dia, que é justamente o ponto.
  */
 
 const push = vi.fn();
@@ -90,7 +96,7 @@ describe('BarraDeData', () => {
         contagens={{ total: 3, aAtender: 2 }}
       />,
     );
-    const gatilho = screen.getByRole('button', { name: 'Data' });
+    const gatilho = screen.getByRole('button', { name: /escolher outro dia/ });
     expect(gatilho.textContent).toContain('quinta');
     expect(gatilho.textContent).toContain('13 de agosto');
   });
@@ -120,7 +126,7 @@ describe('BarraDeData', () => {
         contagens={{ total: 0, aAtender: 0 }}
       />,
     );
-    await userEvent.click(screen.getByRole('button', { name: 'Data' }));
+    await userEvent.click(screen.getByRole('button', { name: /escolher outro dia/ }));
 
     // Rótulo do `react-day-picker` traduzido — se o `locale` sumir, isto vira
     // "Go to the Previous Month".
@@ -143,7 +149,7 @@ describe('BarraDeData', () => {
         contagens={{ total: 0, aAtender: 0 }}
       />,
     );
-    await userEvent.click(screen.getByRole('button', { name: 'Data' }));
+    await userEvent.click(screen.getByRole('button', { name: /escolher outro dia/ }));
     await userEvent.click(screen.getByRole('button', { name: 'sábado, 1 de agosto de 2026' }));
 
     expect(push).toHaveBeenCalledWith('/app/agenda?data=2026-08-01');
@@ -159,9 +165,11 @@ describe('BarraDeData', () => {
         contagens={{ total: 0, aAtender: 0 }}
       />,
     );
-    expect(screen.getByRole('button', { name: 'Data' }).textContent).toContain('1 de março');
+    expect(screen.getByRole('button', { name: /escolher outro dia/ }).textContent).toContain(
+      '1 de março',
+    );
 
-    await userEvent.click(screen.getByRole('button', { name: 'Data' }));
+    await userEvent.click(screen.getByRole('button', { name: /escolher outro dia/ }));
     await userEvent.click(screen.getByRole('button', { name: 'terça-feira, 31 de março de 2026' }));
 
     expect(push).toHaveBeenCalledWith('/app/agenda?data=2026-03-31');

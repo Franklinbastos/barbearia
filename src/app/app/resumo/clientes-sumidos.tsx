@@ -3,6 +3,7 @@ import { MessageCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import type { ClienteSumido } from '@/domain/indicadores/cliente';
 import { formatDayLabelFromInstant } from '@/lib/format';
+import { telefoneParaWaMe } from '@/lib/telefone';
 
 /**
  * A lista de clientes sumidos, com o botão de WhatsApp em cada linha (§2.5 e
@@ -37,22 +38,6 @@ export type ClientesSumidosProps = {
   /** Quantos mostrar. O resto vira "e mais N". */
   limite?: number;
 };
-
-/**
- * Telefone brasileiro no formato que o `wa.me` exige: só dígitos, com o código
- * do país na frente.
- *
- * O banco guarda o que o balcão digitou — `(11) 99999-8888`, `11999998888`, às
- * vezes já com o 55. A regra: 10 ou 11 dígitos é número nacional e ganha o 55;
- * qualquer coisa maior já vem com país e passa direto. Exportada porque é a
- * única parte deste arquivo que erra calado — link torto abre o WhatsApp em
- * conversa vazia.
- */
-export function telefoneParaWaMe(telefone: string): string {
-  const digitos = telefone.replace(/\D/g, '');
-  if (digitos.length === 10 || digitos.length === 11) return `55${digitos}`;
-  return digitos;
-}
 
 /** "Maria da Silva" → "Maria". O primeiro nome é como o barbeiro chama. */
 function primeiroNome(nome: string): string {

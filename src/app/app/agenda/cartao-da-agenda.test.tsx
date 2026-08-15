@@ -1,12 +1,14 @@
 // @vitest-environment jsdom
 import { describe, it, expect } from 'vitest';
 import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { CartaoDaAgenda } from './cartao-da-agenda';
 import type { AgendaItem } from './day-grid';
 
 const ITEM: AgendaItem = {
   id: 'a1',
   staffId: 's1',
+  customerId: 'c1',
   staffName: 'Marcão',
   customerName: 'Marcos',
   customerPhone: '11999999999',
@@ -163,5 +165,27 @@ describe('CartaoDaAgenda — o estado se lê por forma', () => {
   it('o que aconteceu, e o que ainda vai acontecer, ficam com a borda cheia', () => {
     expect(montar().className).toMatch(/border-solid/);
     expect(montar({ status: 'DONE' }).className).toMatch(/border-solid/);
+  });
+});
+
+describe('CartaoDaAgenda — a folha é o menu do celular', () => {
+  /**
+   * No celular não há `⋯` suspenso: o que a linha do desktop resolve com o
+   * `MenuDaLinha` a folha já resolvia aqui. Estes dois caminhos entraram nela em
+   * 15/08/2026 e são a metade celular da mesma decisão.
+   */
+  it('leva ao WhatsApp com o 55 do país e à ficha do cliente', async () => {
+    const user = userEvent.setup();
+    montar();
+    await user.click(screen.getByRole('button', { name: 'Mais ações para Marcos' }));
+
+    // Sem o 55 o `wa.me` abre conversa vazia e nada na tela avisa — a conta é de
+    // `telefoneParaWaMe`, em `src/lib/telefone.ts`, e é uma só no produto.
+    expect(screen.getByRole('link', { name: 'Abrir no WhatsApp' }).getAttribute('href')).toBe(
+      'https://wa.me/5511999999999',
+    );
+    expect(screen.getByRole('link', { name: 'Ver ficha do cliente' }).getAttribute('href')).toBe(
+      '/app/clientes/c1',
+    );
   });
 });

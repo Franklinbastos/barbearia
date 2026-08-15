@@ -4,6 +4,7 @@ import { requireSession } from '@/lib/session';
 import { db } from '@/db/client';
 import { findBarbershopById, findCustomerById, listCustomerHistory } from '@/db/repositories';
 import { calcularPerfilDoCliente } from '@/domain/indicadores/perfil-do-cliente';
+import { estaAnonimizado } from '@/domain/privacy/anonymize-customer';
 import { Badge } from '@/components/ui/badge';
 import { Largura } from '@/components/ui/largura';
 import { Monograma } from '@/components/ui/monograma';
@@ -53,6 +54,12 @@ export default async function CustomerDetailPage({
   // em memória: nenhuma consulta a mais para a ficha ganhar indicador.
   const perfil = calcularPerfilDoCliente(historico, new Date());
   const selo = seloDoCliente(perfil);
+
+  // Quem já foi anonimizado não tem mais dado para remover, e a seção continuar
+  // ali produzia o botão "Remover os dados de Cliente" — o primeiro nome de
+  // "Cliente removido". O histórico fica: anonimizar tira a pessoa, não o
+  // passado da barbearia, e é isso que o aviso da seção sempre prometeu.
+  const anonimizado = estaAnonimizado(cliente);
 
   return (
     <div className="flex flex-col gap-6">
@@ -105,7 +112,7 @@ export default async function CustomerDetailPage({
           <NotesForm customerId={customerId} notes={cliente.notes} />
         </section>
 
-        {sessao.role === 'OWNER' ? (
+        {sessao.role === 'OWNER' && !anonimizado ? (
           // Ação rara e destrutiva no rodapé, separada por régua — o `⋮` que os
           // grandes usam esconderia atrás de um alvo de 44px justamente o texto
           // que impede o dono de achar que está apagando o passado da barbearia.
