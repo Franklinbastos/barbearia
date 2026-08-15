@@ -63,7 +63,10 @@ export function montarCatalogo(
           format: 'time',
           hint: 'Qual horário?',
           resolverKey: 'session',
-          resolutionStrategy: 'AVAILABILITY',
+          // "CANDIDATES" é a string que o brain reconhece como slot resolvido por lista
+          // (OperationSession.isCandidatesStrategy / o assistente). Com outra string o motor
+          // pediria o horário como texto livre e nunca chamaria o /resolve das vagas.
+          resolutionStrategy: 'CANDIDATES',
           minimumSlots: ['serviceName', 'sessionDate'],
         },
       ],
