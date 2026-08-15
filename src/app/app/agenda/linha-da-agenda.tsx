@@ -111,6 +111,7 @@ export function LinhaDaAgenda({
   // uma segunda cópia do hook — e a cópia ainda nascia `null`, o que obrigava um
   // `?.` em cima de um objeto que sempre existe.
   const remarcacao = useRemarcacao();
+  const sendoRemarcado = remarcacao.appointmentId === item.id;
 
   function marcar(status: 'DONE' | 'NO_SHOW' | 'CANCELED') {
     setErro(null);
@@ -133,11 +134,18 @@ export function LinhaDaAgenda({
     <li
       {...resto}
       data-slot="linha-da-agenda"
+      data-remarcando={sendoRemarcado ? '' : undefined}
       className={cn(
         linhaDaAgendaVariants({ contorno: CONTORNO_DO_ESTADO[item.status] }),
         // O hover da linha só existe porque o fundo ficou livre — é o item 1 do
         // cabeçalho deste arquivo virando pixel.
         acontecendoAgora ? 'bg-agora-bg' : 'hover:bg-superficie',
+        // Enquanto o modo está ligado, o assunto da tela é o destino e não a
+        // origem: a linha que está saindo dali recua. `opacity`, e não cor nova,
+        // porque a cor da aresta é identidade do barbeiro e não pode virar
+        // estado de interação (§3.5). O aviso fixo do rodapé é quem **nomeia** o
+        // cliente; isto é reforço visual, nunca o único sinal.
+        sendoRemarcado && 'opacity-50',
         className,
       )}
       // A aresta é do barbeiro nos quatro estados (§3.5): o desfecho se lê no

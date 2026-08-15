@@ -20,6 +20,7 @@ import { formatDayLabelLong, formatDuration, formatTime } from '@/lib/format';
 import { aplicarMascaraTelefone } from '@/lib/telefone';
 import { createManualAppointmentAction, type ManualBookingState } from './actions';
 import { avisoDeHorarioLivre, deslocarHora, horaDeAgoraArredondada } from './encaixe';
+import { useRemarcacao } from './remarcacao';
 import { assinarPedidoDeEncaixe, type PedidoDeEncaixe } from './vao-livre';
 
 /**
@@ -75,6 +76,8 @@ export function ManualBookingForm({
   timeZone: string;
 }) {
   const [state, formAction, pending] = useActionState(createManualAppointmentAction, ESTADO_INICIAL);
+
+  const remarcando = useRemarcacao().appointmentId !== null;
 
   const [aberta, setAberta] = useState(false);
   const [modo, setModo] = useState<Modo>('agora');
@@ -237,7 +240,13 @@ export function ManualBookingForm({
           contra o resto da página a barra pinta no nível 10. Ainda é acima dos
           cabeçalhos de hora da lista (`z-[5]`), e a folha vai para portal no
           `<body>`. Quem mexer no `z` da barra de data mexe também no daqui. */}
+      {/* Sai de cena enquanto o modo de remarcação está ligado. As duas barras
+          são `fixed bottom-0 z-30` e se sobrepunham em 9px no celular — medido:
+          a do encaixe em `top=852 h=48`, o aviso em `top=843 h=57`. Mais que o
+          desenho, é o sentido: com o modo ligado a tela pede um destino, e
+          oferecer "Encaixe" ali é oferecer a ação errada no lugar da certa. */}
       <div
+        hidden={remarcando}
         className="fixed inset-x-0 bottom-0 z-30 bg-bg px-3 py-1.5 md:hidden"
         style={{
           boxShadow: 'var(--sombra-barra)',

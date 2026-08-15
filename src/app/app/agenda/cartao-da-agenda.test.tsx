@@ -189,3 +189,31 @@ describe('CartaoDaAgenda — a folha é o menu do celular', () => {
     );
   });
 });
+
+describe('CartaoDaAgenda — remarcar existe no celular', () => {
+  it('a folha oferece Remarcar', async () => {
+    // Até 15/08 o único gatilho do modo era o `⋯` da linha do desktop, que não
+    // renderiza abaixo de 768px — não havia caminho nenhum justamente na
+    // largura em que o produto é usado no balcão.
+    const usuario = userEvent.setup();
+    montar();
+    await usuario.click(screen.getByRole('button', { name: 'Mais ações para Marcos' }));
+    expect(screen.getByRole('button', { name: 'Remarcar' })).toBeDefined();
+  });
+
+  it('não oferece Remarcar no que já terminou', async () => {
+    const usuario = userEvent.setup();
+    montar({ status: 'DONE' });
+    await usuario.click(screen.getByRole('button', { name: 'Mais ações para Marcos' }));
+    expect(screen.queryByRole('button', { name: 'Remarcar' })).toBeNull();
+  });
+
+  it('o item sendo remarcado recua, e os outros não', () => {
+    // O aviso fixo do rodapé é quem nomeia o cliente; o recuo é o reforço
+    // visual que faltava — sem ele, com a folha fechada, nada na lista diz de
+    // onde o atendimento está saindo.
+    const cartao = montar();
+    expect(cartao.getAttribute('data-remarcando')).toBeNull();
+    expect(cartao.className).not.toMatch(/opacity-50/);
+  });
+});

@@ -18,6 +18,7 @@ import { telefoneParaWaMe } from '@/lib/telefone';
 import { cn } from '@/lib/utils';
 import { VARIANTE_DO_ESTADO } from '../tom-do-estado';
 import { reopenAppointmentAction, setAppointmentStatusAction } from './actions';
+import { useRemarcacao } from './remarcacao';
 import type { AgendaItem } from './day-grid';
 
 /**
@@ -270,6 +271,8 @@ export function CartaoDaAgenda({
   const [mostrandoDesfazer, setMostrandoDesfazer] = useState(false);
   const [avisoDaFolha, setAvisoDaFolha] = useState<string | null>(null);
   const relogioDoDesfazer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const remarcacao = useRemarcacao();
+  const sendoRemarcado = remarcacao.appointmentId === item.id;
 
   useEffect(() => () => {
     if (relogioDoDesfazer.current) clearTimeout(relogioDoDesfazer.current);
@@ -348,8 +351,16 @@ export function CartaoDaAgenda({
       {...resto}
       data-slot="cartao-da-agenda"
       data-forma={forma}
+      data-remarcando={sendoRemarcado ? '' : undefined}
       className={cn(
         cartaoDaAgendaVariants({ forma, contorno: CONTORNO_DO_ESTADO[item.status] }),
+        // O item que está sendo remarcado recua para o segundo plano: o assunto
+        // da tela, enquanto o modo está ligado, é o destino e não a origem. É
+        // `opacity`, e não uma cor nova, porque a cor da aresta é identidade do
+        // barbeiro e não pode virar estado de interação (§3.5). O aviso fixo do
+        // rodapé continua sendo quem **nomeia** o cliente — isto aqui é o
+        // reforço visual, nunca o único sinal.
+        sendoRemarcado && 'opacity-50',
         className,
       )}
       style={{
@@ -545,6 +556,25 @@ export function CartaoDaAgenda({
           <Link href={`/app/clientes/${item.customerId}`} className="btn btn--sec btn--tot">
             Ver ficha do cliente
           </Link>
+
+          {/* O gatilho do modo de remarcação no celular.
+
+              Até aqui ele só existia no `⋯` da linha do desktop, e abaixo de
+              768px não havia caminho nenhum — justamente na largura em que o
+              produto é usado no balcão. Fecha a folha ao entrar: o modo é
+              escolher na lista, e a lista está atrás dela. */}
+          {item.status === 'BOOKED' ? (
+            <Botao
+              variante="secundario"
+              largura="total"
+              onClick={() => {
+                setFolhaAberta(false);
+                remarcacao.entrar(item.id, item.customerName);
+              }}
+            >
+              Remarcar
+            </Botao>
+          ) : null}
 
           {finalizado ? (
             <Botao
