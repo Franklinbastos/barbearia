@@ -141,6 +141,15 @@ const EXCECOES_DE_ESPACO = [
     classe: 'p-[3px]',
     motivo: 'trilho do TabsList, do CLI e intocado — 3px é a folga do indicador do base-nova',
   },
+  // As quatro do `input-group` são o mesmo caso: recuos negativos que encaixam o
+  // ícone dentro do addon, em `rem` e não em px. Vêm do CLI, o arquivo está
+  // intocado, e a medida é do base-nova — regravá-las na nossa escala seria
+  // desfazer a lib, que é justamente o que a §4.1 do AGENTS.md proíbe.
+  ...['ml-[-0.3rem]', 'ml-[-0.15rem]', 'mr-[-0.3rem]', 'mr-[-0.15rem]'].map((classe) => ({
+    arquivo: 'src/components/ui/input-group.tsx',
+    classe,
+    motivo: 'do CLI e intocado — recuo do ícone no addon, medida do base-nova',
+  })),
   {
     arquivo: 'src/components/ui/folha-inferior.tsx',
     classe: 'm-[0_auto]',

@@ -3,7 +3,12 @@
 import { useEffect, useRef, useState } from 'react';
 import { Copy, ExternalLink } from 'lucide-react';
 
-import { Botao } from '@/components/ui/botao';
+import {
+  InputGroup,
+  InputGroupAddon,
+  InputGroupButton,
+  InputGroupText,
+} from '@/components/ui/input-group';
 import { SecaoDeAjustes } from '@/components/ui/secao-de-ajustes';
 
 /**
@@ -17,15 +22,14 @@ import { SecaoDeAjustes } from '@/components/ui/secao-de-ajustes';
  * agendamento" em Booksy, Fresha, Mangomint e Boulevard, e "endereço" vai
  * colidir com o endereço físico da loja quando ele entrar.
  *
- * **O endereço é o próprio botão de copiar**, dividindo a largura com o atalho
- * para a página do cliente. Antes era texto com um ícone de 36px colado na
- * borda: o alvo menor da tela para a ação mais usada dela, e sem nada que
- * dissesse que aquilo se clica.
+ * **O endereço vem no `input-group` do shadcn**, que é o componente da lib para
+ * "valor com ação colada" — antes era um `<code>` solto com um ícone de 36px na
+ * borda, montado à mão.
  *
- * O que ele não pode ser é input desabilitado ou `readOnly` — Carbon: *"If the
- * component does not have an enabled state, do not use a read-only state to
- * display static information"*, e campo desabilitado nem é lido por leitor de
- * tela. Botão resolve os dois: é ação de verdade e tem nome acessível.
+ * Dentro dele vai `InputGroupText`, e não `InputGroupInput`: valor estático não
+ * pode virar campo desabilitado nem `readOnly` (Carbon: *"If the component does
+ * not have an enabled state, do not use a read-only state to display static
+ * information"*), e campo desabilitado nem é lido por leitor de tela.
  *
  * O SVG do QR **chega pronto do servidor**. Gerar aqui custaria a biblioteca
  * inteira no bundle e o código apareceria só depois da hidratação.
@@ -56,31 +60,42 @@ export function LinkDeAgendamento({ url, qrSvg }: { url: string; qrSvg: string }
       titulo="Link de agendamento"
       descricao="É por aqui que o cliente marca. Vale no WhatsApp, na bio do Instagram e no QR da vitrine."
     >
-      {/* Dois alvos dividindo a largura, e nenhum deles é ícone mudo: à
-          esquerda o endereço **é** o botão de copiar, à direita o atalho para a
-          página. Era um `<code>` com um ícone de 36px colado na borda — o alvo
-          menor da tela para a ação mais usada dela, e ninguém adivinha que o
-          endereço se clica se ele não parece um botão.
+      {/* Dois alvos dividindo a largura: à esquerda o endereço com o copiar,
+          à direita o atalho para a página do cliente.
+
+          O da esquerda é o `input-group` do shadcn — o componente que a lib tem
+          exatamente para "valor com ação colada". Mas com `InputGroupText`, e
+          **não** com `InputGroupInput`: o Carbon é explícito que valor estático
+          não pode virar campo desabilitado nem `readOnly` (*"If the component
+          does not have an enabled state, do not use a read-only state to display
+          static information"*), e campo desabilitado nem é lido por leitor de
+          tela. `InputGroupText` é um `<span>` — dá a moldura da lib sem fingir
+          que ali se digita.
 
           `grid-cols-1 sm:grid-cols-2`: em 360px o endereço precisa da linha
-          inteira para quebrar, e dois botões lado a lado ali dariam ~150px cada
-          — abaixo do que cabe um endereço e do que um dedo acerta com folga. */}
+          inteira para quebrar, e dois blocos lado a lado ali dariam ~150px cada. */}
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-        <Botao
-          type="button"
-          variante="secundario"
-          aria-label={`Copiar o link ${url}`}
-          onClick={copiar}
-          className="min-h-11 justify-start gap-2 px-3 text-left"
-        >
-          <Copy aria-hidden="true" className="size-4 shrink-0" />
+        <InputGroup>
           {/* `break-all` e `min-w-0`: o slug pode ser longo, e em 360px este é o
               único texto da tela sem onde quebrar. `truncate` esconderia
               justamente o fim do endereço, que é a parte que muda. */}
-          <span data-slot="link-endereco" className="min-w-0 break-all">
+          <InputGroupText
+            data-slot="link-endereco"
+            className="min-w-0 flex-1 py-2 break-all"
+          >
             {url}
-          </span>
-        </Botao>
+          </InputGroupText>
+
+          <InputGroupAddon align="inline-end">
+            <InputGroupButton
+              size="icon-sm"
+              aria-label={`Copiar o link ${url}`}
+              onClick={copiar}
+            >
+              <Copy aria-hidden="true" />
+            </InputGroupButton>
+          </InputGroupAddon>
+        </InputGroup>
 
         <a
           href={url}

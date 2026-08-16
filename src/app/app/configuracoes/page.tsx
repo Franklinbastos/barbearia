@@ -25,10 +25,16 @@ export default async function ConfiguracoesPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <CabecalhoDePagina
-        titulo="Configurações"
-        descricao="O link de agendamento da loja e as regras da agenda."
-      />
+      {/* Só para o leitor de tela, a pedido do dono. A tela já diz o que é
+          três vezes — o item marcado na barra lateral, o título da aba e os três
+          `<h2>` das seções logo abaixo —, e a faixa de título mais subtítulo
+          empurrava o primeiro campo 60px para baixo para repetir isso.
+
+          O que **não** pode é sumir do documento: sem `<h1>` a página perde o
+          nível 1 da estrutura e quem navega por cabeçalho fica sem âncora. É o
+          `<CabecalhoDePagina>` de sempre, escondido — a §5.9 manda toda tela
+          abrir com ele, e há teste guardando. */}
+      <CabecalhoDePagina titulo="Configurações" className="mb-0 sr-only" />
 
       {/* O teto da tela mora aqui, não dentro do formulário: a página decide
           quanto ocupa, o formulário decide como se arruma por dentro. Era um

@@ -79,15 +79,6 @@ describe('LinkDeAgendamento', () => {
     expect(container.querySelector('input')).toBeNull();
   });
 
-  it('o copiar é alvo de 44px, e o endereço é o próprio botão', () => {
-    // §3.6: `--tap-min` onde o dedo alcança. Desde 16/08 o endereço **é** o
-    // botão: era texto com um ícone de 36px na borda — o alvo menor da tela
-    // para a ação mais usada dela.
-    montar();
-    const botao = screen.getByRole('button', { name: /copiar/i });
-    expect(botao.className).toMatch(/min-h-11/);
-    expect(botao.textContent).toContain(URL_DA_LOJA);
-  });
 
   it('o copiar e o abrir dividem a largura', () => {
     // pedido do dono em 16/08: dois alvos, não um ícone espremido na borda

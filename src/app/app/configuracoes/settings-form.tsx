@@ -1,9 +1,7 @@
 'use client';
 
 import { useActionState, useId, useState, type ReactNode } from 'react';
-import { Check } from 'lucide-react';
 
-import { cn } from '@/lib/utils';
 import { ErroDeAcao } from '@/components/erro-de-acao';
 import { Botao } from '@/components/ui/botao';
 import { Campo } from '@/components/ui/campo';
@@ -99,6 +97,19 @@ const NOME_DO_MATIZ: Record<number, string> = {
 function corDoMatiz(matiz: number): string {
   return `oklch(0.45 0.09 ${matiz})`;
 }
+
+/**
+ * "Sem cor" precisa de um valor de string porque `Select` não carrega `null`, e
+ * string vazia é o que o base-ui usa para "nada escolhido" — o que apagaria a
+ * diferença entre *escolher* preto-e-branco e *não ter escolhido*. Vira `''` de
+ * volta no campo oculto, que é o que a server action lê.
+ */
+const SEM_COR = 'sem-cor';
+
+const OPCOES_DE_COR: { value: string; label: string }[] = [
+  { value: SEM_COR, label: 'Sem cor (preto e branco)' },
+  ...MATIZES_PERMITIDOS.map((h) => ({ value: String(h), label: NOME_DO_MATIZ[h]! })),
+];
 
 /**
  * A mesma pele do `FieldDescription` que o `Campo` usa nas suas dicas. Existe
@@ -228,6 +239,7 @@ export function SettingsForm({
 
   const idDoFuso = useId();
   const idDaDicaDaGrade = useId();
+  const idDaDicaDaCor = useId();
 
   return (
     // Fragmento, e não um `<div>`: quem dá a coluna e os 16px entre as seções é
@@ -238,7 +250,11 @@ export function SettingsForm({
         {/* O card ocupa a largura de leitura da tela, mas cada campo para nos
             520px da régua: linha de input larga demais faz o olho perder o
             começo ao voltar. */}
-        <div className="flex flex-col gap-4">
+        {/* Nome e cor na mesma linha a partir de 640px: são as duas coisas que
+            o cliente vê, e o dono confere as duas de uma olhada. `1fr auto`, e
+            não meio a meio — o nome fica com o espaço do texto e a cor com o de
+            um controle curto. */}
+        <div className="grid gap-4 sm:grid-cols-[1fr_auto] sm:items-start">
           <Largura tipo="formulario" className="mx-0">
             <Campo rotulo="Nome da barbearia">
               <input
@@ -251,89 +267,76 @@ export function SettingsForm({
             </Campo>
           </Largura>
 
-          {/* Doze fichas em vez de `input type="color"`: menos escolha e zero
-              cor feia. O dono controla só o matiz — L e croma são travados,
-              então nenhuma escolha produz botão ilegível na página pública.
+          {/* Treze fichas viraram um `Select`, a pedido do dono: elas ocupavam
+              três linhas do card para uma escolha que se faz uma vez na vida.
 
-              O teto de `formulario` passou a envolver o `<fieldset>` inteiro, e
-              não só a grade de fichas: desde que a régua ganhou `mx-auto`, um
-              bloco de 520px dentro do card de 1120 fica centrado, e com a
-              `<legend>` e o "Escolhida:" de fora sobrava um bloco de fichas
-              deslocado do próprio rótulo. Com todo mundo dentro do mesmo teto,
-              o pedaço anda inteiro — não importa se centrado ou à esquerda. */}
-          <Largura tipo="formulario" className="mx-0">
-            {/* O grupo acessível é o próprio `<fieldset>`, nomeado pela
-                `<legend>` — um `role="group"` aqui dentro criaria um segundo
-                grupo de mesmo nome dentro do primeiro. */}
-            <fieldset className="flex flex-col gap-2">
-              <legend className={`pb-1 ${MICRO_ROTULO}`}>Cor da loja</legend>
-              <p className="text-sm leading-5 text-tinta-3">
-                Aparece só na página que o cliente vê. Sem cor, a página fica preto e branco.
-              </p>
+              O que **não** muda é o que a §3.4 guarda: o valor continua sendo um
+              matiz de 0 a 360, com L e croma travados em `oklch(0.45 0.09 H)`.
+              Nada de `input type="color"` — o mercado dá hex livre e por isso
+              precisa avisar sobre contraste (o Cal.com roda checagem WCAG a cada
+              mudança); aqui nenhuma escolha produz botão ilegível, porque a
+              escolha é só o matiz.
 
-              {/* Grade de colunas fixas, e não `flex-wrap`: com as fichas
-                  quebrando por conta própria a segunda linha começava fora do
-                  alinhamento da primeira.
+              A cor viaja no `value` do `Select`, mas quem a envia é o campo
+              oculto — mesma razão do fuso: `Select` recolhido tira o campo do
+              `<form>` e o valor some no submit. Nomear os dois mandaria o campo
+              duas vezes, que é o defeito que a `fichas-de-escolha.tsx` documenta.
 
-                  **A ficha é a cor**, e não uma moldura de 80×36 com a cor num
-                  círculo de 16px lá dentro (§1.4): a informação era o detalhe.
-
-                  **"Sem cor" é a 13ª, e vem primeiro.** Flutuando acima, numa
-                  linha só dela, ela começava em x=588 enquanto as doze de baixo
-                  começavam em x=424 — é o desalinhamento medido em 16/08.
-
-                  A altura continua sendo a do `Botao` (36px, `--altura-controle`):
-                  ficha é controle, e controle mede a mesma coisa que o campo e o
-                  botão desde 13/08/2026. */}
-              <div data-slot="fichas-de-cor" className="grid grid-cols-4 gap-2 sm:grid-cols-6">
-                <Botao
-                  type="button"
-                  variante="secundario"
-                  aria-pressed={matiz === null}
-                  onClick={() => setMatiz(null)}
-                  className={cn('w-full px-0', matiz === null && 'border-2 border-tinta font-bold')}
+              A dica não vai pela prop `dica` do `Campo`: o cabeçalho do
+              `campo.tsx` avisa que o `aria-describedby` dele morre no
+              `Select.Root`. Vai à mão, amarrada no `SelectTrigger`. */}
+          <div className="flex flex-col gap-2">
+            <Campo rotulo="Cor da loja">
+              <Select
+                items={OPCOES_DE_COR}
+                value={matiz === null ? SEM_COR : String(matiz)}
+                onValueChange={(novo) => {
+                  const escolhido = String(novo ?? SEM_COR);
+                  setMatiz(escolhido === SEM_COR ? null : Number(escolhido));
+                }}
+              >
+                <SelectTrigger
+                  className="min-h-11 w-full sm:w-56 md:min-h-9"
+                  aria-describedby={idDaDicaDaCor}
                 >
-                  Sem cor
-                </Botao>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {OPCOES_DE_COR.map((opcao) => (
+                    <SelectItem key={opcao.value} value={opcao.value}>
+                      <span className="flex items-center gap-2">
+                        {/* `aria-hidden` porque o nome do matiz está escrito ao
+                            lado — sem isso o leitor de tela anunciaria a mesma
+                            cor duas vezes. O contorno existe para o "Sem cor"
+                            não sumir no fundo do menu. */}
+                        <span
+                          aria-hidden="true"
+                          className="size-4 shrink-0 rounded-full border border-linha"
+                          style={
+                            opcao.value === SEM_COR
+                              ? undefined
+                              : { backgroundColor: corDoMatiz(Number(opcao.value)) }
+                          }
+                        />
+                        {opcao.label}
+                      </span>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </Campo>
 
-                {MATIZES_PERMITIDOS.map((h) => {
-                  const escolhido = matiz === h;
-                  return (
-                    <Botao
-                      key={h}
-                      type="button"
-                      variante="secundario"
-                      aria-pressed={escolhido}
-                      aria-label={NOME_DO_MATIZ[h]}
-                      title={NOME_DO_MATIZ[h]}
-                      onClick={() => setMatiz(h)}
-                      className={cn('w-full px-0 text-white', escolhido && 'border-2 border-tinta')}
-                      style={{ backgroundColor: corDoMatiz(h) }}
-                    >
-                      {/* Quem marca a escolhida é o ✓, não a borda. Em `--tinta`
-                          sobre um fundo de L=0.45 a borda quase some no tema
-                          claro, e aí a única diferença entre a ficha escolhida e
-                          as outras onze seria a cor — que é justamente o que a
-                          pessoa está tentando comparar. */}
-                      {escolhido ? <Check aria-hidden="true" /> : null}
-                    </Botao>
-                  );
-                })}
-              </div>
+            <input
+              type="hidden"
+              name="accentHue"
+              form={ID_DO_FORMULARIO}
+              value={matiz === null ? '' : String(matiz)}
+            />
 
-              {/* Campo oculto: a server action continua lendo um FormData comum. */}
-              <input
-                type="hidden"
-                name="accentHue"
-                form={ID_DO_FORMULARIO}
-                value={matiz === null ? '' : String(matiz)}
-              />
-
-              <p className="text-sm leading-5 text-tinta-2">
-                Escolhida: <strong>{matiz === null ? 'Sem cor' : NOME_DO_MATIZ[matiz]}</strong>
-              </p>
-            </fieldset>
-          </Largura>
+            <p id={idDaDicaDaCor} className={DICA}>
+              Aparece só na página que o cliente vê.
+            </p>
+          </div>
         </div>
       </SecaoDeAjustes>
 

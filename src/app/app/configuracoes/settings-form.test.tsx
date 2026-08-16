@@ -17,16 +17,22 @@ const loja = {
 };
 
 describe('SettingsForm — cor da loja', () => {
-  it('oferece as doze fichas de cor, e nenhum input type=color', () => {
+  it('oferece as doze cores e o "sem cor", e nenhum input type=color', async () => {
+    // As treze fichas viraram um `Select` em 16/08, a pedido do dono. O que a
+    // §3.4 guarda não mudou: o valor é um matiz de 0 a 360 com L e croma
+    // travados — nada de hex, que obrigaria a avisar sobre contraste como o
+    // Cal.com faz.
+    const user = userEvent.setup();
     const { container } = render(<SettingsForm loja={loja} />);
-    const grupo = screen.getByRole('group', { name: 'Cor da loja' });
-    expect(grupo.querySelectorAll('button')).toHaveLength(MATIZES_PERMITIDOS.length + 1);
     expect(container.querySelector('input[type="color"]')).toBeNull();
+
+    await user.click(screen.getByLabelText('Cor da loja'));
+    expect(await screen.findAllByRole('option')).toHaveLength(MATIZES_PERMITIDOS.length + 1);
   });
 
-  it('sem matiz, "Sem cor" é a ficha marcada e o campo vai vazio', () => {
+  it('sem matiz, o disparador diz "Sem cor" e o campo vai vazio', () => {
     const { container } = render(<SettingsForm loja={loja} />);
-    expect(screen.getByRole('button', { name: 'Sem cor' }).getAttribute('aria-pressed')).toBe('true');
+    expect(screen.getByLabelText('Cor da loja').textContent).toMatch(/sem cor/i);
     const oculto = container.querySelector('input[name="accentHue"]') as HTMLInputElement;
     expect(oculto.value).toBe('');
   });
@@ -35,16 +41,19 @@ describe('SettingsForm — cor da loja', () => {
     const user = userEvent.setup();
     const { container } = render(<SettingsForm loja={loja} />);
 
-    await user.click(screen.getByRole('button', { name: 'Azul' }));
+    await user.click(screen.getByLabelText('Cor da loja'));
+    await user.click(await screen.findByRole('option', { name: /Azul/ }));
+
+    // O oculto é quem viaja no submit: o `Select` recolhido tiraria o campo do
+    // `<form>` e o valor sumiria — o mesmo defeito que o fuso teve.
     const oculto = container.querySelector('input[name="accentHue"]') as HTMLInputElement;
     expect(oculto.value).toBe('210');
-    expect(screen.getByRole('button', { name: 'Azul' }).getAttribute('aria-pressed')).toBe('true');
-    expect(screen.getByRole('button', { name: 'Sem cor' }).getAttribute('aria-pressed')).toBe('false');
+    expect(screen.getByLabelText('Cor da loja').textContent).toMatch(/Azul/);
   });
 
-  it('a cor escolhida chega marcada quando a loja já tem matiz', () => {
+  it('a cor escolhida chega no disparador quando a loja já tem matiz', () => {
     const { container } = render(<SettingsForm loja={{ ...loja, accentHue: 30 }} />);
-    expect(screen.getByRole('button', { name: 'Laranja' }).getAttribute('aria-pressed')).toBe('true');
+    expect(screen.getByLabelText('Cor da loja').textContent).toMatch(/Laranja/);
     const oculto = container.querySelector('input[name="accentHue"]') as HTMLInputElement;
     expect(oculto.value).toBe('30');
   });
@@ -127,12 +136,14 @@ describe('o formulário depois da reforma de 16/08', () => {
     expect(document.getElementById(idDaDica!)?.textContent).toMatch(/de quanto em quanto tempo/i);
   });
 
-  it('as fichas de cor e o "Sem cor" ficam na mesma grade', () => {
-    // "Sem cor" flutuava numa linha só dele, em x=588, fora do alinhamento das
-    // doze que vinham abaixo
+  it('a cor fica na mesma linha do nome da barbearia', () => {
+    // Pedido do dono em 16/08: são as duas coisas que o cliente vê, e ele
+    // confere as duas de uma olhada. `1fr auto`, não meio a meio.
     const { container } = render(<SettingsForm loja={loja} />);
-    const grade = container.querySelector('[data-slot="fichas-de-cor"]');
-    expect(grade?.querySelectorAll('button')).toHaveLength(13);
+    const linha = container.querySelector('.sm\\:grid-cols-\\[1fr_auto\\]');
+    expect(linha).not.toBeNull();
+    expect(linha!.textContent).toMatch(/Nome da barbearia/);
+    expect(linha!.textContent).toMatch(/Cor da loja/);
   });
 });
 
