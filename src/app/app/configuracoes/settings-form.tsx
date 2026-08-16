@@ -1,10 +1,13 @@
 'use client';
 
-import { useActionState, useState } from 'react';
+import { useActionState, useId, useState, type ReactNode } from 'react';
+import { Check } from 'lucide-react';
+
+import { cn } from '@/lib/utils';
 import { ErroDeAcao } from '@/components/erro-de-acao';
 import { Botao } from '@/components/ui/botao';
 import { Campo } from '@/components/ui/campo';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { SecaoDeAjustes } from '@/components/ui/secao-de-ajustes';
 import { Largura } from '@/components/ui/largura';
 import {
   Select,
@@ -66,9 +69,9 @@ const OPCOES_DE_GRADE = GRADES_PERMITIDAS.map((g) => ({ label: `${g} min`, value
 const DISPARADOR = 'min-h-[var(--altura-controle)] w-full sm:max-w-fit';
 
 /**
- * O rótulo dos blocos que não são campo. O endereço público e a cor da loja são
- * os dois pedaços da Identidade que não têm `<label>` para carregar o nome, e
- * eles precisam pesar **menos** que o `CardTitle` da seção — senão a tela passa
+ * O rótulo dos blocos que não são campo. A cor da loja e o fuso recolhido são os
+ * dois pedaços do formulário que não têm `<label>` para carregar o nome, e eles
+ * precisam pesar **menos** que o `<h2>` da `SecaoDeAjustes` — senão a tela passa
  * a ter dois níveis de título competindo dentro do mesmo card.
  */
 const MICRO_ROTULO = 'text-sm leading-5 font-bold text-tinta-2';
@@ -97,6 +100,81 @@ function corDoMatiz(matiz: number): string {
   return `oklch(0.45 0.09 ${matiz})`;
 }
 
+/**
+ * A mesma pele do `FieldDescription` que o `Campo` usa nas suas dicas. Existe
+ * porque uma das dicas precisa ser escrita fora do `Campo` — ver o comentário
+ * da grade de horários.
+ */
+const DICA = 'text-sm leading-5 text-muted-foreground';
+
+/**
+ * O `<form>` **não envolve os campos**: ele é só a barra do salvar, e cada campo
+ * se amarra nele pelo atributo `form` do HTML.
+ *
+ * O motivo é a ordem da tela. A §2.3 pede identidade → link → regras, porque o
+ * link deriva da identidade (o slug nasce do nome), e o link é justamente o
+ * bloco que a §2.4 manda deixar **fora** do formulário — copiar age na hora, o
+ * submit age depois, e quem clica em copiar e sai da tela acha que salvou. Com
+ * o `<form>` envolvendo tudo, uma das duas regras teria que cair: ou o link
+ * entra no formulário, ou vai para o fim da página.
+ *
+ * O atributo `form` existe exatamente para isso — é o que o próprio React usa
+ * quando precisa injetar o valor do botão que enviou (`createFormDataWithSubmitter`
+ * escreve `form=` num input temporário), e o `Select` do base-ui documenta a
+ * prop com estas palavras: *"Identifies the form that owns the hidden input.
+ * Useful when the select is rendered outside the form"*. O `FormData` é montado
+ * a partir de `form.elements`, que inclui os campos associados por atributo, e
+ * a `saveSettingsAction` continua lendo o mesmo `FormData` de sempre.
+ *
+ * **Quem puser campo novo aqui precisa levar este `form=` junto.** Sem ele o
+ * campo fica na tela, parece salvar e não chega na action — que é o defeito
+ * silencioso mais caro desta tela. `settings-form.test.tsx` tem caso amarrando
+ * todos os nomes de campo ao formulário por causa disso.
+ *
+ * É literal, e não `useId()`: o id precisa ser o mesmo do servidor ao cliente e
+ * há um só formulário de configurações por página — o mesmo padrão do
+ * `#formulario-de-encaixe` da agenda, que o e2e já endereça pelo nome.
+ */
+const ID_DO_FORMULARIO = 'formulario-de-configuracoes';
+
+const MINUTOS_NO_DIA = 24 * 60;
+/** O corte das 16h é o exemplo da spec (§1.5), e o que a Mangomint usa. */
+const EXEMPLO_EM_MINUTOS = 16 * 60;
+
+/**
+ * "60 min — para marcar às 16h, o cliente precisa fechar até 15h".
+ *
+ * Quatro dos seis produtos pesquisados explicam antecedência com um caso
+ * concreto, e nenhum deles explica com o número sozinho (§1.5).
+ *
+ * A volta de dia não é preciosismo: o campo aceita até 10080 minutos (sete
+ * dias), e a subtração crua escrevia "até -8h00" para qualquer antecedência
+ * acima de 16 horas.
+ */
+function dicaDaAntecedencia(minutos: number): string {
+  if (minutos <= 0) return 'Sem antecedência: o cliente marca até a hora do corte.';
+
+  const diasAntes = Math.max(0, Math.ceil((minutos - EXEMPLO_EM_MINUTOS) / MINUTOS_NO_DIA));
+  const prazo = EXEMPLO_EM_MINUTOS - minutos + diasAntes * MINUTOS_NO_DIA;
+  const hora = Math.floor(prazo / 60);
+  const minuto = prazo % 60;
+  const relogio = minuto === 0 ? `${hora}h` : `${hora}h${String(minuto).padStart(2, '0')}`;
+  const dia =
+    diasAntes === 0 ? '' : diasAntes === 1 ? ' do dia anterior' : ` de ${diasAntes} dias antes`;
+
+  return `${minutos} min — para marcar às 16h, o cliente precisa fechar até ${relogio}${dia}`;
+}
+
+/**
+ * Lê o número que está no campo sem deixar o estado quebrar enquanto se digita:
+ * `<input type="number">` vazio devolve `NaN`, e a dica não pode virar "NaN min"
+ * no meio de uma troca de valor. Vazio mantém a última leitura boa.
+ */
+function numeroDigitado(valor: string, anterior: number): number {
+  const n = Number(valor);
+  return valor === '' || Number.isNaN(n) ? anterior : n;
+}
+
 type Loja = {
   name: string;
   slotMinutes: number;
@@ -112,42 +190,66 @@ type Loja = {
  * da agenda* é o que decide quando dá para marcar. O corte é o que o próprio
  * subtítulo da tela anuncia.
  *
- * `linkPublico` é opcional porque só o servidor sabe montá-lo (`env.APP_URL` +
- * slug) — quem monta este formulário em teste passa apenas a loja, e sem
- * endereço o bloco simplesmente não aparece. A única tela que o usa passa o
- * valor.
+ * O link público, que era renderizado aqui, agora é um componente separado
+ * (`LinkDeAgendamento`) para ficar fora do formulário — copiar age na hora, o
+ * submit age depois, e misturar faz a pessoa achar que salvou. Ele **entra pelo
+ * meio**, entre as duas seções, porque a ordem da tela é identidade → link →
+ * regras (§2.3): o slug nasce do nome, então o link vem logo depois de quem o
+ * gera. Quem monta o bloco é a página; aqui ele só é posicionado, e continua
+ * fora do `<form>` graças ao `ID_DO_FORMULARIO`.
  */
-export function SettingsForm({ loja, linkPublico }: { loja: Loja; linkPublico?: string }) {
+export function SettingsForm({
+  loja,
+  linkDeAgendamento,
+}: {
+  loja: Loja;
+  /** O bloco do link, renderizado entre "Identidade" e "Regras da agenda". */
+  linkDeAgendamento?: ReactNode;
+}) {
   const [state, formAction, pending] = useActionState(saveSettingsAction, ESTADO_INICIAL);
   const [matiz, setMatiz] = useState<number | null>(loja.accentHue);
 
+  /**
+   * O fuso mora em estado, e **não** no `defaultValue` do `Select`. O
+   * disparador sai da árvore quando o "alterar" fecha, e com ele iria embora a
+   * escolha recém-feita — a pessoa trocaria o fuso, recolheria o bloco e
+   * salvaria o valor antigo sem nada avisando. Quem leva o valor para a action
+   * é o campo oculto, que fica montado esteja o bloco aberto ou fechado.
+   */
+  const [fuso, setFuso] = useState(loja.timeZone);
+  const [fusoAberto, setFusoAberto] = useState(false);
+
+  /**
+   * As duas dicas com número acompanham o que está digitado, não o que está
+   * salvo: quem troca 60 por 30 espera ler 15h30 na frase, não 15h.
+   */
+  const [antecedencia, setAntecedencia] = useState(loja.minLeadMinutes);
+  const [janela, setJanela] = useState(loja.maxAdvanceDays);
+
+  const idDoFuso = useId();
+  const idDaDicaDaGrade = useId();
+
   return (
-    <form action={formAction} className="flex flex-col gap-4">
-      <Card>
-        <CardHeader>
-          <CardTitle>Identidade</CardTitle>
-        </CardHeader>
+    // Fragmento, e não um `<div>`: quem dá a coluna e os 16px entre as seções é
+    // a `<Largura>` da página. Um invólucro aqui só somaria um nível de flex
+    // para repetir o mesmo `gap`.
+    <>
+      <SecaoDeAjustes titulo="Identidade">
         {/* O card ocupa a largura de leitura da tela, mas cada campo para nos
             520px da régua: linha de input larga demais faz o olho perder o
             começo ao voltar. */}
-        <CardContent className="flex flex-col gap-4">
-          <Largura tipo="formulario">
+        <div className="flex flex-col gap-4">
+          <Largura tipo="formulario" className="mx-0">
             <Campo rotulo="Nome da barbearia">
-              <input name="name" defaultValue={loja.name} required minLength={2} />
+              <input
+                name="name"
+                form={ID_DO_FORMULARIO}
+                defaultValue={loja.name}
+                required
+                minLength={2}
+              />
             </Campo>
           </Largura>
-
-          {/* O endereço não é campo de preencher: é para ler e copiar, e por
-              isso é o único bloco daqui que usa a largura inteira do card —
-              apertado em 520px o slug longo quebra sem precisar. */}
-          {linkPublico ? (
-            <div className="flex flex-col gap-1">
-              <p className={MICRO_ROTULO}>Endereço público</p>
-              {/* `break-all` porque o slug pode ser longo e em 360px o endereço
-                  é a única coisa da tela que não tem onde quebrar. */}
-              <code className="block break-all text-base leading-6">{linkPublico}</code>
-            </div>
-          ) : null}
 
           {/* Doze fichas em vez de `input type="color"`: menos escolha e zero
               cor feia. O dono controla só o matiz — L e croma são travados,
@@ -159,7 +261,7 @@ export function SettingsForm({ loja, linkPublico }: { loja: Loja; linkPublico?: 
               `<legend>` e o "Escolhida:" de fora sobrava um bloco de fichas
               deslocado do próprio rótulo. Com todo mundo dentro do mesmo teto,
               o pedaço anda inteiro — não importa se centrado ou à esquerda. */}
-          <Largura tipo="formulario">
+          <Largura tipo="formulario" className="mx-0">
             {/* O grupo acessível é o próprio `<fieldset>`, nomeado pela
                 `<legend>` — um `role="group"` aqui dentro criaria um segundo
                 grupo de mesmo nome dentro do primeiro. */}
@@ -169,27 +271,31 @@ export function SettingsForm({ loja, linkPublico }: { loja: Loja; linkPublico?: 
                 Aparece só na página que o cliente vê. Sem cor, a página fica preto e branco.
               </p>
 
-              {/* Nenhuma das treze fichas carrega altura própria: ficha é
-                  controle, e controle mede `--altura-controle` (36px) desde
-                  13/08/2026 — a mesma régua do botão, do campo e da
-                  `fichas-de-escolha`. O `min-h-12` que estava aqui era a
-                  "altura de balcão" de 48px da direção velha, e deixava aqui a
-                  única fileira de 48px de uma tela inteira de 36. */}
-              <Botao
-                type="button"
-                variante="secundario"
-                aria-pressed={matiz === null}
-                onClick={() => setMatiz(null)}
-                className={`self-start ${matiz === null ? 'border-2 border-tinta font-bold' : ''}`}
-              >
-                Sem cor
-              </Botao>
-
               {/* Grade de colunas fixas, e não `flex-wrap`: com as fichas
                   quebrando por conta própria a segunda linha começava fora do
-                  alinhamento da primeira. Doze cabem exatas em 4 colunas no
-                  celular e em 6 no resto — nenhuma linha sobra torta. */}
-              <div className="grid grid-cols-4 gap-2 sm:grid-cols-6">
+                  alinhamento da primeira.
+
+                  **A ficha é a cor**, e não uma moldura de 80×36 com a cor num
+                  círculo de 16px lá dentro (§1.4): a informação era o detalhe.
+
+                  **"Sem cor" é a 13ª, e vem primeiro.** Flutuando acima, numa
+                  linha só dela, ela começava em x=588 enquanto as doze de baixo
+                  começavam em x=424 — é o desalinhamento medido em 16/08.
+
+                  A altura continua sendo a do `Botao` (36px, `--altura-controle`):
+                  ficha é controle, e controle mede a mesma coisa que o campo e o
+                  botão desde 13/08/2026. */}
+              <div data-slot="fichas-de-cor" className="grid grid-cols-4 gap-2 sm:grid-cols-6">
+                <Botao
+                  type="button"
+                  variante="secundario"
+                  aria-pressed={matiz === null}
+                  onClick={() => setMatiz(null)}
+                  className={cn('w-full px-0', matiz === null && 'border-2 border-tinta font-bold')}
+                >
+                  Sem cor
+                </Botao>
+
                 {MATIZES_PERMITIDOS.map((h) => {
                   const escolhido = matiz === h;
                   return (
@@ -201,42 +307,48 @@ export function SettingsForm({ loja, linkPublico }: { loja: Loja; linkPublico?: 
                       aria-label={NOME_DO_MATIZ[h]}
                       title={NOME_DO_MATIZ[h]}
                       onClick={() => setMatiz(h)}
-                      className={`w-full px-0 ${escolhido ? 'border-2 border-tinta' : ''}`}
+                      className={cn('w-full px-0 text-white', escolhido && 'border-2 border-tinta')}
+                      style={{ backgroundColor: corDoMatiz(h) }}
                     >
-                      {/* 24px, e não os 28px de antes: a ficha desceu de 48 para
-                          36, e a borda de 2px da escolhida come mais 4 — com o
-                          quadrado velho sobrava 1px de cada lado e a cor
-                          encostava na moldura. */}
-                      <span
-                        aria-hidden="true"
-                        className="h-6 w-6 rounded-cx border border-linha"
-                        style={{ background: corDoMatiz(h) }}
-                      />
+                      {/* Quem marca a escolhida é o ✓, não a borda. Em `--tinta`
+                          sobre um fundo de L=0.45 a borda quase some no tema
+                          claro, e aí a única diferença entre a ficha escolhida e
+                          as outras onze seria a cor — que é justamente o que a
+                          pessoa está tentando comparar. */}
+                      {escolhido ? <Check aria-hidden="true" /> : null}
                     </Botao>
                   );
                 })}
               </div>
 
               {/* Campo oculto: a server action continua lendo um FormData comum. */}
-              <input type="hidden" name="accentHue" value={matiz === null ? '' : String(matiz)} />
+              <input
+                type="hidden"
+                name="accentHue"
+                form={ID_DO_FORMULARIO}
+                value={matiz === null ? '' : String(matiz)}
+              />
 
               <p className="text-sm leading-5 text-tinta-2">
                 Escolhida: <strong>{matiz === null ? 'Sem cor' : NOME_DO_MATIZ[matiz]}</strong>
               </p>
             </fieldset>
           </Largura>
-        </CardContent>
-      </Card>
+        </div>
+      </SecaoDeAjustes>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Regras da agenda</CardTitle>
-        </CardHeader>
-        {/* Quatro campos curtos em duas colunas: em coluna única eles deixavam
-            o card com três quartos vazios à direita.
+      {linkDeAgendamento}
+
+      <SecaoDeAjustes
+        titulo="Regras da agenda"
+        descricao="Quando o cliente consegue marcar, e com quanta antecedência."
+      >
+        {/* Três campos curtos em duas colunas, e o fuso ocupando a linha
+            inteira embaixo: em coluna única eles deixavam o card com três
+            quartos vazios à direita.
 
             **A quebra é em `lg`, não em `md`.** Entre 768 e ~900px a coluna
-            mede 212–278px, e aí "Janela máxima de agendamento (dias)" quebra em
+            mede 212–278px, e aí "Até quando o cliente pode marcar" quebra em
             duas linhas enquanto o vizinho de linha fica em uma — as duas caixas
             da mesma linha param em alturas diferentes. Em `lg` a coluna mais
             estreita já é de 340px, onde o rótulo mais longo cabe inteiro.
@@ -245,42 +357,23 @@ export function SettingsForm({ loja, linkPublico }: { loja: Loja; linkPublico?: 
             cima: na largura de leitura a coluna dá 536px, acima dos 520 da
             régua, e sem o teto o campo passaria a depender de o degrau
             `leitura` nunca mudar de número. */}
-        <CardContent className="grid gap-4 lg:grid-cols-2">
-          {/* Os dois `<select>` nativos viraram o `Select` do shadcn. O `name`
-              fica no `<Select>`, e **não** há campo oculto ao lado: o
-              `Select.Root` do base-ui já emite sozinho um `<input>` de verdade
-              com esse `name` e o valor serializado, então
-              `Object.fromEntries(formData)` na server action continua vendo
-              `timeZone` e `slotMinutes` como antes. Repetir o nome num
-              `<input type="hidden">` mandaria o campo duas vezes — é o mesmo
-              defeito que `fichas-de-escolha.tsx` documenta no RadioGroup, e a
-              regra é a de lá: quem já emite o campo não ganha oculto. */}
-          <Largura tipo="formulario">
-            <Campo rotulo="Fuso horário">
-              <Select name="timeZone" items={OPCOES_DE_FUSO} defaultValue={loja.timeZone} required>
-                <SelectTrigger className={DISPARADOR}>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {OPCOES_DE_FUSO.map((opcao) => (
-                    <SelectItem key={opcao.value} value={opcao.value}>
-                      {opcao.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </Campo>
-          </Largura>
-
-          <Largura tipo="formulario">
-            <Campo rotulo="Grade de horários (minutos)">
+        <div className="grid gap-4 lg:grid-cols-2">
+          {/* A dica desta não vai pela prop `dica` do `Campo`, e é de propósito:
+              o cabeçalho do `campo.tsx` avisa que o `aria-describedby` injetado
+              lá morre no `Select.Root`, que só repassa o `id` ao disparador.
+              Dica escrita à mão e amarrada no `SelectTrigger` é o que aquele
+              comentário manda fazer — sem isso a frase fica na tela e some para
+              quem ouve. */}
+          <Largura tipo="formulario" className="mx-0 flex flex-col gap-2">
+            <Campo rotulo="Grade de horários">
               <Select
                 name="slotMinutes"
+                form={ID_DO_FORMULARIO}
                 items={OPCOES_DE_GRADE}
                 defaultValue={String(loja.slotMinutes)}
                 required
               >
-                <SelectTrigger className={DISPARADOR}>
+                <SelectTrigger className={DISPARADOR} aria-describedby={idDaDicaDaGrade}>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -292,64 +385,165 @@ export function SettingsForm({ loja, linkPublico }: { loja: Loja; linkPublico?: 
                 </SelectContent>
               </Select>
             </Campo>
+            <p id={idDaDicaDaGrade} className={DICA}>
+              De quanto em quanto tempo os horários aparecem para o cliente.
+            </p>
           </Largura>
 
-          <Largura tipo="formulario">
-            <Campo rotulo="Antecedência mínima (minutos)">
+          <Largura tipo="formulario" className="mx-0">
+            <Campo rotulo="Antecedência mínima" dica={dicaDaAntecedencia(antecedencia)}>
               <input
                 name="minLeadMinutes"
+                form={ID_DO_FORMULARIO}
                 type="number"
                 inputMode="numeric"
                 min={0}
                 defaultValue={loja.minLeadMinutes}
+                onChange={(evento) =>
+                  setAntecedencia((atual) => numeroDigitado(evento.target.value, atual))
+                }
                 required
               />
             </Campo>
           </Largura>
 
-          <Largura tipo="formulario">
-            <Campo rotulo="Janela máxima de agendamento (dias)">
+          <Largura tipo="formulario" className="mx-0">
+            <Campo
+              rotulo="Até quando o cliente pode marcar"
+              dica={`${janela} ${janela === 1 ? 'dia' : 'dias'} à frente`}
+            >
               <input
                 name="maxAdvanceDays"
+                form={ID_DO_FORMULARIO}
                 type="number"
                 inputMode="numeric"
                 min={1}
                 max={365}
                 defaultValue={loja.maxAdvanceDays}
+                onChange={(evento) => setJanela((atual) => numeroDigitado(evento.target.value, atual))}
                 required
               />
             </Campo>
           </Largura>
-        </CardContent>
-      </Card>
 
-      {/* Recado e envio acompanham a largura de campo: botão de 1120px não é
-          botão, é faixa. */}
-      <Largura tipo="formulario" className="flex flex-col gap-3">
-        <ErroDeAcao mensagem={state.erro} />
-        {state.ok ? (
-          <p role="status" className="text-sm leading-5 text-ok">
-            Configurações salvas.
-          </p>
-        ) : null}
+          {/* O fuso desce para o rodapé da seção, atrás de um "alterar".
+              Nenhum produto de salão trata fuso como preferência (§1.1): a
+              Booksy não deixa o dono mexer e a Vagaro não tem o campo. Aqui ele
+              fica alcançável sem estar no caminho — e quando o endereço da loja
+              entrar, o fuso passa a ser derivado dele e o "alterar" some.
 
+              **O campo oculto fica fora do `fusoAberto`, e é o único
+              `name="timeZone"` do formulário.** Se o valor viajasse no `Select`,
+              recolher o bloco tiraria o campo do `<form>`: a action receberia
+              `timeZone` ausente e a barbearia que não é de São Paulo perderia a
+              configuração. O `Select` daqui só pinta a escolha; quem a carrega é
+              o estado. Nomear os dois mandaria o campo duas vezes — o mesmo
+              defeito que a `fichas-de-escolha.tsx` documenta. */}
+          <div className="col-span-full flex flex-col gap-2 border-t border-linha pt-6">
+            <div className="flex items-start justify-between gap-4">
+              {/* Fechado é texto, aberto é campo, nunca os dois: o rótulo do
+                  `Campo` já escreve "Fuso horário", e mantê-lo acima repetiria a
+                  palavra duas vezes na mesma linha. */}
+              {fusoAberto ? (
+                <Largura tipo="formulario" id={idDoFuso} className="mx-0 min-w-0 flex-1">
+                  <Campo rotulo="Fuso horário">
+                    <Select
+                      items={OPCOES_DE_FUSO}
+                      value={fuso}
+                      onValueChange={(novo) => setFuso(String(novo ?? loja.timeZone))}
+                    >
+                      <SelectTrigger className={DISPARADOR}>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {OPCOES_DE_FUSO.map((opcao) => (
+                          <SelectItem key={opcao.value} value={opcao.value}>
+                            {opcao.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </Campo>
+                </Largura>
+              ) : (
+                <div className="flex min-w-0 flex-col gap-1">
+                  <p className={MICRO_ROTULO}>Fuso horário</p>
+                  <p className="text-sm leading-5 text-tinta-2">{fuso}</p>
+                </div>
+              )}
+
+              <Botao
+                type="button"
+                variante="texto"
+                aria-expanded={fusoAberto}
+                aria-controls={fusoAberto ? idDoFuso : undefined}
+                aria-label={fusoAberto ? 'Ocultar o fuso horário' : 'Alterar o fuso horário'}
+                onClick={() => setFusoAberto((aberto) => !aberto)}
+                className="shrink-0"
+              >
+                {fusoAberto ? 'Ocultar' : 'Alterar'}
+              </Botao>
+            </div>
+
+            <input type="hidden" name="timeZone" form={ID_DO_FORMULARIO} value={fuso} />
+          </div>
+        </div>
+      </SecaoDeAjustes>
+
+      {/* Só existe quando há o que dizer. Montado sempre, o bloco vazio ainda
+          consumia dois `gap-4` da coluna e abria 32px de nada entre o último
+          campo e a barra. */}
+      {state.erro || state.ok ? (
+        <Largura tipo="formulario" className="mx-0 flex flex-col gap-3">
+          <ErroDeAcao mensagem={state.erro} />
+          {state.ok ? (
+            <p role="status" className="text-sm leading-5 text-ok">
+              Configurações salvas.
+            </p>
+          ) : null}
+        </Largura>
+      ) : null}
+
+      {/* Barra fixa no celular, estática no desktop — o mesmo padrão do
+          `contact-step.tsx`, com o `--sombra-barra` que a §3.6 reserva para
+          barra fixa de ação. É reuso, não invenção.
+
+          `-mx-3`, e não os `-mx-4` de lá: a margem negativa tem que valer
+          exatamente o recheio da casca, e a do painel é `p-3`. Com 16px a barra
+          passava 4px de cada lado da janela, e em 360px a tela rolava de lado —
+          que é o que o e2e de acabamento proíbe.
+
+          `md:pt-8` são os 32px que, somados aos 16 do `gap-4` da coluna da
+          página, fecham os 48px que o Carbon pede entre o último campo e o
+          botão. No celular quem dá o respiro é a barra descolar do conteúdo.
+
+          **A barra é o `<form>`** — ver o comentário do `ID_DO_FORMULARIO`. Os
+          campos moram nas seções acima e se amarram aqui pelo atributo `form`,
+          que é o que deixa o link de agendamento passar pelo meio da tela sem
+          entrar no formulário. */}
+      <form
+        id={ID_DO_FORMULARIO}
+        action={formAction}
+        className="sticky bottom-0 -mx-3 border-t border-linha bg-bg px-3 pt-3 shadow-[var(--sombra-barra)] md:static md:mx-0 md:flex md:justify-start md:border-0 md:px-0 md:pt-8 md:shadow-none"
+        style={{ paddingBottom: 'calc(12px + env(safe-area-inset-bottom))' }}
+      >
         {/* No desktop ele nem chega nos 520: formulário de coluna única tem um
             envio só, e botão que atravessa a coluna inteira vira faixa de novo,
-            só que menor. `sm:w-auto` desfaz o `w-full` do `largura="total"` e
-            `sm:self-start` é o par obrigatório dele — sem isso o `align-items:
+            só que menor. `md:w-auto` desfaz o `w-full` do `largura="total"` e
+            `md:self-start` é o par obrigatório dele — sem isso o `align-items:
             stretch` desta coluna estica o botão de volta, porque `width: auto`
             em item de flex é justamente o caso em que o stretch manda. Abaixo de
-            `sm` continua largura total, que é o alvo que o polegar quer. */}
+            `md` continua largura total, que é o alvo que o polegar quer. */}
         <Botao
           type="submit"
           largura="total"
           pendente={pending}
           rotuloPendente="Salvando…"
-          className="sm:w-auto sm:self-start"
+          className="md:w-auto md:self-start"
         >
           Salvar configurações
         </Botao>
-      </Largura>
-    </form>
+      </form>
+    </>
   );
 }

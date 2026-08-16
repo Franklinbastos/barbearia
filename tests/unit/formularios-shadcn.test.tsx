@@ -163,7 +163,7 @@ describe('SettingsForm — o Select da lib no lugar do select nativo', () => {
 
   it('o rótulo do campo continua ligado ao controle', () => {
     render(<SettingsForm loja={LOJA} />);
-    const disparador = screen.getByLabelText('Fuso horário');
+    const disparador = screen.getByLabelText('Grade de horários');
     expect(disparador.getAttribute('data-slot')).toBe('select-trigger');
   });
 
@@ -171,9 +171,41 @@ describe('SettingsForm — o Select da lib no lugar do select nativo', () => {
     const usuario = userEvent.setup();
     const { container } = render(<SettingsForm loja={LOJA} />);
 
-    await usuario.click(screen.getByLabelText('Grade de horários (minutos)'));
+    await usuario.click(screen.getByLabelText('Grade de horários'));
     await usuario.click(await screen.findByRole('option', { name: '15 min' }));
 
     expect(dadosDoFormulario(container).getAll('slotMinutes')).toEqual(['15']);
+  });
+
+  it('o fuso continua no FormData com o bloco fechado — e uma vez só', async () => {
+    // É o risco anotado no plano de 16/08: o fuso saiu da primeira dobra para
+    // trás de um "alterar", e se o campo só existisse depois do clique a action
+    // receberia `timeZone` ausente e apagaria a configuração de quem não é de
+    // São Paulo. Por isso quem carrega o valor aqui é `<input type="hidden">` e
+    // o `Select` fica **sem `name`** — o par que a `fichas-de-escolha.tsx` já
+    // usa, e o único arranjo em que o campo não vai duas vezes.
+    const usuario = userEvent.setup();
+    const { container } = render(<SettingsForm loja={LOJA} />);
+
+    expect(dadosDoFormulario(container).getAll('timeZone')).toEqual(['America/Sao_Paulo']);
+
+    await usuario.click(screen.getByRole('button', { name: /alterar/i }));
+    expect(dadosDoFormulario(container).getAll('timeZone')).toEqual(['America/Sao_Paulo']);
+  });
+
+  it('trocar o fuso e recolher o bloco não perde a escolha', async () => {
+    // O `Select` sai da árvore ao recolher. Com o valor no `defaultValue` dele,
+    // a escolha ia junto e o formulário salvava o fuso velho calado.
+    const usuario = userEvent.setup();
+    const { container } = render(<SettingsForm loja={LOJA} />);
+
+    await usuario.click(screen.getByRole('button', { name: /alterar/i }));
+    await usuario.click(screen.getByLabelText('Fuso horário'));
+    await usuario.click(await screen.findByRole('option', { name: 'America/Manaus' }));
+    expect(dadosDoFormulario(container).getAll('timeZone')).toEqual(['America/Manaus']);
+
+    await usuario.click(screen.getByRole('button', { name: /ocultar/i }));
+    expect(dadosDoFormulario(container).getAll('timeZone')).toEqual(['America/Manaus']);
+    expect(screen.getByText('America/Manaus')).toBeDefined();
   });
 });

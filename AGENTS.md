@@ -25,3 +25,9 @@ A **aparência é nossa**, não do `base-nova`: `variant={null}` / `size={null}`
 e as classes da §3.1 do `docs/superpowers/design/2026-08-07-direcao-de-ui.md` mandam. Leia a §4.1
 antes de trocar isso — ela registra o que veio de fora, o que ficou nosso e as três armadilhas de
 camada e de `tailwind-merge` que já custaram caro.
+
+# Ambiente
+
+- Docker é nativo no WSL (`docker-ce` via systemd), sem Docker Desktop (removido em
+  16/08/2026). Postgres local: `docker compose up -d postgres` (container `barbearia-postgres`).
+  Erro de permissão no socket em shell antigo = usar `sudo docker`.

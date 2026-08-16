@@ -17,13 +17,20 @@ describe('acabamento de clientes e configurações', () => {
     }
   });
 
-  it('configurações agrupa os campos em seções', () => {
+  it('configurações agrupa os campos em duas seções', () => {
     // sete campos soltos em sequência não dizem o que é identidade e o que é
-    // regra de agenda — o subtítulo da tela já anuncia os dois grupos
+    // regra de agenda — o subtítulo da tela já anuncia os dois grupos.
+    //
+    // O casamento era por `CardTitle|<h2`, e desde 16/08 nenhum dos dois mora
+    // mais neste arquivo: quem escreve o título é a `<SecaoDeAjustes>`, e ele
+    // fica FORA do card (§2.2). O `<h2` só continuava batendo por causa de um
+    // comentário que **explica** isso — teste que passa por comentário é falso
+    // verde. Agora o alvo é a seção mesmo, e são duas: identidade e regras. O
+    // link de agendamento traz a terceira, e ela nasce no arquivo dele.
     const form = readFileSync(
       resolve(process.cwd(), 'src/app/app/configuracoes/settings-form.tsx'),
       'utf8',
     );
-    expect(form).toMatch(/CardTitle|<h2/);
+    expect(form.match(/<SecaoDeAjustes\b/g)).toHaveLength(2);
   });
 });

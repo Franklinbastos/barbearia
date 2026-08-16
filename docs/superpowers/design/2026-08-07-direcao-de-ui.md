@@ -1890,6 +1890,124 @@ Fica registrada como próximo passo.
 o mais próximo é o `atomic-crm`, que é aplicação e não registry. Vale para as duas telas desta
 rodada; o resto do que a busca não encontrou está no fim da §5.7.
 
+### 5.14 Painel — configurações
+
+Acrescentada em 16/08/2026 (spec:
+`docs/superpowers/specs/2026-08-16-configuracoes-design.md`). **Esta tela também não tinha seção
+aqui** — a §5.9 cobre cadastro (lista + formulário de criar/editar), e configuração é outro bicho:
+não se cria nem se apaga nada, mexe-se uma vez e esquece. Foi por isso que ela envelheceu com dois
+alinhamentos dentro do mesmo card, medidos em 1440px: "Nome da barbearia" começando em x=588 e
+"Endereço público", no mesmo card, em x=424.
+
+Duas pesquisas independentes sobre dez produtos (Fresha, Booksy, Square, Vagaro, Mangomint,
+Boulevard, Calendly, Cal.com, Acuity, mais os design systems). Sete decisões ficaram:
+
+**1. Seção anotada, mas EMPILHADA — nunca lado a lado.** O padrão que o Polaris escreveu
+especificamente para settings é a seção anotada: título e descrição numa coluna estreita, campos numa
+larga (`2fr 5fr`), *"stack all setting groups vertically on the page"*. Ele resolve exatamente o
+problema de tela larga — a largura sobrando vira **explicação**, não campo mais largo. **Mas o `2fr
+5fr` só respira a partir de 1120px**, e subir esta tela de `tabela` (880) para `leitura` (1120) a
+tiraria da coluna das outras cinco do painel, que é o defeito que a rodada de 15/08 corrigiu (§3.7).
+Sete campos não pagam essa quebra. Então: **título e descrição acima do card, campos dentro dele**,
+seções empilhadas, tudo em 880px. Perde-se a varredura lateral; ganha-se o painel inteiro começando
+na mesma coluna — e o alinhamento interno vira um só, que era o defeito medido. O tijolo é o
+`<SecaoDeAjustes>` (`src/components/ui/secao-de-ajustes.tsx`), e o `<h2>` fora do
+`[data-slot="card"]` é o que o teste trava.
+
+**2. A ordem é identidade → link → regras.** Ordenar por importância é princípio escrito de Primer,
+Polaris e Android, e o exemplo real bate: a página General do Shopify vai contato → endereço →
+defaults → formato de ID, com identidade antes de regra operacional. O link vem **depois** da
+identidade porque **deriva** dela: o slug nasce do nome.
+
+**3. O link de agendamento fica FORA do `<form>`.** Primer: não misturar controle que age na hora com
+formulário que age no submit — quem clica em "copiar" e sai da tela acha que salvou. Some o nome
+"endereço público": é "booking link" em Booksy, Fresha, Mangomint e Boulevard, e "endereço" vai
+colidir com o endereço físico da loja quando ele entrar. A URL fica em `<code>` com `break-all`,
+**nunca** em input desabilitado ou `readOnly` (Carbon: *"If the component does not have an enabled
+state, do not use a read-only state to display static information"*, e campo desabilitado nem é lido
+por leitor de tela). Copiar é **ícone-botão terciário com ícone de link, não de prancheta** (Polaris,
+em letra), com ✓ inline em `role="status"` por ~2s. E entra o **QR code**, gerado no servidor como
+SVG e recolhido atrás de um `<details>`: é o achado maior da pesquisa e o uso documentado é o de uma
+barbearia — Fresha, *"generate a unique QR code to print on business cards or display in your salon
+window"*; Booksy avisa até que o QR muda se o nome do negócio mudar.
+
+**Consequência de arquitetura, e é a parte que se esquece:** com a ordem 2 e a regra 3 juntas, o link
+cai **no meio** da tela e o `<form>` não pode envolver os campos. A saída é o atributo `form` do
+HTML — o `<form>` é a barra do salvar, e cada campo se amarra nele por
+`form="formulario-de-configuracoes"`.
+É o mecanismo padrão para controle renderizado fora do formulário (o `Select` do base-ui tem a prop
+com essas palavras, e o próprio React usa `form=` num input temporário para injetar o valor do
+submitter), e o `FormData` sai de `form.elements`, que inclui os associados. **O preço é uma
+armadilha:** campo novo sem `form=` fica na tela, parece salvar e não chega na action. Há caso
+unitário casando todos os nomes de campo com o formulário, e caso e2e salvando sem tocar no fuso.
+
+**4. Salvar: um só, no fim, à esquerda, sempre habilitado.** Primer: *"There should only be one save
+button on a page"* e *"Don't have one save button per section of a form"* — o que reprova o Cal.com,
+com sete rodapés de card na mesma tela. Carbon reprova o topo em letra: *"There is a trend among
+product teams to pin buttons at the top of a dedicated-page form. We want to discourage this
+arrangement"* — o que reprova a Fresha. À esquerda porque rótulo e campo são alinhados à esquerda e o
+olho desce por ali (Carbon: *"The primary button will be left-aligned"*). Sempre habilitado porque
+*"Disabled buttons cannot be focused using the Tab key"*. **48px entre o último campo e o botão**, que
+o Carbon pede. **No celular cola no rodapé** — a "pinned footer or tray" do Carbon, com o
+`--sombra-barra` da §3.6, reusando o padrão do `contact-step.tsx` (`sticky bottom-0 … md:static`); a
+margem negativa vale o recheio da casca (`-mx-3`, não `-mx-4`), senão a tela rola de lado em 360px.
+**Nada de auto-save**, e não por gosto: o Primer separa por tipo de controle, e campo de texto, rádio
+e select nativo são *declarative controls* que exigem submit explícito. Os nossos sete são todos
+declarativos — Linear e Notion podem auto-salvar porque as settings deles são quase só interruptor.
+Barra contextual à la Shopify (aparece só quando há mudança) fica anotada para quando a tela crescer:
+custa rastrear `dirty` de sete campos num `useActionState` que hoje não tem esse estado.
+
+**5. A cor da loja fica como está — e aqui as duas pesquisas discordaram.** A de conteúdo mandou
+tirar: *"ou vira hex livre ou some; paleta fixa de fichas não existe em nenhum deles para cor de
+marca"*, e está certa sobre o mercado — Mangomint, Square, Cal.com e Acuity dão hex livre. **A de
+layout ganhou, porque olhou a nossa arquitetura.** Eles dão hex livre e **por isso precisam avisar
+sobre contraste**: o Cal.com roda `checkWCAGContrastColor` a cada mudança, mostra *"Dark theme color
+doesn't pass contrast check"* e deixa salvar assim mesmo; a Acuity tem um artigo de ajuda inteiro
+sobre o botão sumir no e-mail porque a cor ficou igual à do texto. Nós guardamos um número —
+`accentHue` de 0 a 360, com L e croma travados em `oklch(0.45 0.09 H)` (§3.4) —, então **nenhuma
+escolha produz botão ilegível**: resolvemos por construção o que eles resolvem por aviso. Hex livre
+obrigaria a mudar o schema, converter para OKLCH e reimplementar o aviso de contraste em runtime — é
+regressão vestida de modernização. O que muda é só a **forma da ficha**: era um retângulo de 80×36
+com a cor num círculo de 16px, e a cor, que é a informação, era o detalhe; agora **a ficha é a cor**,
+com ✓ marcando a escolhida, e **"Sem cor" entra na mesma grade como 13ª** em vez de flutuar acima
+numa linha só dela. Se um dia doze não bastarem, a saída que **não** quebra a trava é um slider de
+matiz com o `Slider` do Base UI, que já está instalado — mesmo número, escolha contínua, não é color
+picker. Registrado para não se pesquisar de novo: **nem o shadcn nem o Base UI têm color picker**, e a
+issue no Base UI está aberta desde novembro de 2025 sem resposta.
+
+**6. O fuso horário sai do caminho.** **Nenhum produto de salão trata fuso como preferência** — é
+atributo da localização. A Booksy não deixa o dono mexer (*"If you are changing time zones, please
+contact the Support Team via Help Chat"*), a Vagaro não tem o campo (803 artigos varridos, zero),
+Square e Mangomint guardam em `Locations`, e só a Fresha deixa editar, a três cliques. As genéricas
+detectam sozinhas e têm o recurso **oposto** para o nosso caso: travar o fuso na página pública
+quando o evento é presencial (`lock_timezone_toggle_on_booking_page` no Cal.com). Então o campo vira
+**texto no rodapé da seção de regras**, com um "alterar" discreto que revela o `Select`. **O que não
+pode acontecer é o valor ser sobrescrito pelo padrão no salvamento**, o que apagaria a configuração de
+quem a ajustou: quem carrega o valor é um campo oculto montado sempre, e o `Select` só pinta a
+escolha. Quando o endereço da loja entrar (§6.1), o fuso passa a ser derivado dele e o "alterar"
+some.
+
+**7. Os rótulos das regras ganham exemplo, e o exemplo acompanha o valor.** Quatro dos seis produtos
+explicam com um caso concreto — Mangomint: *"If the minimum prior time required is 15 minutes, clients
+must book a 4 PM appointment by 3:45 PM."* E ninguém usa "janela" sozinho como rótulo: o campo é
+nomeado pelo efeito.
+
+| Era | Virou | Dica |
+|---|---|---|
+| Antecedência mínima (minutos) | **Antecedência mínima** | "60 min — para marcar às 16h, o cliente precisa fechar até 15h" |
+| Janela máxima de agendamento (dias) | **Até quando o cliente pode marcar** | "30 dias à frente" |
+| Grade de horários (minutos) | **Grade de horários** | "de quanto em quanto tempo os horários aparecem para o cliente" |
+
+A dica liga no campo por `aria-describedby`, que o `<Campo>` já faz — **menos no `Select`**, onde o
+`aria-describedby` injetado morre no `Select.Root`: ali a amarração é escrita à mão no
+`<SelectTrigger>`, e o cabeçalho do `campo.tsx` avisa.
+
+**O que esta tela ainda não tem** está na §3 da spec, e não é pouco: horário de funcionamento da loja
+(a configuração nº1 de todos os seis produtos de salão, e hoje o horário vive só no expediente de
+cada barbeiro), endereço/telefone/redes (o `phone` **já existe no banco** e não aparece em tela
+nenhuma), prazo de cancelamento pelo cliente, e confirmação automática ou manual. Cada um mexe em
+schema, em página pública e no motor de disponibilidade — é rodada própria.
+
 ---
 
 ## 6. O que o sistema ainda não tem

@@ -1,8 +1,9 @@
 import { test, expect, type Page } from '@playwright/test';
 import { DateTime } from 'luxon';
+import { eq } from 'drizzle-orm';
 
 import { db } from '@/db/client';
-import { appointment, customer, service, staff, staffService } from '@/db/schema';
+import { appointment, barbershop, customer, service, staff, staffService } from '@/db/schema';
 import { entrarNoPainel, TZ, type LojaDeTeste } from './fixtures/painel';
 
 /**
@@ -56,6 +57,25 @@ import { entrarNoPainel, TZ, type LojaDeTeste } from './fixtures/painel';
  *    sem remarcar**, que é o jeito de o modo ficar ligado sem ninguém perceber.
  * 8. **O dia vazio sem "livre · livre"** — se não há nada marcado, todo mundo
  *    está livre; a linha não é notícia.
+ *
+ * **As quatro de 16/08/2026 são da tela de configurações**, e as duas últimas
+ * são as mais importantes do arquivo inteiro: são as que provam que **salvar não
+ * apaga o fuso**.
+ *
+ * 9. **As três seções na ordem, com o título fora do card e o link fora do
+ *    `<form>`.** A ordem (identidade → link → regras) e o alinhamento único são
+ *    a reforma inteira de 16/08, e nenhuma das duas se vê lendo um componente
+ *    isolado: quem monta a tela é a página.
+ * 10. **Copiar o link.** A área de transferência é do navegador; em jsdom o que
+ *    se testa é um dublê.
+ * 11. **Alterar o fuso e salvar.** O `Select` do fuso sai da árvore quando o
+ *    bloco recolhe, então quem carrega o valor é um campo oculto — e campo
+ *    oculto é justamente o tipo de coisa que passa despercebida quando quebra.
+ * 12. **Salvar SEM tocar no fuso.** É o risco escrito no plano de 16/08: o
+ *    campo sumindo do `<form>` faria a action gravar o padrão por cima e
+ *    **apagar a configuração** da barbearia que não é de São Paulo. Desde a
+ *    mesma rodada os campos moram fora do `<form>` e se amarram nele pelo
+ *    atributo `form`; se essa amarração cair, este é o caso que grita.
  *
  * **Um cadastro por medida, não um por tela.** As seis telas cabem no mesmo
  * navegador e na mesma loja, e cadastrar doze vezes só faria a suíte demorar. De
@@ -596,4 +616,134 @@ test('o dia vazio não repete "livre · livre"', async ({ page }) => {
   // próxima ação é a única que há. O "Encaixe" da barra também está na tela, e
   // é por isso que a busca é dentro do bloco.
   await expect(vazio.getByRole('button', { name: 'Encaixe' })).toBeVisible();
+});
+
+/** O que a loja tem gravado agora — a resposta que a tela não dá. */
+async function lojaNoBanco(barbershopId: string) {
+  const [linha] = await db.select().from(barbershop).where(eq(barbershop.id, barbershopId));
+  return linha;
+}
+
+test('as configurações abrem com as três seções na ordem, o título fora do card e o link fora do form', async ({
+  page,
+}) => {
+  await entrarNoPainel(page, LOJA);
+  await abrir(page, '/app/configuracoes');
+
+  // Identidade → link → regras. O link vem no meio porque **deriva** da
+  // identidade: o slug nasce do nome (§2.3). Até 16/08 ele caía depois do
+  // formulário inteiro, o que punha a regra operacional na frente da coisa que
+  // o dono mais manda para o cliente.
+  const titulos = page.locator('[data-slot="secao-de-ajustes"] [data-slot="secao-titulo"]');
+  await expect(titulos).toHaveText(['Identidade', 'Link de agendamento', 'Regras da agenda']);
+
+  // **O título fora do card** é a correção do defeito medido: "Nome da
+  // barbearia" em x=588 e "Endereço público" em x=424, no mesmo card, porque
+  // metade do conteúdo respeitava uma coluna de rótulo que a outra metade
+  // ignorava. Isso é geometria de DOM montado — o unitário prova o componente,
+  // este prova a tela.
+  const dentroDoCard = await titulos.evaluateAll((h2s) =>
+    h2s.filter((h2) => h2.closest('[data-slot="card"]') !== null).map((h2) => h2.textContent ?? ''),
+  );
+  expect(dentroDoCard).toEqual([]);
+
+  // **O link fora do `<form>`** (§2.4): copiar age na hora, o formulário age no
+  // submit, e quem clica em copiar e sai da tela acha que salvou. Na tela
+  // montada o link fica no meio das duas seções de campo, então só o DOM de
+  // verdade responde se ele ficou de fora — os campos se amarram ao formulário
+  // pelo atributo `form`, e não por aninhamento.
+  const secaoDoLink = page
+    .locator('[data-slot="secao-de-ajustes"]')
+    .filter({ has: page.getByRole('heading', { name: 'Link de agendamento' }) });
+  expect(await secaoDoLink.evaluate((secao) => secao.closest('form') === null)).toBe(true);
+
+  // E o formulário continua sendo um só, com um botão de salvar só (Primer:
+  // "There should only be one save button on a page"). A busca é dentro do
+  // `<main>` porque o `page.locator` atravessa shadow DOM e alcançaria o
+  // sobreposto de desenvolvimento do Next.
+  await expect(page.locator('main form')).toHaveCount(1);
+  await expect(page.locator('main').getByRole('button', { name: /salvar/i })).toHaveCount(1);
+});
+
+test('copiar o link de agendamento põe a URL na área de transferência e avisa', async ({
+  page,
+  context,
+}) => {
+  await entrarNoPainel(page, LOJA);
+  // A permissão é do contexto, e fica aqui em vez de no `playwright.config.ts`:
+  // é o único caso do projeto que lê a área de transferência, e concedê-la para
+  // a suíte inteira esconderia o dia em que outra tela passar a depender dela.
+  await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+  await abrir(page, '/app/configuracoes');
+
+  const endereco = page.locator('[data-slot="link-endereco"]');
+  const url = ((await endereco.textContent()) ?? '').trim();
+  expect(url).toContain(`/b/${LOJA.slug}`);
+
+  await page.getByRole('button', { name: 'Copiar link de agendamento' }).click();
+
+  // O aviso primeiro, porque ele some em 2s — Polaris: "Provide feedback inline
+  // using a confirmation check icon post-click". Sem retorno, a pessoa clica de
+  // novo achando que falhou.
+  await expect(page.locator('[data-slot="link-aviso"]')).toHaveText('Link copiado.');
+  expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(url);
+});
+
+test('o fuso só aparece depois do "alterar", e o que for escolhido salva', async ({ page }) => {
+  const ids = await entrarNoPainel(page, LOJA);
+  await abrir(page, '/app/configuracoes');
+
+  // Fechado é texto, não campo: nenhum produto de salão trata fuso como
+  // preferência (§1.1). Um `<select>` de 400 opções na segunda dobra é convite
+  // a errar sem nenhum ganho.
+  // `getByLabel` não serve aqui: ele casa por substring, e o `aria-label` do
+  // próprio botão ("Alterar o fuso horário") contém o rótulo do campo. Quem diz
+  // se o campo existe é o papel de combobox.
+  await expect(page.getByRole('combobox', { name: 'Fuso horário' })).toHaveCount(0);
+  await expect(page.getByText(TZ, { exact: true })).toBeVisible();
+
+  await page.getByRole('button', { name: 'Alterar o fuso horário' }).click();
+
+  const disparador = page.getByRole('combobox', { name: 'Fuso horário' });
+  await expect(disparador).toBeVisible();
+  await disparador.click();
+  await page.getByRole('option', { name: 'America/Manaus' }).click();
+
+  await page.getByRole('button', { name: 'Salvar configurações' }).click();
+  await expect(page.getByText('Configurações salvas.')).toBeVisible();
+
+  expect((await lojaNoBanco(ids.barbershopId)).timeZone).toBe('America/Manaus');
+
+  // E de volta na tela recarregada, fechado de novo: se o valor só existisse no
+  // estado do cliente, aqui apareceria o antigo.
+  await abrir(page, '/app/configuracoes');
+  await expect(page.getByText('America/Manaus', { exact: true })).toBeVisible();
+});
+
+test('salvar sem tocar no fuso não apaga o fuso que já estava lá', async ({ page }) => {
+  const ids = await entrarNoPainel(page, LOJA);
+
+  // A barbearia que **de fato** não é de São Paulo: é ela quem perderia a
+  // configuração. Com o fuso no padrão, o defeito passaria despercebido — o
+  // valor gravado por engano seria igual ao que já estava.
+  await db
+    .update(barbershop)
+    .set({ timeZone: 'America/Manaus' })
+    .where(eq(barbershop.id, ids.barbershopId));
+
+  await abrir(page, '/app/configuracoes');
+  await expect(page.getByText('America/Manaus', { exact: true })).toBeVisible();
+
+  // Mexe em outra coisa e salva, **sem nunca abrir o "alterar"**. É o caminho
+  // de 99 de cada 100 salvamentos, e o que apagaria o fuso se o campo oculto
+  // saísse do `<form>` junto com o bloco recolhido.
+  await page.getByLabel('Nome da barbearia').fill('Barbearia do Marcão');
+  await page.getByRole('button', { name: 'Salvar configurações' }).click();
+  await expect(page.getByText('Configurações salvas.')).toBeVisible();
+
+  const depois = await lojaNoBanco(ids.barbershopId);
+  expect(depois.timeZone).toBe('America/Manaus');
+  // E o campo que a pessoa mexeu chegou mesmo na action: sem isto, um "salvou"
+  // que não salva nada passaria neste caso.
+  expect(depois.name).toBe('Barbearia do Marcão');
 });
