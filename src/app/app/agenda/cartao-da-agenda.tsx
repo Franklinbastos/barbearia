@@ -7,6 +7,7 @@ import { executarAcao } from '@/components/action-error';
 import { ErroDeAcao } from '@/components/erro-de-acao';
 import { Badge } from '@/components/ui/badge';
 import { Botao } from '@/components/ui/botao';
+import { BotaoDeCopiar } from '@/components/ui/botao-de-copiar';
 import { FolhaInferior } from '@/components/ui/folha-inferior';
 import {
   formatAppointmentStatus,
@@ -314,15 +315,6 @@ export function CartaoDaAgenda({
     });
   }
 
-  async function copiarTelefone() {
-    try {
-      await navigator.clipboard.writeText(item.customerPhone);
-      setAvisoDaFolha('Telefone copiado.');
-    } catch {
-      setAvisoDaFolha('Não foi possível copiar. Toque em "Ligar para o cliente".');
-    }
-  }
-
   const pele = peleDoEstado(item, agora, corDoBarbeiro);
   const cancelado = item.status === 'CANCELED';
   const finalizado = item.status === 'DONE' || item.status === 'NO_SHOW';
@@ -540,10 +532,17 @@ export function CartaoDaAgenda({
           <a href={`tel:${item.customerPhone}`} className="btn btn--sec btn--tot">
             Ligar para o cliente
           </a>
-          <Botao variante="secundario" largura="total" onClick={copiarTelefone}>
-            Copiar telefone
-          </Botao>
-
+          {/* O gesto e o retorno vêm do `<BotaoDeCopiar>` da casa, o mesmo que
+              o link de agendamento usa. Aqui ele veste `secundario` e largura
+              total porque é item de folha operada com o polegar, e o aviso é o
+              próprio dele — o `avisoDaFolha` continua para as outras ações. */}
+          <BotaoDeCopiar
+            texto={item.customerPhone}
+            oQue="o telefone"
+            rotulo="Copiar telefone"
+            variante="secundario"
+            largura="total"
+          />
           <a
             href={`https://wa.me/${telefoneParaWaMe(item.customerPhone)}`}
             target="_blank"

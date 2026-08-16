@@ -684,15 +684,14 @@ test('copiar o link de agendamento põe a URL na área de transferência e avisa
   const url = ((await endereco.textContent()) ?? '').trim();
   expect(url).toContain(`/b/${LOJA.slug}`);
 
-  // O nome acessível carrega a própria URL desde 16/08 ("Copiar o link
-  // https://…"): o endereço virou o botão, e um rótulo genérico deixaria de
-  // dizer o que vai para a área de transferência.
-  await page.getByRole('button', { name: /^Copiar o link/ }).click();
+  // O `<BotaoDeCopiar>` da casa monta o nome a partir do `oQue` — "Copiar o
+  // link", e não um "Copiar" mudo. A URL fica no texto ao lado, no mesmo grupo.
+  await page.getByRole('button', { name: 'Copiar o link' }).click();
 
   // O aviso primeiro, porque ele some em 2s — Polaris: "Provide feedback inline
   // using a confirmation check icon post-click". Sem retorno, a pessoa clica de
   // novo achando que falhou.
-  await expect(page.locator('[data-slot="link-aviso"]')).toHaveText('Link copiado.');
+  await expect(page.locator('[data-slot="copiar-aviso"]')).toHaveText('Copiado.');
   expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(url);
 });
 

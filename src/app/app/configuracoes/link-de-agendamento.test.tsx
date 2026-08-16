@@ -49,11 +49,11 @@ describe('LinkDeAgendamento', () => {
     expect(container.querySelector('[data-slot="input-group"] input')).toBeNull();
   });
 
-  it('o nome acessível do copiar carrega a própria URL', () => {
-    // o endereço é o botão; um rótulo genérico deixaria de dizer o que vai para
-    // a área de transferência
+  it('o copiar diz o que copia', () => {
+    // "Copiar o link", e não "Copiar": o `<BotaoDeCopiar>` monta o nome a partir
+    // do `oQue`, e a URL fica no `InputGroupText` ao lado, no mesmo grupo.
     montar();
-    expect(screen.getByRole('button', { name: `Copiar o link ${URL_DA_LOJA}` })).toBeDefined();
+    expect(screen.getByRole('button', { name: 'Copiar o link' })).toBeDefined();
   });
 
   it('o atalho para a página do cliente fica ao lado do copiar', () => {
