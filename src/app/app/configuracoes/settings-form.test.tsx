@@ -58,7 +58,7 @@ describe('SettingsForm — cor da loja', () => {
     expect(oculto.value).toBe('30');
   });
 
-  it('mantém os campos que já existiam — fuso agora é um texto com "alterar"', () => {
+  it('mantém os campos que o dono edita — o fuso não é mais um deles', () => {
     render(<SettingsForm loja={loja} />);
     for (const rotulo of [
       'Nome da barbearia',
@@ -68,9 +68,11 @@ describe('SettingsForm — cor da loja', () => {
     ]) {
       expect(screen.getByLabelText(rotulo)).toBeDefined();
     }
-    // O fuso não é mais um campo visível — é um texto com botão "alterar"
-    expect(screen.getByText(loja.timeZone)).toBeDefined();
-    expect(screen.getByRole('button', { name: /alterar/i })).toBeDefined();
+    // O fuso saiu da tela em 16/08: ele é capturado do navegador no cadastro,
+    // como Calendly, Cal.com e Acuity fazem. Uma barbearia tem um endereço e
+    // nunca muda de fuso.
+    expect(screen.queryByText(loja.timeZone)).toBeNull();
+    expect(screen.queryByRole('button', { name: /alterar/i })).toBeNull();
     expect(screen.getByRole('button', { name: 'Salvar configurações' })).toBeDefined();
   });
 });
@@ -138,17 +140,17 @@ describe('o formulário depois da reforma de 16/08', () => {
 
   it('a cor fica na mesma linha do nome da barbearia', () => {
     // Pedido do dono em 16/08: são as duas coisas que o cliente vê, e ele
-    // confere as duas de uma olhada. `1fr auto`, não meio a meio.
+    // confere as duas de uma olhada. Meio a meio.
     const { container } = render(<SettingsForm loja={loja} />);
-    const linha = container.querySelector('.sm\\:grid-cols-\\[1fr_auto\\]');
+    const linha = container.querySelector('.sm\\:grid-cols-2');
     expect(linha).not.toBeNull();
     expect(linha!.textContent).toMatch(/Nome da barbearia/);
     expect(linha!.textContent).toMatch(/Cor da loja/);
   });
 });
 
-describe('o link entra entre as seções, e o formulário não o engole', () => {
-  it('a ordem é identidade → link → regras', () => {
+describe('o link entra no meio da seção, e o formulário não o engole', () => {
+  it('o link vem depois da identidade e antes das regras', () => {
     // §2.3: ordenar por importância, e o link **depois** da identidade porque
     // deriva dela — o slug nasce do nome. Até 16/08 ele caía depois do
     // formulário inteiro, o que punha a regra operacional na frente da coisa
@@ -157,16 +159,18 @@ describe('o link entra entre as seções, e o formulário não o engole', () => 
       <SettingsForm loja={loja} linkDeAgendamento={<section data-slot="link-de-teste" />} />,
     );
 
+    // Desde 16/08 é uma seção só, então a ordem se lê pela posição do link
+    // entre o campo de nome e o de grade — não mais por três títulos.
+    const texto = container.textContent ?? '';
+    expect(texto.indexOf('Nome da barbearia')).toBeLessThan(texto.indexOf('Grade de horários'));
     const blocos = [
-      ...container.querySelectorAll('[data-slot="secao-titulo"], [data-slot="link-de-teste"]'),
+      ...container.querySelectorAll('[name="name"], [data-slot="link-de-teste"], [name="slotMinutes"]'),
     ];
-    expect(blocos.map((bloco) => bloco.getAttribute('data-slot'))).toEqual([
-      'secao-titulo',
+    expect(blocos.map((b) => b.getAttribute('data-slot') ?? b.getAttribute('name'))).toEqual([
+      'name',
       'link-de-teste',
-      'secao-titulo',
+      'slotMinutes',
     ]);
-    expect(blocos[0].textContent).toBe('Identidade');
-    expect(blocos[2].textContent).toBe('Regras da agenda');
   });
 
   it('o bloco do link fica fora do <form>', () => {

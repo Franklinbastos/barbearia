@@ -177,35 +177,20 @@ describe('SettingsForm — o Select da lib no lugar do select nativo', () => {
     expect(dadosDoFormulario(container).getAll('slotMinutes')).toEqual(['15']);
   });
 
-  it('o fuso continua no FormData com o bloco fechado — e uma vez só', async () => {
-    // É o risco anotado no plano de 16/08: o fuso saiu da primeira dobra para
-    // trás de um "alterar", e se o campo só existisse depois do clique a action
-    // receberia `timeZone` ausente e apagaria a configuração de quem não é de
-    // São Paulo. Por isso quem carrega o valor aqui é `<input type="hidden">` e
-    // o `Select` fica **sem `name`** — o par que a `fichas-de-escolha.tsx` já
-    // usa, e o único arranjo em que o campo não vai duas vezes.
-    const usuario = userEvent.setup();
+  it('o fuso vai no FormData mesmo sem aparecer na tela — e uma vez só', () => {
+    // O fuso saiu da tela em 16/08: ele é capturado do navegador no cadastro,
+    // como Calendly e Cal.com fazem. Mas ele **não pode sair do `FormData`** —
+    // sem o campo, a action receberia `timeZone` ausente e gravaria o padrão por
+    // cima, apagando a configuração de quem não é de São Paulo.
     const { container } = render(<SettingsForm loja={LOJA} />);
-
-    expect(dadosDoFormulario(container).getAll('timeZone')).toEqual(['America/Sao_Paulo']);
-
-    await usuario.click(screen.getByRole('button', { name: /alterar/i }));
     expect(dadosDoFormulario(container).getAll('timeZone')).toEqual(['America/Sao_Paulo']);
   });
 
-  it('trocar o fuso e recolher o bloco não perde a escolha', async () => {
-    // O `Select` sai da árvore ao recolher. Com o valor no `defaultValue` dele,
-    // a escolha ia junto e o formulário salvava o fuso velho calado.
-    const usuario = userEvent.setup();
-    const { container } = render(<SettingsForm loja={LOJA} />);
-
-    await usuario.click(screen.getByRole('button', { name: /alterar/i }));
-    await usuario.click(screen.getByLabelText('Fuso horário'));
-    await usuario.click(await screen.findByRole('option', { name: 'America/Manaus' }));
+  it('o fuso da loja é o que viaja, não o padrão', () => {
+    // A barbearia de Manaus é quem perderia o dado se o campo mandasse um valor
+    // chumbado em vez do que está no banco.
+    const { container } = render(<SettingsForm loja={{ ...LOJA, timeZone: 'America/Manaus' }} />);
     expect(dadosDoFormulario(container).getAll('timeZone')).toEqual(['America/Manaus']);
-
-    await usuario.click(screen.getByRole('button', { name: /ocultar/i }));
-    expect(dadosDoFormulario(container).getAll('timeZone')).toEqual(['America/Manaus']);
-    expect(screen.getByText('America/Manaus')).toBeDefined();
   });
+
 });

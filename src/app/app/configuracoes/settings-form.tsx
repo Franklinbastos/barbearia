@@ -19,15 +19,6 @@ import { GRADES_PERMITIDAS, MATIZES_PERMITIDOS } from '@/domain/catalog/shop-set
 
 const ESTADO_INICIAL: SettingsState = {};
 
-const FUSOS_BRASIL = [
-  'America/Noronha',
-  'America/Sao_Paulo',
-  'America/Manaus',
-  'America/Cuiaba',
-  'America/Boa_Vista',
-  'America/Porto_Velho',
-  'America/Rio_Branco',
-];
 
 /**
  * As duas listas no formato que o `<Select.Root items>` da lib pede — é ele que
@@ -35,7 +26,6 @@ const FUSOS_BRASIL = [
  * cru. Sem isso o disparador da grade escreveria "30" onde a lista escreve
  * "30 min".
  */
-const OPCOES_DE_FUSO = FUSOS_BRASIL.map((tz) => ({ label: tz, value: tz }));
 const OPCOES_DE_GRADE = GRADES_PERMITIDAS.map((g) => ({ label: `${g} min`, value: String(g) }));
 
 /**
@@ -66,13 +56,6 @@ const OPCOES_DE_GRADE = GRADES_PERMITIDAS.map((g) => ({ label: `${g} min`, value
  */
 const DISPARADOR = 'min-h-[var(--altura-controle)] w-full sm:max-w-fit';
 
-/**
- * O rótulo dos blocos que não são campo. A cor da loja e o fuso recolhido são os
- * dois pedaços do formulário que não têm `<label>` para carregar o nome, e eles
- * precisam pesar **menos** que o `<h2>` da `SecaoDeAjustes` — senão a tela passa
- * a ter dois níveis de título competindo dentro do mesmo card.
- */
-const MICRO_ROTULO = 'text-sm leading-5 font-bold text-tinta-2';
 
 /**
  * Nome de cada matiz da paleta (§3.4). O dono não escolhe um número: escolhe
@@ -227,8 +210,10 @@ export function SettingsForm({
    * salvaria o valor antigo sem nada avisando. Quem leva o valor para a action
    * é o campo oculto, que fica montado esteja o bloco aberto ou fechado.
    */
-  const [fuso, setFuso] = useState(loja.timeZone);
-  const [fusoAberto, setFusoAberto] = useState(false);
+  // Só leitura: o fuso vem do cadastro (o navegador o informa) e a tela não o
+  // oferece mais. O estado existe porque o campo oculto precisa de um valor, e
+  // ele é o que veio do banco.
+  const fuso = loja.timeZone;
 
   /**
    * As duas dicas com número acompanham o que está digitado, não o que está
@@ -237,7 +222,6 @@ export function SettingsForm({
   const [antecedencia, setAntecedencia] = useState(loja.minLeadMinutes);
   const [janela, setJanela] = useState(loja.maxAdvanceDays);
 
-  const idDoFuso = useId();
   const idDaDicaDaGrade = useId();
   const idDaDicaDaCor = useId();
 
@@ -246,16 +230,26 @@ export function SettingsForm({
     // a `<Largura>` da página. Um invólucro aqui só somaria um nível de flex
     // para repetir o mesmo `gap`.
     <>
-      <SecaoDeAjustes titulo="Identidade">
+      {/* Uma seção só, a pedido do dono. Eram três blocos com título — o
+          padrão de "settings page" do Polaris —, mas com sete campos os três
+          títulos gastavam mais altura do que organizavam: a tela inteira cabe
+          numa dobra e o olho não precisa de placa para achar sete coisas.
+
+          A divisória entre identidade e regras fica, porque ela **separa sem
+          gastar linha**: são dois assuntos, e o dono mexe num sem olhar o
+          outro. */}
+      <SecaoDeAjustes titulo="Configurações">
         {/* O card ocupa a largura de leitura da tela, mas cada campo para nos
             520px da régua: linha de input larga demais faz o olho perder o
             começo ao voltar. */}
         {/* Nome e cor na mesma linha a partir de 640px: são as duas coisas que
-            o cliente vê, e o dono confere as duas de uma olhada. `1fr auto`, e
-            não meio a meio — o nome fica com o espaço do texto e a cor com o de
-            um controle curto. */}
-        <div className="grid gap-4 sm:grid-cols-[1fr_auto] sm:items-start">
-          <Largura tipo="formulario" className="mx-0">
+            o cliente vê, e o dono confere as duas de uma olhada. Meio a meio,
+            a pedido do dono: os dois campos dividem a largura da seção em vez de
+            o nome comer o que sobra. */}
+        <div className="grid gap-4 sm:grid-cols-2 sm:items-start">
+          {/* Sem o teto de `formulario` aqui: quem limita agora é a coluna de
+              metade da seção, que em 880px dá ~420px — abaixo dos 520 da régua. */}
+          <div>
             <Campo rotulo="Nome da barbearia">
               <input
                 name="name"
@@ -265,7 +259,7 @@ export function SettingsForm({
                 minLength={2}
               />
             </Campo>
-          </Largura>
+          </div>
 
           {/* Treze fichas viraram um `Select`, a pedido do dono: elas ocupavam
               três linhas do card para uma escolha que se faz uma vez na vida.
@@ -296,7 +290,7 @@ export function SettingsForm({
                 }}
               >
                 <SelectTrigger
-                  className="min-h-11 w-full sm:w-56 md:min-h-9"
+                  className="min-h-11 w-full md:min-h-9"
                   aria-describedby={idDaDicaDaCor}
                 >
                   <SelectValue />
@@ -338,14 +332,11 @@ export function SettingsForm({
             </p>
           </div>
         </div>
-      </SecaoDeAjustes>
+        {linkDeAgendamento}
 
-      {linkDeAgendamento}
-
-      <SecaoDeAjustes
-        titulo="Regras da agenda"
-        descricao="Quando o cliente consegue marcar, e com quanta antecedência."
-      >
+        {/* A divisória é o que sobrou dos títulos: separa identidade de regras
+            sem gastar uma faixa de 24px para escrever o óbvio. */}
+        <div className="border-t border-linha pt-6">
         {/* Três campos curtos em duas colunas, e o fuso ocupando a linha
             inteira embaixo: em coluna única eles deixavam o card com três
             quartos vazios à direita.
@@ -429,66 +420,16 @@ export function SettingsForm({
             </Campo>
           </Largura>
 
-          {/* O fuso desce para o rodapé da seção, atrás de um "alterar".
-              Nenhum produto de salão trata fuso como preferência (§1.1): a
-              Booksy não deixa o dono mexer e a Vagaro não tem o campo. Aqui ele
-              fica alcançável sem estar no caminho — e quando o endereço da loja
-              entrar, o fuso passa a ser derivado dele e o "alterar" some.
+          {/* O fuso não aparece: ele é capturado do navegador no cadastro
+              (`signup/page.tsx` manda `Intl.DateTimeFormat().resolvedOptions()`),
+              que é o que Calendly, Cal.com e Acuity fazem. Uma barbearia tem um
+              endereço e nunca muda de fuso — a Booksy nem deixa o dono mexer, a
+              Vagaro não tem o campo (§1.1).
 
-              **O campo oculto fica fora do `fusoAberto`, e é o único
-              `name="timeZone"` do formulário.** Se o valor viajasse no `Select`,
-              recolher o bloco tiraria o campo do `<form>`: a action receberia
-              `timeZone` ausente e a barbearia que não é de São Paulo perderia a
-              configuração. O `Select` daqui só pinta a escolha; quem a carrega é
-              o estado. Nomear os dois mandaria o campo duas vezes — o mesmo
-              defeito que a `fichas-de-escolha.tsx` documenta. */}
-          <div className="col-span-full flex flex-col gap-2 border-t border-linha pt-6">
-            <div className="flex items-start justify-between gap-4">
-              {/* Fechado é texto, aberto é campo, nunca os dois: o rótulo do
-                  `Campo` já escreve "Fuso horário", e mantê-lo acima repetiria a
-                  palavra duas vezes na mesma linha. */}
-              {fusoAberto ? (
-                <Largura tipo="formulario" id={idDoFuso} className="mx-0 min-w-0 flex-1">
-                  <Campo rotulo="Fuso horário">
-                    <Select
-                      items={OPCOES_DE_FUSO}
-                      value={fuso}
-                      onValueChange={(novo) => setFuso(String(novo ?? loja.timeZone))}
-                    >
-                      <SelectTrigger className={DISPARADOR}>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {OPCOES_DE_FUSO.map((opcao) => (
-                          <SelectItem key={opcao.value} value={opcao.value}>
-                            {opcao.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </Campo>
-                </Largura>
-              ) : (
-                <div className="flex min-w-0 flex-col gap-1">
-                  <p className={MICRO_ROTULO}>Fuso horário</p>
-                  <p className="text-sm leading-5 text-tinta-2">{fuso}</p>
-                </div>
-              )}
-
-              <Botao
-                type="button"
-                variante="texto"
-                aria-expanded={fusoAberto}
-                aria-controls={fusoAberto ? idDoFuso : undefined}
-                aria-label={fusoAberto ? 'Ocultar o fuso horário' : 'Alterar o fuso horário'}
-                onClick={() => setFusoAberto((aberto) => !aberto)}
-                className="shrink-0"
-              >
-                {fusoAberto ? 'Ocultar' : 'Alterar'}
-              </Botao>
-            </div>
-
-            <input type="hidden" name="timeZone" form={ID_DO_FORMULARIO} value={fuso} />
+              O oculto continua aqui, e é o único `name="timeZone"`: sem ele a
+              action receberia o campo ausente e gravaria o padrão por cima,
+              apagando o fuso de quem não é de São Paulo. */}
+          <input type="hidden" name="timeZone" form={ID_DO_FORMULARIO} value={fuso} />
           </div>
         </div>
       </SecaoDeAjustes>

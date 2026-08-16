@@ -624,18 +624,24 @@ async function lojaNoBanco(barbershopId: string) {
   return linha;
 }
 
-test('as configurações abrem com as três seções na ordem, o título fora do card e o link fora do form', async ({
+test('as configurações cabem numa seção só, com o título fora do card e o link fora do form', async ({
   page,
 }) => {
   await entrarNoPainel(page, LOJA);
   await abrir(page, '/app/configuracoes');
 
-  // Identidade → link → regras. O link vem no meio porque **deriva** da
-  // identidade: o slug nasce do nome (§2.3). Até 16/08 ele caía depois do
-  // formulário inteiro, o que punha a regra operacional na frente da coisa que
-  // o dono mais manda para o cliente.
+  // Uma seção só, a pedido do dono: com sete campos, três títulos gastavam mais
+  // altura do que organizavam. A ordem — nome, link, regras — se lê pela posição
+  // dos campos, e o link continua no meio porque **deriva** da identidade: o
+  // slug nasce do nome (§2.3).
   const titulos = page.locator('[data-slot="secao-de-ajustes"] [data-slot="secao-titulo"]');
-  await expect(titulos).toHaveText(['Identidade', 'Link de agendamento', 'Regras da agenda']);
+  await expect(titulos).toHaveText(['Configurações']);
+
+  const ordem = await page.evaluate(() => {
+    const alvos = [...document.querySelectorAll('[name="name"], [data-slot="link-endereco"], [name="slotMinutes"]')];
+    return alvos.map((el) => el.getAttribute('name') ?? el.getAttribute('data-slot'));
+  });
+  expect(ordem).toEqual(['name', 'link-endereco', 'slotMinutes']);
 
   // **O título fora do card** é a correção do defeito medido: "Nome da
   // barbearia" em x=588 e "Endereço público" em x=424, no mesmo card, porque
@@ -652,10 +658,8 @@ test('as configurações abrem com as três seções na ordem, o título fora do
   // montada o link fica no meio das duas seções de campo, então só o DOM de
   // verdade responde se ele ficou de fora — os campos se amarram ao formulário
   // pelo atributo `form`, e não por aninhamento.
-  const secaoDoLink = page
-    .locator('[data-slot="secao-de-ajustes"]')
-    .filter({ has: page.getByRole('heading', { name: 'Link de agendamento' }) });
-  expect(await secaoDoLink.evaluate((secao) => secao.closest('form') === null)).toBe(true);
+  const blocoDoLink = page.locator('[data-slot="link-endereco"]');
+  expect(await blocoDoLink.evaluate((el) => el.closest('form') === null)).toBe(true);
 
   // E o formulário continua sendo um só, com um botão de salvar só (Primer:
   // "There should only be one save button on a page"). A busca é dentro do
@@ -692,36 +696,6 @@ test('copiar o link de agendamento põe a URL na área de transferência e avisa
   expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(url);
 });
 
-test('o fuso só aparece depois do "alterar", e o que for escolhido salva', async ({ page }) => {
-  const ids = await entrarNoPainel(page, LOJA);
-  await abrir(page, '/app/configuracoes');
-
-  // Fechado é texto, não campo: nenhum produto de salão trata fuso como
-  // preferência (§1.1). Um `<select>` de 400 opções na segunda dobra é convite
-  // a errar sem nenhum ganho.
-  // `getByLabel` não serve aqui: ele casa por substring, e o `aria-label` do
-  // próprio botão ("Alterar o fuso horário") contém o rótulo do campo. Quem diz
-  // se o campo existe é o papel de combobox.
-  await expect(page.getByRole('combobox', { name: 'Fuso horário' })).toHaveCount(0);
-  await expect(page.getByText(TZ, { exact: true })).toBeVisible();
-
-  await page.getByRole('button', { name: 'Alterar o fuso horário' }).click();
-
-  const disparador = page.getByRole('combobox', { name: 'Fuso horário' });
-  await expect(disparador).toBeVisible();
-  await disparador.click();
-  await page.getByRole('option', { name: 'America/Manaus' }).click();
-
-  await page.getByRole('button', { name: 'Salvar configurações' }).click();
-  await expect(page.getByText('Configurações salvas.')).toBeVisible();
-
-  expect((await lojaNoBanco(ids.barbershopId)).timeZone).toBe('America/Manaus');
-
-  // E de volta na tela recarregada, fechado de novo: se o valor só existisse no
-  // estado do cliente, aqui apareceria o antigo.
-  await abrir(page, '/app/configuracoes');
-  await expect(page.getByText('America/Manaus', { exact: true })).toBeVisible();
-});
 
 test('salvar sem tocar no fuso não apaga o fuso que já estava lá', async ({ page }) => {
   const ids = await entrarNoPainel(page, LOJA);
@@ -735,11 +709,15 @@ test('salvar sem tocar no fuso não apaga o fuso que já estava lá', async ({ p
     .where(eq(barbershop.id, ids.barbershopId));
 
   await abrir(page, '/app/configuracoes');
-  await expect(page.getByText('America/Manaus', { exact: true })).toBeVisible();
 
-  // Mexe em outra coisa e salva, **sem nunca abrir o "alterar"**. É o caminho
-  // de 99 de cada 100 salvamentos, e o que apagaria o fuso se o campo oculto
-  // saísse do `<form>` junto com o bloco recolhido.
+  // O fuso não aparece mais em lugar nenhum da tela: ele é capturado do
+  // navegador no cadastro (§1.1). O que precisa continuar existindo é o campo
+  // oculto — sem ele a action receberia `timeZone` ausente e gravaria o padrão
+  // por cima.
+  await expect(page.getByText('America/Manaus')).toHaveCount(0);
+
+  // Mexe em outra coisa e salva. É o caminho de 100 de cada 100 salvamentos, e
+  // o que apagaria o fuso se o oculto saísse do `<form>`.
   await page.getByLabel('Nome da barbearia').fill('Barbearia do Marcão');
   await page.getByRole('button', { name: 'Salvar configurações' }).click();
   await expect(page.getByText('Configurações salvas.')).toBeVisible();

@@ -1,5 +1,3 @@
-import { toString as gerarQrSvg } from 'qrcode';
-
 import { requireSession } from '@/lib/session';
 import { db } from '@/db/client';
 import { findBarbershopById } from '@/db/repositories';
@@ -21,7 +19,6 @@ export default async function ConfiguracoesPage() {
   // depois da hidratação. O `qrcode` é o pacote de Node — ele arrasta `yargs` e
   // `pngjs` para a CLI dele, e nada disso encosta no bundle enquanto o import
   // ficar em Server Component.
-  const qrSvg = await gerarQrSvg(linkPublico, { type: 'svg' });
 
   return (
     <div className="flex flex-col gap-4">
@@ -60,7 +57,7 @@ export default async function ConfiguracoesPage() {
       <Largura tipo="tabela" className="flex flex-col gap-4">
         <SettingsForm
           loja={loja}
-          linkDeAgendamento={<LinkDeAgendamento url={linkPublico} qrSvg={qrSvg} />}
+          linkDeAgendamento={<LinkDeAgendamento url={linkPublico} />}
         />
       </Largura>
     </div>
