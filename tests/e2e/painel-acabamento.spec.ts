@@ -680,7 +680,10 @@ test('copiar o link de agendamento põe a URL na área de transferência e avisa
   const url = ((await endereco.textContent()) ?? '').trim();
   expect(url).toContain(`/b/${LOJA.slug}`);
 
-  await page.getByRole('button', { name: 'Copiar link de agendamento' }).click();
+  // O nome acessível carrega a própria URL desde 16/08 ("Copiar o link
+  // https://…"): o endereço virou o botão, e um rótulo genérico deixaria de
+  // dizer o que vai para a área de transferência.
+  await page.getByRole('button', { name: /^Copiar o link/ }).click();
 
   // O aviso primeiro, porque ele some em 2s — Polaris: "Provide feedback inline
   // using a confirmation check icon post-click". Sem retorno, a pessoa clica de

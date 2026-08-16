@@ -1,14 +1,13 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { Link2 } from 'lucide-react';
+import { Copy, ExternalLink } from 'lucide-react';
 
 import { Botao } from '@/components/ui/botao';
 import { SecaoDeAjustes } from '@/components/ui/secao-de-ajustes';
 
 /**
- * O link de agendamento: o endereço para ler, o copiar, o QR e o atalho para a
- * página pública.
+ * O link de agendamento: copiar, abrir a página do cliente e o QR.
  *
  * **Fora do `<form>`**, e não por arrumação: copiar age na hora e o formulário
  * age no submit. O Primer manda não misturar os dois, porque quem clica em
@@ -18,10 +17,15 @@ import { SecaoDeAjustes } from '@/components/ui/secao-de-ajustes';
  * agendamento" em Booksy, Fresha, Mangomint e Boulevard, e "endereço" vai
  * colidir com o endereço físico da loja quando ele entrar.
  *
- * O endereço fica em `<code>`, nunca em input desabilitado ou `readOnly` —
- * Carbon: *"If the component does not have an enabled state, do not use a
- * read-only state to display static information"*, e campo desabilitado nem é
- * lido por leitor de tela.
+ * **O endereço é o próprio botão de copiar**, dividindo a largura com o atalho
+ * para a página do cliente. Antes era texto com um ícone de 36px colado na
+ * borda: o alvo menor da tela para a ação mais usada dela, e sem nada que
+ * dissesse que aquilo se clica.
+ *
+ * O que ele não pode ser é input desabilitado ou `readOnly` — Carbon: *"If the
+ * component does not have an enabled state, do not use a read-only state to
+ * display static information"*, e campo desabilitado nem é lido por leitor de
+ * tela. Botão resolve os dois: é ação de verdade e tem nome acessível.
  *
  * O SVG do QR **chega pronto do servidor**. Gerar aqui custaria a biblioteca
  * inteira no bundle e o código apareceria só depois da hidratação.
@@ -52,31 +56,42 @@ export function LinkDeAgendamento({ url, qrSvg }: { url: string; qrSvg: string }
       titulo="Link de agendamento"
       descricao="É por aqui que o cliente marca. Vale no WhatsApp, na bio do Instagram e no QR da vitrine."
     >
-      <div className="flex items-start gap-2">
-        {/* `break-all`, nunca `truncate`: o slug pode ser longo e em 360px o
-            endereço é a única coisa da tela que não tem onde quebrar.
-            `min-w-0` porque item de flex não encolhe abaixo do conteúdo sem
-            ele, e aí é a linha inteira que rola de lado. */}
-        <code
-          data-slot="link-endereco"
-          className="block min-w-0 flex-1 py-2.5 break-all text-base leading-6"
-        >
-          {url}
-        </code>
+      {/* Dois alvos dividindo a largura, e nenhum deles é ícone mudo: à
+          esquerda o endereço **é** o botão de copiar, à direita o atalho para a
+          página. Era um `<code>` com um ícone de 36px colado na borda — o alvo
+          menor da tela para a ação mais usada dela, e ninguém adivinha que o
+          endereço se clica se ele não parece um botão.
 
-        {/* Ícone de link, não de prancheta, em botão terciário — Polaris: "Use
-            the link icon with a tertiary icon button for copying deep links and
-            URLs". 44px no toque e 36px no ponteiro, como o gatilho da barra do
-            painel: o alvo aqui é do tamanho de um dedo, não de um cursor. */}
+          `grid-cols-1 sm:grid-cols-2`: em 360px o endereço precisa da linha
+          inteira para quebrar, e dois botões lado a lado ali dariam ~150px cada
+          — abaixo do que cabe um endereço e do que um dedo acerta com folga. */}
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
         <Botao
           type="button"
-          variante="texto"
-          aria-label="Copiar link de agendamento"
+          variante="secundario"
+          aria-label={`Copiar o link ${url}`}
           onClick={copiar}
-          className="size-11 shrink-0 px-0 md:size-9"
+          className="min-h-11 justify-start gap-2 px-3 text-left"
         >
-          <Link2 aria-hidden="true" />
+          <Copy aria-hidden="true" className="size-4 shrink-0" />
+          {/* `break-all` e `min-w-0`: o slug pode ser longo, e em 360px este é o
+              único texto da tela sem onde quebrar. `truncate` esconderia
+              justamente o fim do endereço, que é a parte que muda. */}
+          <span data-slot="link-endereco" className="min-w-0 break-all">
+            {url}
+          </span>
         </Botao>
+
+        <a
+          href={url}
+          target="_blank"
+          rel="noopener noreferrer"
+          data-slot="link-abrir"
+          className="btn btn--sec min-h-11 gap-2 no-underline"
+        >
+          <ExternalLink aria-hidden="true" className="size-4 shrink-0" />
+          Abrir a página do cliente
+        </a>
       </div>
 
       {/* Permanente, e não montado junto com o texto: região viva que nasce já
@@ -107,17 +122,6 @@ export function LinkDeAgendamento({ url, qrSvg }: { url: string; qrSvg: string }
           dangerouslySetInnerHTML={{ __html: qrSvg }}
         />
       </details>
-
-      {/* Fora do `<details>`: o dono quer conferir o que o cliente vê, e isso
-          não é assunto do QR. Escondido lá dentro, some junto com ele. */}
-      <a
-        href={url}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="inline-flex min-h-11 items-center self-start text-sm leading-5 text-tinta-2 underline underline-offset-[3px] md:min-h-9"
-      >
-        Abrir a página pública em outra aba
-      </a>
     </SecaoDeAjustes>
   );
 }

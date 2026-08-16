@@ -65,7 +65,7 @@ describe('LinkDeAgendamento', () => {
   it('o atalho para a página pública não fica escondido dentro do QR', () => {
     // o dono quer conferir o que o cliente vê, e isso não é assunto do QR
     const { container } = montar();
-    const atalho = screen.getByRole('link', { name: /página pública/i });
+    const atalho = screen.getByRole('link', { name: /página do cliente/i });
     expect(atalho.getAttribute('href')).toBe(URL_DA_LOJA);
     expect(atalho.getAttribute('target')).toBe('_blank');
     expect(container.querySelector('details')?.contains(atalho)).toBe(false);
@@ -79,11 +79,21 @@ describe('LinkDeAgendamento', () => {
     expect(container.querySelector('input')).toBeNull();
   });
 
-  it('o copiar é alvo de 44px no toque', () => {
-    // §3.6: `--tap-min` onde o dedo alcança; 36px fica para o ponteiro
+  it('o copiar é alvo de 44px, e o endereço é o próprio botão', () => {
+    // §3.6: `--tap-min` onde o dedo alcança. Desde 16/08 o endereço **é** o
+    // botão: era texto com um ícone de 36px na borda — o alvo menor da tela
+    // para a ação mais usada dela.
     montar();
     const botao = screen.getByRole('button', { name: /copiar/i });
-    expect(botao.className).toMatch(/size-11/);
-    expect(botao.className).toMatch(/md:size-9/);
+    expect(botao.className).toMatch(/min-h-11/);
+    expect(botao.textContent).toContain(URL_DA_LOJA);
+  });
+
+  it('o copiar e o abrir dividem a largura', () => {
+    // pedido do dono em 16/08: dois alvos, não um ícone espremido na borda
+    const { container } = montar();
+    const linha = container.querySelector('.sm\\:grid-cols-2');
+    expect(linha).not.toBeNull();
+    expect(linha!.querySelectorAll('button, a')).toHaveLength(2);
   });
 });
