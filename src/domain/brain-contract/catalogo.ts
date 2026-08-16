@@ -126,8 +126,11 @@ export function montarCatalogo(
           staffName: 'Com qual profissional?',
           sessionTime: 'Escolha o melhor horário:',
         },
+        // Sem {staffName}: o barbeiro é opcional e, quando o cliente diz "tanto faz", só é
+        // definido na hora de marcar (agenda mais vazia) — então não entra na confirmação.
+        // A mensagem de "marcado" mostra o barbeiro real.
         confirmationTemplate:
-          'Confirmo {serviceName} com {staffName} em {sessionDate} às {sessionTime}?',
+          'Confirmo {serviceName} em {sessionDate} às {sessionTime}?',
       },
       [OP_CANCELAR]: {
         confirmationTemplate: 'Confirmo o cancelamento do seu horário?',
