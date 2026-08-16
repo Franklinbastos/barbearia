@@ -21,7 +21,7 @@ export type CreateAppointmentInput = {
  * fica com quem tem menos atendimentos no dia. Empate mantém a ordem que veio
  * da grade, que é alfabética — resultado estável, sem sorteio.
  */
-async function escolherBarbeiro(
+export async function escolherBarbeiro(
   db: Db,
   barbershopId: string,
   candidatos: AvailabilitySlot[],

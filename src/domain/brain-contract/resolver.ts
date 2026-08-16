@@ -1,5 +1,8 @@
+import { DateTime } from 'luxon';
 import { getAvailability } from '@/domain/booking';
+import { escolherBarbeiro } from '@/domain/booking/create-appointment';
 import type { Db } from '@/db/repositories';
+import { listFutureAppointmentsByCustomerPhone } from '@/db/repositories';
 import { comoErroDeNegocio } from './erros';
 import type {
   Candidato,
@@ -11,12 +14,13 @@ import type {
 import { acharPorNome, formatarPreco, horaLocal } from './mapeamento';
 
 /** Slots que os candidatos do `resolve` sabem preencher, já normalizados. */
-type SlotAlvo = 'serviceName' | 'staffName' | 'sessionTime' | 'desconhecido';
+type SlotAlvo = 'serviceName' | 'staffName' | 'sessionTime' | 'appointmentId' | 'desconhecido';
 
 type SlotsDaResolucao = {
   serviceName?: string;
   staffName?: string;
   sessionDate?: string;
+  customerPhone?: string;
 };
 
 export type PedidoDeResolucao = {
@@ -33,6 +37,7 @@ function classificarSlot(slot: string): SlotAlvo {
   if (s === 'sessiontime' || s === 'horario' || s === 'horário' || s === 'hora') {
     return 'sessionTime';
   }
+  if (s === 'appointmentid' || s === 'agendamento') return 'appointmentId';
   return 'desconhecido';
 }
 
@@ -111,27 +116,74 @@ export async function resolverCandidatos(
     }
 
     // Um candidato por horário: para escolher a hora, o cliente não precisa ver
-    // o mesmo horário repetido por barbeiro. O primeiro da grade (ordem
-    // alfabética de barbeiro) segura o horário; o desempate real acontece no
-    // `createAppointment`.
-    const vistos = new Set<string>();
-    const candidates: Candidato[] = [];
+    // o mesmo horário repetido por barbeiro. Com múltiplos barbeiros livres no
+    // mesmo horário, escolhe o com menos agendamentos naquele dia; empate mantém
+    // ordem alfabética.
+    const mapa = new Map<string, typeof livres>();
     for (const slot of livres) {
       const hora = horaLocal(slot.start, loja.timeZone);
-      if (vistos.has(hora)) continue;
-      vistos.add(hora);
+      if (!mapa.has(hora)) mapa.set(hora, []);
+      mapa.get(hora)!.push(slot);
+    }
+
+    const dia = DateTime.fromISO(slots.sessionDate, { zone: loja.timeZone });
+    const candidates: Candidato[] = [];
+    for (const [hora, slotsParaHora] of mapa) {
+      const escolhido = await escolherBarbeiro(db, loja.id, slotsParaHora, dia);
       candidates.push({
         id: hora,
         label: hora,
         fields: {
           sessionTime: hora,
-          staffId: slot.staffId,
-          staffName: slot.staffName,
-          startAt: slot.start.toISOString(),
+          staffId: escolhido.staffId,
+          staffName: escolhido.staffName,
+          startAt: escolhido.start.toISOString(),
         },
       });
       if (teto && candidates.length >= teto) break;
     }
+    return { ...base, candidates };
+  }
+
+  if (alvo === 'appointmentId') {
+    const telefone = slots.customerPhone;
+    if (!telefone) {
+      return {
+        ...base,
+        candidates: [],
+        message: 'Preciso do seu telefone para buscar os agendamentos.',
+      };
+    }
+
+    const agendamentos = await listFutureAppointmentsByCustomerPhone(
+      db,
+      loja.id,
+      telefone,
+      new Date(),
+    );
+
+    if (agendamentos.length === 0) {
+      return {
+        ...base,
+        candidates: [],
+        message: 'Não achei nenhum horário futuro no seu nome.',
+      };
+    }
+
+    const candidates: Candidato[] = agendamentos.map((appt) => {
+      const dia = DateTime.fromJSDate(appt.startAt).setZone(loja.timeZone);
+      const hora = horaLocal(appt.startAt, loja.timeZone);
+      const label = `${appt.serviceName}, ${dia.toFormat('cccc dd/MM')} às ${hora} com ${appt.staffName}`;
+
+      return {
+        id: appt.id,
+        label,
+        fields: {
+          appointmentId: appt.id,
+        },
+      };
+    });
+
     return { ...base, candidates };
   }
 

@@ -1,5 +1,6 @@
 import { and, eq, lt, gt, ne, asc } from 'drizzle-orm';
 import { appointment, timeOff, customer } from '@/db/schema';
+import { staff } from '@/db/schema';
 import type { Db } from './types';
 
 /** Agendamentos ativos e bloqueios do barbeiro que tocam a janela [from, to). */
@@ -72,4 +73,35 @@ export async function findAppointmentById(db: Db, barbershopId: string, id: stri
     .where(and(eq(appointment.barbershopId, barbershopId), eq(appointment.id, id)))
     .limit(1);
   return linha ?? null;
+}
+
+/**
+ * Lista agendamentos futuros de um cliente, identificado pelo telefone.
+ * Retorna só os que ainda não foram cancelados, ordenados por data/hora.
+ */
+export async function listFutureAppointmentsByCustomerPhone(
+  db: Db,
+  barbershopId: string,
+  customerPhone: string,
+  now: Date,
+) {
+  return db
+    .select({
+      id: appointment.id,
+      startAt: appointment.startAt,
+      serviceName: appointment.serviceNameSnapshot,
+      staffName: staff.name,
+    })
+    .from(appointment)
+    .innerJoin(customer, eq(customer.id, appointment.customerId))
+    .innerJoin(staff, eq(staff.id, appointment.staffId))
+    .where(
+      and(
+        eq(appointment.barbershopId, barbershopId),
+        eq(customer.phone, customerPhone),
+        ne(appointment.status, 'CANCELED'),
+        gt(appointment.startAt, now),
+      ),
+    )
+    .orderBy(asc(appointment.startAt));
 }

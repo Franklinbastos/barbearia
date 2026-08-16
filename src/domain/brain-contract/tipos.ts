@@ -18,6 +18,7 @@ export type SlotDeIntencao = {
   format?: string | null;
   hint?: string | null;
   alwaysMissing?: boolean | null;
+  optional?: boolean | null;
   resolutionStrategy?: string | null;
   resolverKey?: string | null;
   minimumSlots?: string[] | null;

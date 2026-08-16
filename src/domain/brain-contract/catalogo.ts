@@ -51,6 +51,7 @@ export function montarCatalogo(
             ? `Com qual profissional? ${nomesDeBarbeiro.join(', ')} — ou deixe que a gente encaixa.`
             : 'Com qual profissional?',
           alwaysMissing: false,
+          optional: true,
           values: nomesDeBarbeiro,
         },
         {
@@ -83,7 +84,9 @@ export function montarCatalogo(
           name: 'appointmentId',
           format: 'text',
           hint: 'Qual agendamento você quer cancelar?',
-          alwaysMissing: true,
+          resolutionStrategy: 'CANDIDATES',
+          resolverKey: 'session',
+          minimumSlots: [],
         },
       ],
     },
