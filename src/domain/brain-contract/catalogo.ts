@@ -9,6 +9,47 @@ import { formatarPreco } from './mapeamento';
 export const OP_MARCAR = 'marcar_horario';
 export const OP_CANCELAR = 'cancelar_horario';
 
+type HorarioDoBrain = { weekday: number; startTime: string; endTime: string };
+
+const DIAS_DA_SEMANA = [
+  'domingo', 'segunda', 'terça', 'quarta', 'quinta', 'sexta', 'sábado',
+];
+
+/** Junta nomes em pt-BR: ["a"] -> "a"; ["a","b"] -> "a e b"; ["a","b","c"] -> "a, b e c". */
+function juntarEmPtBr(nomes: string[]): string {
+  if (nomes.length <= 1) return nomes[0] ?? '';
+  return `${nomes.slice(0, -1).join(', ')} e ${nomes[nomes.length - 1]}`;
+}
+
+/**
+ * Resume o expediente da loja (a união dos horários dos barbeiros) numa frase pt-BR para a FAQ
+ * de horário de funcionamento — o que faltava fazer o brain responder "abrem domingo?" em vez de
+ * repetir a lista de serviços. Ex.: "Atendemos de segunda a sábado, das 09:00 às 18:00. Fechado
+ * domingo." Dias contíguos viram faixa ("de X a Y"); senão são listados.
+ */
+export function resumirExpediente(horarios: HorarioDoBrain[]): string {
+  if (!horarios || horarios.length === 0) {
+    return 'Nosso horário de funcionamento ainda não está cadastrado.';
+  }
+  const abertos = [...new Set(horarios.map((h) => h.weekday))].sort((a, b) => a - b);
+  const hhmm = (t: string) => t.slice(0, 5);
+  const abre = horarios.map((h) => h.startTime).sort()[0];
+  const fecha = horarios.map((h) => h.endTime).sort().slice(-1)[0];
+
+  const contiguo =
+    abertos.length >= 3 && abertos.every((d, i) => i === 0 || d === abertos[i - 1] + 1);
+  const diasTxt = contiguo
+    ? `de ${DIAS_DA_SEMANA[abertos[0]]} a ${DIAS_DA_SEMANA[abertos[abertos.length - 1]]}`
+    : juntarEmPtBr(abertos.map((d) => DIAS_DA_SEMANA[d]));
+
+  const fechados = [0, 1, 2, 3, 4, 5, 6].filter((d) => !abertos.includes(d));
+  const fechadoTxt = fechados.length
+    ? ` Fechado ${juntarEmPtBr(fechados.map((d) => DIAS_DA_SEMANA[d]))}.`
+    : '';
+
+  return `Atendemos ${diasTxt}, das ${hhmm(abre)} às ${hhmm(fecha)}.${fechadoTxt}`;
+}
+
 /**
  * Monta o catálogo que o brain lê para saber o que a barbearia sabe fazer.
  *
@@ -22,6 +63,7 @@ export function montarCatalogo(
   loja: LojaDoBrain,
   servicos: ServicoDoBrain[],
   equipe: BarbeiroDoBrain[],
+  horarios: HorarioDoBrain[] = [],
 ): RespostaDeCatalogo {
   const nomesDeServico = servicos.map((s) => s.name);
   const nomesDeBarbeiro = equipe.map((b) => b.name);
@@ -151,6 +193,17 @@ export function montarCatalogo(
             ? `Nossos serviços: ${listaDeServicos}.`
             : 'Ainda não temos serviços cadastrados por aqui.',
         },
+        // FAQ de horário de funcionamento: sem isto, "abrem domingo?" caía no intent de
+        // serviços e repetia (o loop da p7). Só entra quando há expediente cadastrado.
+        ...(horarios.length
+          ? [
+              {
+                name: 'horario_funcionamento',
+                behavior: 'INFO',
+                replyText: resumirExpediente(horarios),
+              },
+            ]
+          : []),
         { name: 'falar_com_atendente', behavior: 'HANDOFF' },
       ],
     },

@@ -1,6 +1,10 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db/client';
-import { listActiveServices, listActiveStaff } from '@/db/repositories';
+import {
+  listActiveServices,
+  listActiveStaff,
+  listWorkingHoursForBarbershop,
+} from '@/db/repositories';
 import { montarCatalogo } from '@/domain/brain-contract/catalogo';
 import { abrirContexto } from '@/lib/contexto-do-brain';
 
@@ -14,11 +18,12 @@ export async function GET(req: Request) {
   const ctx = await abrirContexto(req);
   if (!ctx.ok) return ctx.resposta;
 
-  const [servicos, equipe] = await Promise.all([
+  const [servicos, equipe, horarios] = await Promise.all([
     listActiveServices(db, ctx.loja.id),
     listActiveStaff(db, ctx.loja.id),
+    listWorkingHoursForBarbershop(db, ctx.loja.id),
   ]);
 
-  const catalogo = montarCatalogo(ctx.loja, servicos, equipe);
+  const catalogo = montarCatalogo(ctx.loja, servicos, equipe, horarios);
   return NextResponse.json(catalogo, { headers: { 'Cache-Control': 'no-store' } });
 }

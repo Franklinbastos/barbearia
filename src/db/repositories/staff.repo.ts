@@ -71,6 +71,15 @@ export async function listWorkingHoursForStaff(db: Db, barbershopId: string, sta
     .orderBy(asc(workingHours.weekday), asc(workingHours.startTime));
 }
 
+/** Todo o expediente da loja (união dos barbeiros) — base do resumo de horário na FAQ do brain. */
+export async function listWorkingHoursForBarbershop(db: Db, barbershopId: string) {
+  return db
+    .select()
+    .from(workingHours)
+    .where(eq(workingHours.barbershopId, barbershopId))
+    .orderBy(asc(workingHours.weekday), asc(workingHours.startTime));
+}
+
 export async function listStaffServiceLinks(db: Db, barbershopId: string, staffId: string) {
   return db
     .select()

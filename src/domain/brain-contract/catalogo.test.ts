@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { montarCatalogo, OP_MARCAR, OP_CANCELAR } from './catalogo';
+import { montarCatalogo, resumirExpediente, OP_MARCAR, OP_CANCELAR } from './catalogo';
 import type { LojaDoBrain, ServicoDoBrain, BarbeiroDoBrain } from './tipos';
 
 const loja: LojaDoBrain = {
@@ -47,6 +47,39 @@ describe('montarCatalogo', () => {
     const info = cat.conversationMenu?.intents?.find((i) => i.name === 'lista_de_servicos');
     expect(info?.replyText).toContain('Corte');
     expect(info?.replyText).toContain('40,00');
+  });
+
+  it('resume o expediente da loja em faixa de dias e horário', () => {
+    const resumo = resumirExpediente([
+      { weekday: 1, startTime: '09:00:00', endTime: '18:00:00' },
+      { weekday: 2, startTime: '09:00:00', endTime: '18:00:00' },
+      { weekday: 3, startTime: '09:00:00', endTime: '18:00:00' },
+      { weekday: 4, startTime: '09:00:00', endTime: '18:00:00' },
+      { weekday: 5, startTime: '09:00:00', endTime: '18:00:00' },
+      { weekday: 6, startTime: '09:00:00', endTime: '18:00:00' },
+    ]);
+    expect(resumo).toBe('Atendemos de segunda a sábado, das 09:00 às 18:00. Fechado domingo.');
+  });
+
+  it('sem expediente, avisa que não está cadastrado', () => {
+    expect(resumirExpediente([])).toContain('não está cadastrado');
+  });
+
+  it('adiciona o intent de horário de funcionamento no menu quando há expediente', () => {
+    const cat = montarCatalogo(loja, servicos, equipe, [
+      { weekday: 1, startTime: '09:00:00', endTime: '18:00:00' },
+      { weekday: 2, startTime: '09:00:00', endTime: '18:00:00' },
+      { weekday: 3, startTime: '09:00:00', endTime: '18:00:00' },
+    ]);
+    const faq = cat.conversationMenu?.intents?.find((i) => i.name === 'horario_funcionamento');
+    expect(faq?.behavior).toBe('INFO');
+    expect(faq?.replyText).toContain('09:00');
+  });
+
+  it('sem expediente, não adiciona o intent de horário', () => {
+    const cat = montarCatalogo(loja, servicos, equipe);
+    const faq = cat.conversationMenu?.intents?.find((i) => i.name === 'horario_funcionamento');
+    expect(faq).toBeUndefined();
   });
 
   it('marca as duas operações no menu com operação inversa', () => {
