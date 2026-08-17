@@ -82,6 +82,13 @@ describe('montarCatalogo', () => {
     expect(faq).toBeUndefined();
   });
 
+  it('adiciona o intent de despedida no menu, com copy fixa que encerra sem re-saudar', () => {
+    const cat = montarCatalogo(loja, servicos, equipe);
+    const despedida = cat.conversationMenu?.intents?.find((i) => i.name === 'despedida');
+    expect(despedida?.behavior).toBe('INFO');
+    expect(despedida?.replyText).toContain('chamar');
+  });
+
   it('marca as duas operações no menu com operação inversa', () => {
     const cat = montarCatalogo(loja, servicos, equipe);
     expect(cat.uxHints?.[OP_MARCAR]?.inverseOperation).toBe(OP_CANCELAR);

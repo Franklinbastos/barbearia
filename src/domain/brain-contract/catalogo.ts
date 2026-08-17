@@ -204,6 +204,14 @@ export function montarCatalogo(
               },
             ]
           : []),
+        // Despedida/agradecimento: sem isto, "valeu"/"obrigado"/"só isso mesmo" caía em
+        // out-of-scope e o bot re-saudava como se fosse conversa nova (o reset da p2/p7).
+        // Copy fixa — reconhece o fecho e encerra sem re-saudar; entra sempre.
+        {
+          name: 'despedida',
+          behavior: 'INFO',
+          replyText: 'Valeu! Qualquer coisa é só chamar. 👋',
+        },
         { name: 'falar_com_atendente', behavior: 'HANDOFF' },
       ],
     },
