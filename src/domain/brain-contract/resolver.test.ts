@@ -222,6 +222,8 @@ describe('resolverCandidatos', () => {
     });
     expect(r.candidates[0].fields).not.toHaveProperty('sessionDate');
     expect(r.candidates[0].fields).not.toHaveProperty('sessionTime');
+    // Antecedência: o candidato carrega tooClose (o motor barra na hora se o alvo é <24h).
+    expect(r.candidates[0].fields).toHaveProperty('tooClose');
     expect(listarFuturos).toHaveBeenCalledWith(db, loja.id, '11999999999', expect.any(Date));
   });
 

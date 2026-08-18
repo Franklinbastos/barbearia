@@ -22,7 +22,7 @@ export type PedidoDeAutorizacao = {
 /** Antecedência mínima padrão (24h) para alterar/cancelar quando a loja não configurou. */
 const ANTECEDENCIA_PADRAO_MIN = 24 * 60;
 
-const MSG_EM_CIMA_DA_HORA =
+export const MSG_EM_CIMA_DA_HORA =
   'Esse horário já está muito próximo — pra alterar ou cancelar em cima da hora, é melhor '
   + 'falar direto com a barbearia. Quer que eu te passe pra uma pessoa? É só dizer "atendente".';
 
@@ -30,7 +30,7 @@ const MSG_EM_CIMA_DA_HORA =
  * O horário-alvo está dentro da janela mínima de antecedência para mexer? Ação crítica em cima
  * da hora não é do bot: vira handoff. `minChangeMinutes` vem da loja; ausente, vale o padrão.
  */
-function emCimaDaHora(startAt: Date, loja: LojaDoBrain, agora: Date): boolean {
+export function emCimaDaHora(startAt: Date, loja: LojaDoBrain, agora: Date): boolean {
   const minutos = loja.minChangeMinutes ?? ANTECEDENCIA_PADRAO_MIN;
   return startAt.getTime() < agora.getTime() + minutos * 60_000;
 }

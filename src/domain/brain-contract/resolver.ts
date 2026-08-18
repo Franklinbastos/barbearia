@@ -12,6 +12,7 @@ import type {
   BarbeiroDoBrain,
 } from './tipos';
 import { acharPorNome, formatarPreco, horaLocal } from './mapeamento';
+import { emCimaDaHora, MSG_EM_CIMA_DA_HORA } from './autorizar';
 
 /** Slots que os candidatos do `resolve` sabem preencher, já normalizados. */
 type SlotAlvo = 'serviceName' | 'staffName' | 'sessionTime' | 'appointmentId' | 'desconhecido';
@@ -174,24 +175,29 @@ export async function resolverCandidatos(
       };
     }
 
+    const agora = new Date();
     const candidates: Candidato[] = agendamentos.map((appt) => {
       const dia = DateTime.fromJSDate(appt.startAt).setZone(loja.timeZone);
       const hora = horaLocal(appt.startAt, loja.timeZone);
       const label = `${appt.serviceName}, ${dia.toFormat('cccc dd/MM')} às ${hora} com ${appt.staffName}`;
 
-      return {
-        id: appt.id,
-        label,
+      // Antecedência: o alvo em cima da hora não é do bot. Marcar no candidato deixa o motor barrar
+      // ASSIM QUE o cliente escolhe a reserva — sem gastar turnos coletando dia/hora pra só então
+      // negar no execute. `handoffMessage` só quando fecha (candidato leve).
+      const perto = emCimaDaHora(appt.startAt, loja, agora);
+      const fields: Record<string, string> = {
         // Além do id, carrega SÓ o serviço e o barbeiro atuais: ao escolher o alvo de uma
         // remarcação, o motor os semeia (o serviço porque a grade de horários novos precisa da
         // duração; o barbeiro para manter o atual). Data e hora NÃO vêm de propósito — remarcar
         // pede o novo dia/horário. Inertes para o cancelar, que só lê o id.
-        fields: {
-          appointmentId: appt.id,
-          serviceName: appt.serviceName,
-          staffName: appt.staffName,
-        },
+        appointmentId: appt.id,
+        serviceName: appt.serviceName,
+        staffName: appt.staffName,
+        tooClose: perto ? 'true' : 'false',
       };
+      if (perto) fields.handoffMessage = MSG_EM_CIMA_DA_HORA;
+
+      return { id: appt.id, label, fields };
     });
 
     return { ...base, candidates };
