@@ -169,11 +169,22 @@ function numeroDigitado(valor: string, anterior: number): number {
   return valor === '' || Number.isNaN(n) ? anterior : n;
 }
 
+/**
+ * A janela de alterar/cancelar é apresentada em HORAS (24h lê melhor que 1440 min), mas o
+ * banco guarda minutos — o campo oculto leva `minChangeMinutes = horas × 60`.
+ */
+function dicaDaJanelaDeMudanca(horas: number): string {
+  if (horas <= 0) return 'Sem prazo: o cliente altera ou cancela até a hora do corte.';
+  return `${horas}h de antecedência — dentro desse prazo o cliente não mexe pelo chat; `
+    + 'o bot passa a conversa para uma pessoa.';
+}
+
 type Loja = {
   name: string;
   slotMinutes: number;
   minLeadMinutes: number;
   maxAdvanceDays: number;
+  minChangeMinutes: number;
   timeZone: string;
   accentHue: number | null;
 };
@@ -221,6 +232,7 @@ export function SettingsForm({
    */
   const [antecedencia, setAntecedencia] = useState(loja.minLeadMinutes);
   const [janela, setJanela] = useState(loja.maxAdvanceDays);
+  const [horasMudanca, setHorasMudanca] = useState(Math.round(loja.minChangeMinutes / 60));
 
   const idDaDicaDaGrade = useId();
   const idDaDicaDaCor = useId();
@@ -418,6 +430,32 @@ export function SettingsForm({
                 required
               />
             </Campo>
+          </Largura>
+
+          {/* Janela de alterar/cancelar pelo chat, em HORAS. O input visível não tem `name`
+              (é só a interface); quem leva o valor à action é o campo oculto, em minutos —
+              mesmo padrão do fuso e da cor, e o que o banco (`min_change_minutes`) guarda. */}
+          <Largura tipo="formulario" className="mx-0">
+            <Campo
+              rotulo="Antecedência para alterar ou cancelar"
+              dica={dicaDaJanelaDeMudanca(horasMudanca)}
+            >
+              <input
+                type="number"
+                inputMode="numeric"
+                min={0}
+                defaultValue={Math.round(loja.minChangeMinutes / 60)}
+                onChange={(evento) =>
+                  setHorasMudanca((atual) => numeroDigitado(evento.target.value, atual))
+                }
+              />
+            </Campo>
+            <input
+              type="hidden"
+              name="minChangeMinutes"
+              form={ID_DO_FORMULARIO}
+              value={horasMudanca * 60}
+            />
           </Largura>
 
           {/* O fuso não aparece: ele é capturado do navegador no cadastro

@@ -12,6 +12,7 @@ const loja = {
   slotMinutes: 30,
   minLeadMinutes: 60,
   maxAdvanceDays: 30,
+  minChangeMinutes: 1440,
   timeZone: 'America/Sao_Paulo',
   accentHue: null,
 };
@@ -201,6 +202,7 @@ describe('o link entra no meio da seção, e o formulário não o engole', () =>
     expect([...dados.keys()].sort()).toEqual([
       'accentHue',
       'maxAdvanceDays',
+      'minChangeMinutes',
       'minLeadMinutes',
       'name',
       'slotMinutes',

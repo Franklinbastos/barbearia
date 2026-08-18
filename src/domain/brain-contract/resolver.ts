@@ -178,8 +178,14 @@ export async function resolverCandidatos(
       return {
         id: appt.id,
         label,
+        // Além do id, carrega SÓ o serviço e o barbeiro atuais: ao escolher o alvo de uma
+        // remarcação, o motor os semeia (o serviço porque a grade de horários novos precisa da
+        // duração; o barbeiro para manter o atual). Data e hora NÃO vêm de propósito — remarcar
+        // pede o novo dia/horário. Inertes para o cancelar, que só lê o id.
         fields: {
           appointmentId: appt.id,
+          serviceName: appt.serviceName,
+          staffName: appt.staffName,
         },
       };
     });

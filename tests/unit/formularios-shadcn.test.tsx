@@ -136,6 +136,7 @@ const LOJA = {
   slotMinutes: 30,
   minLeadMinutes: 60,
   maxAdvanceDays: 30,
+  minChangeMinutes: 1440,
   timeZone: 'America/Sao_Paulo',
   accentHue: 210,
 };

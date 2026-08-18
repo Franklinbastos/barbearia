@@ -6,9 +6,16 @@ vi.mock('@/domain/booking', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/domain/booking')>()),
   createAppointment: vi.fn(),
   cancelAppointment: vi.fn(),
+  rescheduleAppointment: vi.fn(),
 }));
 
-import { createAppointment, cancelAppointment, SlotTakenError, NotFoundError } from '@/domain/booking';
+import {
+  createAppointment,
+  cancelAppointment,
+  rescheduleAppointment,
+  SlotTakenError,
+  NotFoundError,
+} from '@/domain/booking';
 import { executar } from './executar';
 
 const db = {} as unknown as Db;
@@ -24,6 +31,7 @@ const equipe: BarbeiroDoBrain[] = [{ id: 'b1', name: 'João' }];
 
 const criar = vi.mocked(createAppointment);
 const cancelar = vi.mocked(cancelAppointment);
+const remarcar = vi.mocked(rescheduleAppointment);
 
 const payloadValido = {
   serviceName: 'Corte',
@@ -36,6 +44,7 @@ const payloadValido = {
 beforeEach(() => {
   criar.mockReset();
   cancelar.mockReset();
+  remarcar.mockReset();
 });
 
 describe('executar — marcar', () => {
@@ -160,6 +169,100 @@ describe('executar — cancelar', () => {
       payload: { appointmentId: 'ap1' },
     });
     expect(r.status).toBe('REJECTED');
+    expect(r.code).toBe('NOT_FOUND');
+  });
+});
+
+describe('executar — remarcar', () => {
+  const alvo = {
+    appointmentId: 'ap1',
+    sessionDate: '2026-08-20',
+    sessionTime: '15:00',
+    staffName: 'João',
+  };
+
+  it('remarca reusando rescheduleAppointment com o novo início e barbeiro', async () => {
+    remarcar.mockResolvedValue(undefined);
+    const r = await executar(db, loja, servicos, equipe, {
+      actionName: 'remarcar_horario',
+      idempotencyKey: 'k3',
+      payload: alvo,
+    });
+    expect(r.status).toBe('SUCCEEDED');
+    expect(remarcar).toHaveBeenCalledWith(
+      db,
+      expect.objectContaining({
+        appointmentId: 'ap1',
+        barbershopId: 'loja-1',
+        novoStaffId: 'b1',
+        avisarCliente: false,
+      }),
+    );
+    // o novoInicio é a data+hora local convertidas (15:00 America/Sao_Paulo = 18:00Z)
+    expect(remarcar.mock.calls[0][1].novoInicio.toISOString()).toBe('2026-08-20T18:00:00.000Z');
+  });
+
+  it('mantém o barbeiro quando staffName não vem (só muda a hora)', async () => {
+    remarcar.mockResolvedValue(undefined);
+    const r = await executar(db, loja, servicos, equipe, {
+      actionName: 'remarcar_horario',
+      idempotencyKey: 'k3',
+      payload: { appointmentId: 'ap1', sessionDate: '2026-08-20', sessionTime: '16:00' },
+    });
+    expect(r.status).toBe('SUCCEEDED');
+    expect(remarcar.mock.calls[0][1].novoStaffId).toBeUndefined();
+  });
+
+  it('aceita o id do alvo via externalReference', async () => {
+    remarcar.mockResolvedValue(undefined);
+    const r = await executar(db, loja, servicos, equipe, {
+      actionName: 'remarcar_horario',
+      idempotencyKey: 'k3',
+      externalReference: 'ap9',
+      payload: { sessionDate: '2026-08-20', sessionTime: '16:00' },
+    });
+    expect(r.status).toBe('SUCCEEDED');
+    expect(remarcar.mock.calls[0][1].appointmentId).toBe('ap9');
+  });
+
+  it('recusa sem id do agendamento-alvo', async () => {
+    const r = await executar(db, loja, servicos, equipe, {
+      actionName: 'remarcar_horario',
+      idempotencyKey: 'k3',
+      payload: { sessionDate: '2026-08-20', sessionTime: '16:00' },
+    });
+    expect(r.code).toBe('MISSING_APPOINTMENT');
+    expect(remarcar).not.toHaveBeenCalled();
+  });
+
+  it('recusa data/horário inválidos', async () => {
+    const r = await executar(db, loja, servicos, equipe, {
+      actionName: 'remarcar_horario',
+      idempotencyKey: 'k3',
+      payload: { appointmentId: 'ap1', sessionDate: 'xx', sessionTime: '16:00' },
+    });
+    expect(r.code).toBe('INVALID_DATETIME');
+    expect(remarcar).not.toHaveBeenCalled();
+  });
+
+  it('traduz colisão de horário (SlotTaken) em REJECTED', async () => {
+    remarcar.mockRejectedValue(new SlotTakenError());
+    const r = await executar(db, loja, servicos, equipe, {
+      actionName: 'remarcar_horario',
+      idempotencyKey: 'k3',
+      payload: alvo,
+    });
+    expect(r.status).toBe('REJECTED');
+    expect(r.code).toBe('SLOT_TAKEN');
+  });
+
+  it('traduz agendamento inexistente em REJECTED', async () => {
+    remarcar.mockRejectedValue(new NotFoundError('Agendamento não encontrado'));
+    const r = await executar(db, loja, servicos, equipe, {
+      actionName: 'remarcar_horario',
+      idempotencyKey: 'k3',
+      payload: alvo,
+    });
     expect(r.code).toBe('NOT_FOUND');
   });
 });

@@ -33,6 +33,9 @@ const schema = z.object({
     }),
   minLeadMinutes: z.coerce.number().int().min(0, 'A antecedência mínima não pode ser negativa').max(10080),
   maxAdvanceDays: z.coerce.number().int().positive().max(365, 'A janela de agendamento não pode passar de 365 dias'),
+  // Janela para o cliente ALTERAR/CANCELAR pelo chat, em minutos. Dentro dela vira handoff.
+  // Teto de 7 dias (10080 min), como o lead de agendamento.
+  minChangeMinutes: z.coerce.number().int().min(0, 'A antecedência para alterar não pode ser negativa').max(10080),
   timeZone: z.string().refine(fusoValido, 'Fuso horário inválido'),
   // Campo ausente e campo vazio significam a mesma coisa — sem cor, preto e
   // branco. Só depois disso o valor é confrontado com a paleta: matiz livre

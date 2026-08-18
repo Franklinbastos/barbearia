@@ -71,6 +71,12 @@ export type LojaDoBrain = {
   name: string;
   timeZone: string;
   maxAdvanceDays: number;
+  /**
+   * Antecedência mínima, em minutos, para ALTERAR/CANCELAR pelo chat. Dentro dessa janela o
+   * bot não mexe sozinho: oferece o atendente humano (ação crítica em cima da hora). Vem da
+   * barbershop; ausente (fixtures/rows antigas) cai no padrão de 24h.
+   */
+  minChangeMinutes?: number;
 };
 
 export type ServicoDoBrain = {
@@ -111,6 +117,13 @@ export type RespostaDeResolucao = {
 export type RespostaDeAutorizacao = {
   allowed: boolean;
   message: string | null;
+  /**
+   * Motivo da recusa, quando é de POLÍTICA (não de disponibilidade). `HANDOFF` = ação crítica
+   * que sai do bot (ex.: alterar/cancelar em cima da hora) — o motor mostra a mensagem e para,
+   * sem reoferecer horário (reoferecer não muda uma regra sobre a reserva). Ausente = recusa
+   * comum (slot ocupado etc.), que o motor pode tentar recuperar.
+   */
+  code?: string | null;
 };
 
 /**

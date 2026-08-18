@@ -109,6 +109,62 @@ describe('autorizar — cancelar', () => {
     expect(r.allowed).toBe(false);
     expect(acharAgendamento).not.toHaveBeenCalled();
   });
+
+  it('em cima da hora (< 24h padrão) oferece o atendente em vez de cancelar', async () => {
+    // AGORA = 19/08 10:00Z; alvo às 22:00Z do mesmo dia = ~12h à frente, dentro das 24h.
+    acharAgendamento.mockResolvedValue({ status: 'BOOKED', startAt: new Date('2026-08-19T22:00:00Z') } as never);
+    const r = await autorizar(db, loja, servicos, equipe, { intent: 'cancelar_horario', slots: { appointmentId: 'a1' } }, AGORA);
+    expect(r.allowed).toBe(false);
+    expect(r.message).toMatch(/atendente/i);
+  });
+
+  it('respeita minChangeMinutes configurado pela loja', async () => {
+    const lojaCurta = { ...loja, minChangeMinutes: 60 }; // só 1h de antecedência
+    acharAgendamento.mockResolvedValue({ status: 'BOOKED', startAt: new Date('2026-08-19T12:00:00Z') } as never); // 2h à frente
+    const r = await autorizar(db, lojaCurta, servicos, equipe, { intent: 'cancelar_horario', slots: { appointmentId: 'a1' } }, AGORA);
+    expect(r.allowed).toBe(true); // 2h > 1h de janela → pode cancelar
+  });
+});
+
+describe('autorizar — remarcar', () => {
+  const slots = { appointmentId: 'a1', sessionDate: '2026-08-20', sessionTime: '15:00' };
+
+  it('libera quando o alvo é BOOKED, futuro e a nova data/hora é válida', async () => {
+    acharAgendamento.mockResolvedValue({ status: 'BOOKED', startAt: new Date('2026-08-20T12:00:00Z') } as never);
+    const r = await autorizar(db, loja, servicos, equipe, { intent: 'remarcar_horario', slots }, AGORA);
+    expect(r.allowed).toBe(true);
+  });
+
+  it('recusa quando não encontra o agendamento-alvo', async () => {
+    acharAgendamento.mockResolvedValue(null as never);
+    const r = await autorizar(db, loja, servicos, equipe, { intent: 'remarcar_horario', slots }, AGORA);
+    expect(r.allowed).toBe(false);
+    expect(r.message).toMatch(/não encontrei/i);
+  });
+
+  it('recusa data/hora nova inválida', async () => {
+    acharAgendamento.mockResolvedValue({ status: 'BOOKED', startAt: new Date('2026-08-20T12:00:00Z') } as never);
+    const r = await autorizar(
+      db, loja, servicos, equipe,
+      { intent: 'remarcar_horario', slots: { appointmentId: 'a1', sessionDate: 'xx' } },
+      AGORA,
+    );
+    expect(r.allowed).toBe(false);
+    expect(r.message).toMatch(/data e um horário válidos/i);
+  });
+
+  it('recusa sem id do alvo', async () => {
+    const r = await autorizar(db, loja, servicos, equipe, { intent: 'remarcar_horario', slots: {} }, AGORA);
+    expect(r.allowed).toBe(false);
+    expect(acharAgendamento).not.toHaveBeenCalled();
+  });
+
+  it('em cima da hora (< 24h padrão) oferece o atendente em vez de remarcar', async () => {
+    acharAgendamento.mockResolvedValue({ status: 'BOOKED', startAt: new Date('2026-08-19T22:00:00Z') } as never);
+    const r = await autorizar(db, loja, servicos, equipe, { intent: 'remarcar_horario', slots }, AGORA);
+    expect(r.allowed).toBe(false);
+    expect(r.message).toMatch(/atendente/i);
+  });
 });
 
 describe('autorizar — intenção desconhecida', () => {

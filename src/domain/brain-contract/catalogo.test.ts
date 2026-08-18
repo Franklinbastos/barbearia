@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { montarCatalogo, resumirExpediente, OP_MARCAR, OP_CANCELAR } from './catalogo';
+import { montarCatalogo, resumirExpediente, OP_MARCAR, OP_CANCELAR, OP_REMARCAR } from './catalogo';
 import type { LojaDoBrain, ServicoDoBrain, BarbeiroDoBrain } from './tipos';
 
 const loja: LojaDoBrain = {
@@ -21,9 +21,32 @@ const equipe: BarbeiroDoBrain[] = [
 ];
 
 describe('montarCatalogo', () => {
-  it('declara as duas operações', () => {
+  it('declara marcar, cancelar e remarcar', () => {
     const cat = montarCatalogo(loja, servicos, equipe);
-    expect(cat.operations).toEqual([OP_MARCAR, OP_CANCELAR]);
+    expect(cat.operations).toEqual([OP_MARCAR, OP_CANCELAR, OP_REMARCAR]);
+  });
+
+  it('monta os slots de remarcar: alvo por CANDIDATES, serviço/barbeiro semeados, data/hora perguntadas', () => {
+    const cat = montarCatalogo(loja, servicos, equipe);
+    const slots = cat.intentSlots[OP_REMARCAR];
+    const nomes = slots.map((s) => s.name);
+    expect(nomes).toEqual(['appointmentId', 'serviceName', 'staffName', 'sessionDate', 'sessionTime']);
+    const alvo = slots.find((s) => s.name === 'appointmentId')!;
+    expect(alvo.resolutionStrategy).toBe('CANDIDATES');
+    // serviço e barbeiro são semeados (opcionais, não bloqueiam), não perguntados
+    expect(slots.find((s) => s.name === 'serviceName')!.optional).toBe(true);
+    expect(slots.find((s) => s.name === 'staffName')!.optional).toBe(true);
+    expect(slots.find((s) => s.name === 'staffName')!.values).toEqual(['João', 'Pedro']);
+    // "remarcar" = pedir data e hora novas: data perguntada (não opcional), hora por availability
+    expect(slots.find((s) => s.name === 'sessionDate')!.optional).toBeFalsy();
+    const hora = slots.find((s) => s.name === 'sessionTime')!;
+    expect(hora.resolutionStrategy).toBe('CANDIDATES');
+    expect(hora.minimumSlots).toEqual(['serviceName', 'sessionDate']);
+  });
+
+  it('deixa remarcar fora do menu de saudação (disparado por intenção, não escolha de menu)', () => {
+    const cat = montarCatalogo(loja, servicos, equipe);
+    expect(cat.uxHints?.[OP_REMARCAR]?.showInMenu).toBe(false);
   });
 
   it('monta os slots de marcar com serviço, profissional, data, horário e nome', () => {

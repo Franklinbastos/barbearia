@@ -1,7 +1,7 @@
-import { createAppointment, cancelAppointment } from '@/domain/booking';
+import { createAppointment, cancelAppointment, rescheduleAppointment } from '@/domain/booking';
 import type { Db } from '@/db/repositories';
 import type { ResultadoDaAcao, LojaDoBrain, ServicoDoBrain, BarbeiroDoBrain } from './tipos';
-import { OP_MARCAR, OP_CANCELAR } from './catalogo';
+import { OP_MARCAR, OP_CANCELAR, OP_REMARCAR } from './catalogo';
 import { acharPorNome, montarInicio } from './mapeamento';
 import { comoErroDeNegocio } from './erros';
 
@@ -27,8 +27,13 @@ export type PedidoDeExecucao = {
   payload?: PayloadDeExecucao;
 };
 
-function classificarAcao(nome: string): typeof OP_MARCAR | typeof OP_CANCELAR | 'desconhecido' {
+type AcaoConhecida = typeof OP_MARCAR | typeof OP_CANCELAR | typeof OP_REMARCAR;
+
+function classificarAcao(nome: string): AcaoConhecida | 'desconhecido' {
   const a = nome.trim().toLowerCase();
+  // Remarcar ANTES de marcar: "remarcar"/"reagendar" contêm "marcar"/"agendar" e cairiam
+  // no marcar por engano.
+  if (a.includes('remarcar') || a.includes('reagendar') || a.includes('reschedul')) return OP_REMARCAR;
   if (a.includes('marcar') || a.includes('agendar') || a.includes('create')) return OP_MARCAR;
   if (a.includes('cancelar') || a.includes('desmarcar') || a.includes('cancel')) return OP_CANCELAR;
   return 'desconhecido';
@@ -113,6 +118,40 @@ export async function executar(
       // guarda restrita do link (só BOOKED e ainda no futuro).
       await cancelAppointment(db, loja.id, id, { origin: 'CUSTOMER' });
       return sucesso('Horário cancelado.');
+    } catch (erro) {
+      const negocio = comoErroDeNegocio(erro);
+      if (negocio) return recusar(negocio.message, negocio.code);
+      throw erro;
+    }
+  }
+
+  if (acao === OP_REMARCAR) {
+    // Editar a reserva existente (mesmo vínculo), não cancelar+criar — reusa o
+    // `rescheduleAppointment` do painel, que mantém o snapshot e decide colisão
+    // pela constraint EXCLUDE (vira SlotTaken/409). O motor semeia os slots com
+    // os valores atuais, então data/hora chegam completas mesmo quando o cliente
+    // só troca o barbeiro.
+    const id = p.appointmentId ?? pedido.externalReference ?? undefined;
+    if (!id) {
+      return recusar('Me diga qual agendamento você quer remarcar.', 'MISSING_APPOINTMENT');
+    }
+    const inicio = montarInicio(p.sessionDate, p.sessionTime, loja.timeZone);
+    if (!inicio) {
+      return recusar('Data ou horário inválidos.', 'INVALID_DATETIME');
+    }
+    // staffName ausente/desconhecido = mantém o barbeiro (novoStaffId undefined).
+    const barbeiro = acharPorNome(equipe, p.staffName);
+    try {
+      await rescheduleAppointment(db, {
+        appointmentId: id,
+        barbershopId: loja.id,
+        novoInicio: inicio,
+        novoStaffId: barbeiro?.id,
+        // O cliente está no próprio chat — a confirmação sai por aqui, sem um
+        // WhatsApp de remarcação em separado.
+        avisarCliente: false,
+      });
+      return sucesso('Horário remarcado.');
     } catch (erro) {
       const negocio = comoErroDeNegocio(erro);
       if (negocio) return recusar(negocio.message, negocio.code);

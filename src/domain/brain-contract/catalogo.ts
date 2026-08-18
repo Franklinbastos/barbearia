@@ -8,6 +8,7 @@ import { formatarPreco } from './mapeamento';
 
 export const OP_MARCAR = 'marcar_horario';
 export const OP_CANCELAR = 'cancelar_horario';
+export const OP_REMARCAR = 'remarcar_horario';
 
 type HorarioDoBrain = { weekday: number; startTime: string; endTime: string };
 
@@ -73,7 +74,7 @@ export function montarCatalogo(
     .join(', ');
 
   return {
-    operations: [OP_MARCAR, OP_CANCELAR],
+    operations: [OP_MARCAR, OP_CANCELAR, OP_REMARCAR],
 
     intentSlots: {
       [OP_MARCAR]: [
@@ -131,6 +132,54 @@ export function montarCatalogo(
           minimumSlots: [],
         },
       ],
+      [OP_REMARCAR]: [
+        // O alvo: qual reserva mudar. Resolve por telefone via CANDIDATES, igual ao cancelar.
+        {
+          name: 'appointmentId',
+          format: 'text',
+          hint: 'Qual agendamento você quer remarcar?',
+          resolutionStrategy: 'CANDIDATES',
+          resolverKey: 'session',
+          minimumSlots: [],
+        },
+        // Serviço e barbeiro NÃO são perguntados: o motor os semeia com os valores atuais da
+        // reserva (o resolver do alvo os carrega). Opcionais para não bloquear; o serviço fica
+        // aqui só porque a grade de horários novos precisa dele para calcular a duração.
+        {
+          // Sem `values` de propósito: é semeado do alvo (sempre válido) e não é perguntado; com
+          // enum ele viraria "slot travado" e o rótulo de barbeiro da confirmação pegaria o serviço.
+          name: 'serviceName',
+          format: 'text',
+          hint: 'Serviço do agendamento.',
+          optional: true,
+        },
+        // Barbeiro mantido por padrão; trocar é caso explícito ("um horário livre do Tiago"),
+        // e aí o cliente sobrescreve o valor semeado. Travado na lista real.
+        {
+          name: 'staffName',
+          format: 'text',
+          hint: nomesDeBarbeiro.length
+            ? `Com qual profissional? ${nomesDeBarbeiro.join(', ')} — ou mantém o atual.`
+            : 'Com qual profissional?',
+          optional: true,
+          values: nomesDeBarbeiro,
+        },
+        // "Remarcar" remete a HORÁRIO: o padrão é pedir data e hora novas. Data perguntada;
+        // hora oferecida pela grade real (availability), como no marcar.
+        {
+          name: 'sessionDate',
+          format: 'date',
+          hint: 'Para qual novo dia? (ex.: 2026-08-20)',
+        },
+        {
+          name: 'sessionTime',
+          format: 'time',
+          hint: 'Qual novo horário?',
+          resolverKey: 'session',
+          resolutionStrategy: 'CANDIDATES',
+          minimumSlots: ['serviceName', 'sessionDate'],
+        },
+      ],
     },
 
     uxHints: {
@@ -148,6 +197,16 @@ export function montarCatalogo(
         emoji: '🗑️',
         showInMenu: true,
         inverseOperation: OP_MARCAR,
+        temporalPolicy: 'FUTURE_ONLY',
+        supportsCollectiveMode: false,
+      },
+      // Fora do menu de propósito: remarcar é disparado por "muda pra...", não é uma escolha
+      // do menu de saudação (que fica em marcar/cancelar). Segue dispatchável por estar em
+      // `operations`.
+      [OP_REMARCAR]: {
+        label: 'Remarcar horário',
+        emoji: '🔁',
+        showInMenu: false,
         temporalPolicy: 'FUTURE_ONLY',
         supportsCollectiveMode: false,
       },
@@ -176,6 +235,15 @@ export function montarCatalogo(
       },
       [OP_CANCELAR]: {
         confirmationTemplate: 'Confirmo o cancelamento do seu horário?',
+      },
+      [OP_REMARCAR]: {
+        candidateSelectionPromptsBySlot: {
+          appointmentId: 'Qual agendamento você quer remarcar?',
+          sessionTime: 'Escolha o novo horário:',
+        },
+        // Sem {staffName} (opcional, some quando não muda): a confirmação mostra o novo
+        // dia/hora; a mensagem de "remarcado" fecha o assunto.
+        confirmationTemplate: 'Confirmo remarcar para {sessionDate} às {sessionTime}?',
       },
     },
 

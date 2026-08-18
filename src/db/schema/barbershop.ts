@@ -10,6 +10,13 @@ export const barbershop = pgTable(
     slotMinutes: integer('slot_minutes').notNull().default(30),
     minLeadMinutes: integer('min_lead_minutes').notNull().default(60),
     maxAdvanceDays: integer('max_advance_days').notNull().default(30),
+    /**
+     * Antecedência mínima, em minutos, para o cliente ALTERAR/CANCELAR pelo chat. Dentro dessa
+     * janela o bot não mexe sozinho — ação crítica em cima da hora vira handoff (§ Frente E).
+     * Separada de `minLeadMinutes` (que é o lead para MARCAR): são políticas distintas. Padrão
+     * 24h (1440 min).
+     */
+    minChangeMinutes: integer('min_change_minutes').notNull().default(1440),
     phone: text('phone'),
     /**
      * Matiz da marca, 0–360, um dos doze da paleta (§3.4). Nulo é o padrão e

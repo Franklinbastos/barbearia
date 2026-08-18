@@ -203,6 +203,15 @@ describe('resolverCandidatos', () => {
     expect(r.candidates.map((c) => c.id)).toEqual(['apt-1', 'apt-2']);
     // Label deve conter serviço, data/hora e barbeiro em formato legível
     expect(r.candidates[0].label).toMatch(/Corte.*João/);
+    // Campos carregam SÓ serviço e barbeiro atuais para o motor semear numa remarcação;
+    // data e hora NÃO vêm (remarcar pede o novo dia/horário).
+    expect(r.candidates[0].fields).toMatchObject({
+      appointmentId: 'apt-1',
+      serviceName: 'Corte',
+      staffName: 'João',
+    });
+    expect(r.candidates[0].fields).not.toHaveProperty('sessionDate');
+    expect(r.candidates[0].fields).not.toHaveProperty('sessionTime');
     expect(listarFuturos).toHaveBeenCalledWith(db, loja.id, '11999999999', expect.any(Date));
   });
 

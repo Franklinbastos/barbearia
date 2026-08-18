@@ -6,6 +6,7 @@ const valido = {
   slotMinutes: '30',
   minLeadMinutes: '60',
   maxAdvanceDays: '30',
+  minChangeMinutes: '1440',
   timeZone: 'America/Sao_Paulo',
 };
 
@@ -29,6 +30,11 @@ describe('validateShopSettings', () => {
 
   it('recusa janela de agendamento acima de um ano', () => {
     expect(() => validateShopSettings({ ...valido, maxAdvanceDays: '400' })).toThrow(/janela/i);
+  });
+
+  it('coage e valida a antecedência para alterar/cancelar (em minutos)', () => {
+    expect(validateShopSettings({ ...valido, minChangeMinutes: '1440' }).minChangeMinutes).toBe(1440);
+    expect(() => validateShopSettings({ ...valido, minChangeMinutes: '-5' })).toThrow(/alterar/i);
   });
 
   it('recusa fuso inexistente', () => {

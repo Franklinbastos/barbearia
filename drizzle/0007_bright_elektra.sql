@@ -1,0 +1,1 @@
+ALTER TABLE "barbershop" ADD COLUMN "min_change_minutes" integer DEFAULT 1440 NOT NULL;
