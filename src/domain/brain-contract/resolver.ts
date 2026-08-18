@@ -21,6 +21,8 @@ type SlotsDaResolucao = {
   staffName?: string;
   sessionDate?: string;
   customerPhone?: string;
+  /** Numa remarcação: o alvo, para a grade de horários novos ignorar o próprio slot. */
+  appointmentId?: string;
 };
 
 export type PedidoDeResolucao = {
@@ -108,6 +110,8 @@ export async function resolverCandidatos(
         serviceId: servico.id,
         staffId: barbeiro?.id,
         date: slots.sessionDate,
+        // Remarcação: não conta a reserva-alvo como ocupada (marcar não manda appointmentId).
+        excludeAppointmentId: slots.appointmentId,
       });
     } catch (erro) {
       const negocio = comoErroDeNegocio(erro);

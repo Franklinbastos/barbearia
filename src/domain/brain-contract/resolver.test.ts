@@ -96,6 +96,16 @@ describe('resolverCandidatos', () => {
     expect(disponivel).toHaveBeenCalledWith(db, expect.objectContaining({ serviceId: 's1', date: '2026-08-20' }));
   });
 
+  it('numa remarcação passa o appointmentId-alvo como excludeAppointmentId (grade ignora o próprio slot)', async () => {
+    limpar();
+    disponivel.mockResolvedValue([]);
+    await resolverCandidatos(db, loja, servicos, equipe, {
+      slotToResolve: 'sessionTime',
+      slots: { serviceName: 'Corte', sessionDate: '2026-08-20', appointmentId: 'apt-alvo' },
+    });
+    expect(disponivel).toHaveBeenCalledWith(db, expect.objectContaining({ excludeAppointmentId: 'apt-alvo' }));
+  });
+
   it('respeita o limite de candidatos', async () => {
     limpar();
     const slots = [

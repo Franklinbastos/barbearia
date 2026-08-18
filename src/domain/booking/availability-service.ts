@@ -26,6 +26,8 @@ export async function getAvailability(
     now?: Date;
     /** Só o painel desliga a janela de `maxAdvanceDays`; o padrão é aplicá-la. */
     enforceWindow?: boolean;
+    /** Remarcação: ignora a reserva-alvo na grade (o próprio horário não conta como ocupado). */
+    excludeAppointmentId?: string;
   },
 ): Promise<AvailabilitySlot[]> {
   const loja = await findBarbershopById(db, params.barbershopId);
@@ -52,7 +54,8 @@ export async function getAvailability(
     const expediente = await listWorkingHours(db, params.barbershopId, barbeiro.id, dia.weekday);
     if (expediente.length === 0) continue;
 
-    const ocupados = await listBusyRanges(db, params.barbershopId, barbeiro.id, inicioDia, fimDia);
+    const ocupados = await listBusyRanges(
+      db, params.barbershopId, barbeiro.id, inicioDia, fimDia, params.excludeAppointmentId);
     const duracao = Number(barbeiro.effectiveDurationMinutes);
 
     const slots: Slot[] = computeAvailability({

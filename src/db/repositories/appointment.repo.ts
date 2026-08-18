@@ -10,6 +10,9 @@ export async function listBusyRanges(
   staffId: string,
   from: Date,
   to: Date,
+  // Numa remarcação, a própria reserva-alvo não conta como ocupada: senão o cliente que quer só
+  // mudar de hora no mesmo dia veria o próprio horário como indisponível.
+  excludeAppointmentId?: string,
 ) {
   const agendamentos = await db
     .select({ start: appointment.startAt, end: appointment.endAt })
@@ -21,6 +24,7 @@ export async function listBusyRanges(
         ne(appointment.status, 'CANCELED'),
         lt(appointment.startAt, to),
         gt(appointment.endAt, from),
+        excludeAppointmentId ? ne(appointment.id, excludeAppointmentId) : undefined,
       ),
     );
 
