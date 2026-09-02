@@ -6,6 +6,7 @@ import { Bloco } from '@/components/ui/bloco';
 import { Card, CardContent } from '@/components/ui/card';
 import { Largura } from '@/components/ui/largura';
 import { db } from '@/db/client';
+import { env } from '@/lib/env';
 import { barbershop, user } from '@/db/schema';
 import {
   billingEstaAtivo,
@@ -159,7 +160,7 @@ function ResumoDaAssinatura({
 }) {
   const emAtraso = assinatura.status === 'past_due';
   const franquia = Object.values(plano?.includedCredits ?? {})[0] ?? 0;
-  const limiteDeAlerta = Math.max(10, Math.ceil(franquia * 0.1));
+  const limiteDeAlerta = Math.max(10, Math.ceil(franquia * (env.TEMPRA_BILLING_LOW_BALANCE_PERCENT / 100)));
   const saldoBaixo = saldo <= limiteDeAlerta && pacotes.length > 0;
   return (
     <section className="flex flex-col gap-3" aria-labelledby="assinatura-atual">
