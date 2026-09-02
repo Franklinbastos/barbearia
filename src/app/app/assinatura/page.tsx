@@ -158,6 +158,9 @@ function ResumoDaAssinatura({
   telefone: string;
 }) {
   const emAtraso = assinatura.status === 'past_due';
+  const franquia = Object.values(plano?.includedCredits ?? {})[0] ?? 0;
+  const limiteDeAlerta = Math.max(10, Math.ceil(franquia * 0.1));
+  const saldoBaixo = saldo <= limiteDeAlerta && pacotes.length > 0;
   return (
     <section className="flex flex-col gap-3" aria-labelledby="assinatura-atual">
       <div className="flex flex-col gap-1">
@@ -192,6 +195,14 @@ function ResumoDaAssinatura({
       </Card>
       {emAtraso ? (
         <Bloco tom="alerta">O pagamento está pendente e os recursos do plano podem ficar indisponíveis.</Bloco>
+      ) : null}
+      {saldoBaixo ? (
+        <Bloco tom="alerta" papel="alert">
+          Seu saldo está baixo ({saldo.toLocaleString('pt-BR')} créditos restantes).{' '}
+          <a className="font-semibold underline underline-offset-2" href="#pacotes-disponiveis">
+            Comprar créditos
+          </a>
+        </Bloco>
       ) : null}
       <HistoricoDeCreditos entradas={ledger} />
       <CheckoutForm planos={[]} pacotes={pacotes} nonce={randomUUID()} nome={nome} telefone={telefone} />
