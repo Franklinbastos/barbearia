@@ -31,6 +31,22 @@ function rotuloDaUnidade(unidade: string): string {
   return unidade.replaceAll('_', ' ');
 }
 
+function detalhesDaPolitica(plano: PlanoBilling): string[] {
+  const politica = plano.usagePolicy;
+  if (!politica) return [];
+  return [
+    politica.messagesPerCredit == null
+      ? null
+      : `${politica.messagesPerCredit.toLocaleString('pt-BR')} mensagem(ns) por crédito`,
+    politica.inputTokensPerCredit == null
+      ? null
+      : `${politica.inputTokensPerCredit.toLocaleString('pt-BR')} tokens de entrada por crédito`,
+    politica.outputTokensPerCredit == null
+      ? null
+      : `${politica.outputTokensPerCredit.toLocaleString('pt-BR')} tokens de saída por crédito`,
+  ].filter((item): item is string => item !== null);
+}
+
 export function CheckoutForm({
   planos,
   pacotes = [],
@@ -117,6 +133,7 @@ export function CheckoutForm({
         <div className="grid gap-3 sm:grid-cols-2">
           {planos.map((plano) => {
             const credito = creditoDoPlano(plano);
+            const detalhes = detalhesDaPolitica(plano);
             return (
               <Card key={plano.code} className="rounded-lg">
                 <CardContent className="flex h-full flex-col gap-4">
@@ -128,6 +145,11 @@ export function CheckoutForm({
                           ? `${credito[1].toLocaleString('pt-BR')} ${rotuloDaUnidade(credito[0])} por mês`
                           : 'Franquia definida pelo produto'}
                       </p>
+                      {detalhes.length > 0 ? (
+                        <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                          {detalhes.join(' · ')}
+                        </p>
+                      ) : null}
                     </div>
                     <p className="shrink-0 text-base leading-6 font-bold">
                       {dinheiro(plano.monthlyPriceCents)}
