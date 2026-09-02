@@ -17,6 +17,16 @@ const segredo = (minimo: number, nome: string) =>
       `${nome} ainda está com o valor de exemplo — gere um segredo aleatório`,
     );
 
+const urlHttpsOpcional = (mensagem: string) =>
+  z.preprocess(
+    (valor) => (typeof valor === 'string' && valor.trim() === '' ? undefined : valor),
+    z
+      .string()
+      .url(mensagem)
+      .refine((valor) => new URL(valor).protocol === 'https:', `${mensagem}; use HTTPS`)
+      .optional(),
+  );
+
 const schema = z
   .object({
     DATABASE_URL: z.string().startsWith('postgres', 'DATABASE_URL deve ser uma URL Postgres'),
@@ -27,6 +37,13 @@ const schema = z
     WHATSAPP_PHONE_NUMBER_ID: z.string().optional(),
     WHATSAPP_ACCESS_TOKEN: z.string().optional(),
     WHATSAPP_LANGUAGE: z.string().default('pt_BR'),
+    TEMPRA_BILLING_ENABLED: z.enum(['true', 'false']).default('false'),
+    TEMPRA_BILLING_URL: z.string().url('TEMPRA_BILLING_URL deve ser uma URL válida').optional(),
+    TEMPRA_BILLING_API_KEY: z.string().optional(),
+    TEMPRA_BILLING_LOW_BALANCE_PERCENT: z.coerce.number().min(0).max(100).default(10),
+    TEMPRA_BILLING_RETURN_URL: urlHttpsOpcional(
+      'TEMPRA_BILLING_RETURN_URL deve ser uma URL válida',
+    ),
     CRON_SECRET: segredo(16, 'CRON_SECRET'),
     // Piso de 60: o cron do vercel.json roda de hora em hora. Janela menor que o
     // intervalo abre buraco entre execuções e alguns agendamentos nunca recebem
@@ -41,13 +58,36 @@ const schema = z
   // Com o WhatsApp ligado e sem credencial, todo envio vira uma linha FAILED no
   // log que ninguém olha — o cliente simplesmente não recebe a confirmação.
   .superRefine((valores, ctx) => {
-    if (valores.WHATSAPP_ENABLED !== 'true') return;
-    for (const campo of ['WHATSAPP_PHONE_NUMBER_ID', 'WHATSAPP_ACCESS_TOKEN'] as const) {
-      if ((valores[campo] ?? '').trim() === '') {
+    if (valores.WHATSAPP_ENABLED === 'true') {
+      for (const campo of ['WHATSAPP_PHONE_NUMBER_ID', 'WHATSAPP_ACCESS_TOKEN'] as const) {
+        if ((valores[campo] ?? '').trim() === '') {
+          ctx.addIssue({
+            code: 'custom',
+            path: [campo],
+            message: `${campo} é obrigatório quando WHATSAPP_ENABLED=true`,
+          });
+        }
+      }
+    }
+
+    if (valores.TEMPRA_BILLING_ENABLED === 'true') {
+      for (const campo of ['TEMPRA_BILLING_URL', 'TEMPRA_BILLING_API_KEY'] as const) {
+        if ((valores[campo] ?? '').trim() === '') {
+          ctx.addIssue({
+            code: 'custom',
+            path: [campo],
+            message: `${campo} é obrigatório quando TEMPRA_BILLING_ENABLED=true`,
+          });
+        }
+      }
+      const chave = segredo(32, 'TEMPRA_BILLING_API_KEY').safeParse(
+        valores.TEMPRA_BILLING_API_KEY,
+      );
+      if (!chave.success && (valores.TEMPRA_BILLING_API_KEY ?? '').trim() !== '') {
         ctx.addIssue({
           code: 'custom',
-          path: [campo],
-          message: `${campo} é obrigatório quando WHATSAPP_ENABLED=true`,
+          path: ['TEMPRA_BILLING_API_KEY'],
+          message: chave.error.issues[0]?.message ?? 'TEMPRA_BILLING_API_KEY é inválida',
         });
       }
     }
