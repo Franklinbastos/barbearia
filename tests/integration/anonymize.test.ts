@@ -1,9 +1,13 @@
 import { describe, it, expect } from 'vitest';
 import { eq } from 'drizzle-orm';
 import { withTestDb, type TestDb } from '../helpers/db';
+import { usarRelogioFixo } from '../helpers/relogio';
 import { barbershop, staff, service, staffService, workingHours, appointment, customer } from '@/db/schema';
 import { createAppointment } from '@/domain/booking';
 import { anonymizeCustomer } from '@/domain/privacy/anonymize-customer';
+
+// Agenda em 2026-09-07 fixo: ver tests/helpers/relogio.ts.
+usarRelogioFixo();
 
 async function semearComCliente(db: TestDb) {
   const [loja] = await db

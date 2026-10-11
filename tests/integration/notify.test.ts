@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { eq } from 'drizzle-orm';
 import { withTestDb, type TestDb } from '../helpers/db';
+import { usarRelogioFixo } from '../helpers/relogio';
 import {
   barbershop,
   staff,
@@ -14,6 +15,9 @@ import {
 import { createAppointment } from '@/domain/booking';
 import { notifyOnce } from '@/notifications/notify';
 import type { NotificationSender } from '@/notifications/sender';
+
+// Agenda em 2026-09-07 fixo: ver tests/helpers/relogio.ts.
+usarRelogioFixo();
 
 async function semearComAgendamento(db: TestDb, slug = 'teste') {
   const [loja] = await db

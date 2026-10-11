@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeAll, afterAll } from 'vitest';
 import { isValidElement, type ReactElement, type ReactNode } from 'react';
 import { eq } from 'drizzle-orm';
 import { withTestDb } from '../../../../../tests/helpers/db';
+import { usarRelogioFixo } from '../../../../../tests/helpers/relogio';
 import { barbershop, staff, service, staffService, workingHours, customer } from '@/db/schema';
 import { createAppointment } from '@/domain/booking';
 import type { PanelSession } from '@/lib/session';
@@ -13,6 +14,9 @@ import CustomerDetailPage from './page';
 import { AnonymizeButton } from './anonymize-button';
 import { Historico, type HistoricoProps } from './historico';
 import { IndicadoresDoCliente, type IndicadoresDoClienteProps } from './indicadores-do-cliente';
+
+// Agenda em 2026-09-07 fixo: ver tests/helpers/relogio.ts.
+usarRelogioFixo();
 
 /**
  * Concatena o texto de uma árvore de elementos React, sem precisar de DOM.

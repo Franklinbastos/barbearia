@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { DateTime } from 'luxon';
 import { eq } from 'drizzle-orm';
 import { withTestDb, type TestDb } from '../helpers/db';
+import { usarRelogioFixo } from '../helpers/relogio';
 import {
   barbershop, staff, service, staffService, workingHours, appointment,
 } from '@/db/schema';
@@ -12,6 +13,9 @@ import {
   SlotUnavailableError,
   OutsideBookingWindowError,
 } from '@/domain/booking';
+
+// Agenda em 2026-09-07 fixo: ver tests/helpers/relogio.ts.
+usarRelogioFixo();
 
 /**
  * O encaixe nas pontas amplia o que `createAppointment` aceita. Estes testes

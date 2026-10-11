@@ -27,7 +27,8 @@ function fontes(): Fonte[] {
     readdirSync(resolve(process.cwd(), dir), { recursive: true })
       .filter((f): f is string => typeof f === 'string' && f.endsWith('.tsx') && !f.includes('.test.'))
       .map((f) => ({
-        arquivo: `${dir}/${f}`,
+        // No Windows o readdirSync devolve o caminho com '\'; as exceções estão escritas com '/'.
+        arquivo: `${dir}/${f.replaceAll('\\', '/')}`,
         texto: readFileSync(resolve(process.cwd(), dir, f), 'utf8'),
       })),
   );

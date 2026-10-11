@@ -1,9 +1,13 @@
 import { describe, it, expect } from 'vitest';
 import { DateTime } from 'luxon';
 import { withTestDb, type TestDb } from '../helpers/db';
+import { usarRelogioFixo } from '../helpers/relogio';
 import { barbershop, staff, service, staffService, workingHours } from '@/db/schema';
 import { createAppointment } from '@/domain/booking';
 import { listAppointmentsBetween } from '@/db/repositories';
+
+// Agenda em 2026-09-07 fixo: ver tests/helpers/relogio.ts.
+usarRelogioFixo();
 
 const SEGUNDA = '2026-09-07';
 
