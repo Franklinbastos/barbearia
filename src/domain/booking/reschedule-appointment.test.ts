@@ -10,6 +10,7 @@ import {
   service,
   staff,
   staffService,
+  timeOff,
 } from '@/db/schema';
 import { rescheduleAppointment, ENVIO_PENDENTE } from './reschedule-appointment';
 import { MENSAGEM_DE_COLISAO } from './create-walk-in';
@@ -314,6 +315,116 @@ describe('rescheduleAppointment', () => {
           avisarCliente: false,
         }),
       ).rejects.toThrow(NotFoundError);
+    });
+  });
+});
+
+/**
+ * Bloqueio (folga, almoço) contra remarcação. A regra é a do encaixe: fora do
+ * expediente pode — quem decide é o dono —, em cima de bloqueio não. A EXCLUDE
+ * não enxerga `time_off`, então só a checagem de bloqueio segura estes casos.
+ */
+describe('rescheduleAppointment — bloqueios do barbeiro', () => {
+  async function bloquear(db: TestDb, barbershopId: string, staffId: string, inicio: string, fim: string) {
+    await db.insert(timeOff).values({
+      barbershopId, staffId, startAt: em(inicio), endAt: em(fim), reason: 'Almoço',
+    });
+  }
+
+  it('recusa mover para cima do almoço do barbeiro, com a mensagem do encaixe', async () => {
+    await withTestDb(async (db) => {
+      const { loja, marcao, marcar } = await semear(db);
+      await bloquear(db, loja.id, marcao.id, '12:00', '13:00');
+      const alvo = await marcar('09:00', '09:30');
+
+      await expect(
+        rescheduleAppointment(db, {
+          appointmentId: alvo.id, barbershopId: loja.id, novoInicio: em('12:00'), avisarCliente: true,
+        }),
+      ).rejects.toThrow(MENSAGEM_DE_COLISAO);
+
+      const [intacto] = await ler(db, alvo.id);
+      expect(intacto.startAt.getTime()).toBe(em('09:00').getTime());
+      // Recusou antes de gravar: nenhum aviso de remarcação fica registrado.
+      expect(await db.select().from(notificationLog)).toHaveLength(0);
+    });
+  });
+
+  it('recusa quando só o fim do atendimento invade o bloqueio', async () => {
+    await withTestDb(async (db) => {
+      const { loja, marcao, marcar } = await semear(db);
+      await bloquear(db, loja.id, marcao.id, '12:00', '13:00');
+      const alvo = await marcar('09:00', '09:30');
+
+      await expect(
+        rescheduleAppointment(db, {
+          appointmentId: alvo.id, barbershopId: loja.id, novoInicio: em('11:45'), avisarCliente: false,
+        }),
+      ).rejects.toThrow(SlotTakenError);
+    });
+  });
+
+  it('aceita encostar no bloqueio sem invadir (termina quando o almoço começa)', async () => {
+    await withTestDb(async (db) => {
+      const { loja, marcao, marcar } = await semear(db);
+      await bloquear(db, loja.id, marcao.id, '12:00', '13:00');
+      const alvo = await marcar('09:00', '09:30');
+
+      await rescheduleAppointment(db, {
+        appointmentId: alvo.id, barbershopId: loja.id, novoInicio: em('11:30'), avisarCliente: false,
+      });
+
+      const [depois] = await ler(db, alvo.id);
+      expect(depois.startAt.getTime()).toBe(em('11:30').getTime());
+    });
+  });
+
+  it('aceita fora do expediente: quem decide é o dono, como no encaixe', async () => {
+    await withTestDb(async (db) => {
+      // `semear` não cadastra expediente nenhum: qualquer hora é "fora".
+      const { loja, marcar } = await semear(db);
+      const alvo = await marcar('09:00', '09:30');
+
+      await rescheduleAppointment(db, {
+        appointmentId: alvo.id, barbershopId: loja.id, novoInicio: em('21:00'), avisarCliente: false,
+      });
+
+      const [depois] = await ler(db, alvo.id);
+      expect(depois.startAt.getTime()).toBe(em('21:00').getTime());
+    });
+  });
+
+  it('bloqueio de outro barbeiro não atrapalha', async () => {
+    await withTestDb(async (db) => {
+      const { loja, tiago, marcar } = await semear(db);
+      await bloquear(db, loja.id, tiago.id, '12:00', '13:00');
+      const alvo = await marcar('09:00', '09:30');
+
+      await rescheduleAppointment(db, {
+        appointmentId: alvo.id, barbershopId: loja.id, novoInicio: em('12:00'), avisarCliente: false,
+      });
+
+      const [depois] = await ler(db, alvo.id);
+      expect(depois.startAt.getTime()).toBe(em('12:00').getTime());
+    });
+  });
+
+  it('recusa trocar para um barbeiro que está bloqueado no horário', async () => {
+    await withTestDb(async (db) => {
+      const { loja, marcao, tiago, corte, marcar } = await semear(db);
+      await db.insert(staffService).values({ barbershopId: loja.id, staffId: tiago.id, serviceId: corte.id });
+      await bloquear(db, loja.id, tiago.id, '09:00', '10:00');
+      const alvo = await marcar('09:00', '09:30');
+
+      await expect(
+        rescheduleAppointment(db, {
+          appointmentId: alvo.id, barbershopId: loja.id, novoInicio: em('09:00'),
+          novoStaffId: tiago.id, avisarCliente: false,
+        }),
+      ).rejects.toThrow(MENSAGEM_DE_COLISAO);
+
+      const [intacto] = await ler(db, alvo.id);
+      expect(intacto.staffId).toBe(marcao.id);
     });
   });
 });

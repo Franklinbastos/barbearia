@@ -4,6 +4,7 @@ import {
   findAppointmentById,
   findBarbershopById,
   listStaffForService,
+  listTimeOffRanges,
   type Db,
 } from '@/db/repositories';
 import { MENSAGEM_DE_COLISAO } from './create-walk-in';
@@ -15,7 +16,7 @@ import { NotFoundError, SlotTakenError, SlotUnavailableError, isExclusionViolati
  * Hoje mudar alguém de horário é cancelar e criar de novo — e o cancelamento
  * dispara WhatsApp de cancelamento para quem só queria trocar de hora.
  *
- * Três coisas aqui não são preferência:
+ * Quatro coisas aqui não são preferência:
  *
  * 1. **Quem decide colisão é a constraint `EXCLUDE`**, traduzida por
  *    `isExclusionViolation`. Não há segunda verificação: uma checagem prévia
@@ -26,6 +27,10 @@ import { NotFoundError, SlotTakenError, SlotUnavailableError, isExclusionViolati
  *    quando o barbeiro muda, e é dela que o novo fim é recalculado.
  * 3. **A mensagem de colisão é a do encaixe**, importada de `create-walk-in.ts`.
  *    Duas frases para a mesma recusa divergiriam no primeiro ajuste.
+ * 4. **Bloqueio (folga, almoço) recusa; fora do expediente não.** É a regra do
+ *    encaixe: quem decide o horário é o dono, mas em cima de bloqueio nunca. A
+ *    `EXCLUDE` não enxerga `time_off`, então o bloqueio é o único caso com
+ *    checagem prévia — atendimento contra atendimento continua com a constraint.
  */
 export type RescheduleInput = {
   appointmentId: string;
@@ -91,6 +96,9 @@ export async function rescheduleAppointment(db: Db, input: RescheduleInput): Pro
   const mesmoLugar =
     input.novoInicio.getTime() === atual.startAt.getTime() && novoStaffId === atual.staffId;
   if (mesmoLugar) return;
+
+  const bloqueios = await listTimeOffRanges(db, input.barbershopId, novoStaffId, input.novoInicio, novoFim);
+  if (bloqueios.length > 0) throw new SlotTakenError(MENSAGEM_DE_COLISAO);
 
   try {
     await db.transaction(async (tx) => {

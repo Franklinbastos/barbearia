@@ -23,7 +23,25 @@ export async function listBusyRanges(
       ),
     );
 
-  const bloqueios = await db
+  const bloqueios = await listTimeOffRanges(db, barbershopId, staffId, from, to);
+
+  return [...agendamentos, ...bloqueios];
+}
+
+/**
+ * Só os bloqueios (folga, almoço) do barbeiro que tocam a janela [from, to).
+ * Existe separado porque a constraint `EXCLUDE` enxerga agendamento contra
+ * agendamento, mas não enxerga `time_off`: quem move atendimento sem passar
+ * pela grade (remarcar) precisa desta checagem à parte.
+ */
+export async function listTimeOffRanges(
+  db: Db,
+  barbershopId: string,
+  staffId: string,
+  from: Date,
+  to: Date,
+) {
+  return db
     .select({ start: timeOff.startAt, end: timeOff.endAt })
     .from(timeOff)
     .where(
@@ -34,8 +52,6 @@ export async function listBusyRanges(
         gt(timeOff.endAt, from),
       ),
     );
-
-  return [...agendamentos, ...bloqueios];
 }
 
 export async function listAppointmentsBetween(db: Db, barbershopId: string, from: Date, to: Date) {
