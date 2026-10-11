@@ -35,7 +35,11 @@ import {
   staffService,
 } from '@/db/schema';
 import { closeDb } from '@/db/client';
-import { rescheduleAppointmentAction } from './actions';
+import {
+  reopenAppointmentAction,
+  rescheduleAppointmentAction,
+  setAppointmentStatusAction,
+} from './actions';
 
 const SEGUNDA = '2026-09-07';
 const TZ = 'America/Sao_Paulo';
@@ -206,6 +210,51 @@ describe('rescheduleAppointmentAction', () => {
       expect(retorno.erro).toBe('Informe um horário válido.');
       const [intacto] = await db.select().from(appointment).where(eq(appointment.id, alvo.id));
       expect(intacto.startAt.getTime()).toBe(em('09:00').getTime());
+    });
+  });
+});
+
+/**
+ * "Compareceu"/"Não veio" com a agenda desatualizada: o cliente cancelou pelo
+ * link depois que a tela abriu, e o botão ainda aparece para o dono.
+ */
+describe('setAppointmentStatusAction', () => {
+  it('marca compareceu num horário marcado', async () => {
+    await withTestDb(async (db) => {
+      const { alvo } = await semear(db);
+
+      const retorno = await setAppointmentStatusAction(alvo.id, 'DONE');
+
+      expect(retorno).toBeUndefined();
+      const [linha] = await db.select().from(appointment).where(eq(appointment.id, alvo.id));
+      expect(linha.status).toBe('DONE');
+    });
+  });
+
+  it.each(['DONE', 'NO_SHOW'] as const)('recusa %s num horário já cancelado', async (status) => {
+    await withTestDb(async (db) => {
+      const { alvo } = await semear(db);
+      await db.update(appointment).set({ status: 'CANCELED' }).where(eq(appointment.id, alvo.id));
+
+      const retorno = await setAppointmentStatusAction(alvo.id, status);
+
+      expect(retorno?.erro).toMatch(/cancelado/);
+      const [linha] = await db.select().from(appointment).where(eq(appointment.id, alvo.id));
+      expect(linha.status).toBe('CANCELED');
+    });
+  });
+
+  it('o "Desfazer" depois da recusa não ressuscita o cancelado', async () => {
+    await withTestDb(async (db) => {
+      const { alvo } = await semear(db);
+      await db.update(appointment).set({ status: 'CANCELED' }).where(eq(appointment.id, alvo.id));
+
+      await setAppointmentStatusAction(alvo.id, 'DONE');
+      const desfazer = await reopenAppointmentAction(alvo.id);
+
+      expect(desfazer?.erro).toBeTruthy();
+      const [linha] = await db.select().from(appointment).where(eq(appointment.id, alvo.id));
+      expect(linha.status).toBe('CANCELED');
     });
   });
 });

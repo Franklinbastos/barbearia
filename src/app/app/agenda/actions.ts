@@ -1,7 +1,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { and, eq, inArray } from 'drizzle-orm';
+import { and, eq, inArray, ne } from 'drizzle-orm';
 import { DateTime } from 'luxon';
 import { db } from '@/db/client';
 import { appointment } from '@/db/schema';
@@ -14,7 +14,7 @@ import { resolverInicioDoEncaixe } from './encaixe';
 export async function setAppointmentStatusAction(
   appointmentId: string,
   status: 'DONE' | 'NO_SHOW' | 'CANCELED',
-) {
+): Promise<{ erro: string } | undefined> {
   const sessao = await requireSession();
 
   if (status === 'CANCELED') {
@@ -22,12 +22,26 @@ export async function setAppointmentStatusAction(
     // que já passou. O padrão de cancelAppointment é o caminho restrito do cliente.
     await cancelAppointment(db, sessao.barbershopId, appointmentId, { origin: 'PANEL' });
   } else {
-    await db
+    // `CANCELED` fica de fora no próprio WHERE, pelo mesmo motivo do "Desfazer"
+    // abaixo: a tela pode estar desatualizada (o cliente cancelou pelo link
+    // depois que a agenda abriu), e o horário cancelado já voltou para a grade.
+    const marcados = await db
       .update(appointment)
       .set({ status })
       .where(
-        and(eq(appointment.barbershopId, sessao.barbershopId), eq(appointment.id, appointmentId)),
-      );
+        and(
+          eq(appointment.barbershopId, sessao.barbershopId),
+          eq(appointment.id, appointmentId),
+          ne(appointment.status, 'CANCELED'),
+        ),
+      )
+      .returning({ id: appointment.id });
+
+    if (marcados.length === 0) {
+      // Revalida mesmo na recusa: é o que faz a agenda desatualizada mostrar o cancelamento.
+      revalidatePath('/app/agenda');
+      return { erro: 'Este horário foi cancelado e não pode mais ser marcado. A agenda foi atualizada.' };
+    }
   }
 
   revalidatePath('/app/agenda');

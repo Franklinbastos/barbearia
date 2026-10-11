@@ -292,6 +292,24 @@ export function Remarcacao({
                 </label>
 
                 <ErroDeAcao mensagem={erro} />
+
+                {/* Qualquer recusa (bloqueio ou horário tomado) tem a mesma saída:
+                    escolher outro horário. Fecha só a folha — o modo continua
+                    ligado, então o próximo clique numa faixa (neste ou em outro
+                    dia) já remarca. Decisão de 19/09/2026. */}
+                {erro ? (
+                  <Botao
+                    type="button"
+                    variante="secundario"
+                    largura="total"
+                    onClick={() => {
+                      setErro(null);
+                      setPedido(null);
+                    }}
+                  >
+                    Escolher outro horário
+                  </Botao>
+                ) : null}
               </form>
             ) : null}
           </FolhaInferior>
