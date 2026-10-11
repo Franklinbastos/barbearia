@@ -93,6 +93,7 @@ export default async function StaffDetailPage({
           staffId={staffId}
           bloqueios={bloqueios}
           timeZone={loja?.timeZone ?? 'America/Sao_Paulo'}
+          expediente={expediente}
         />
       </section>
     </Largura>

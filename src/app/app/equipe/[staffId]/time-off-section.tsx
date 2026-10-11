@@ -12,6 +12,7 @@ import { Button } from '@/components/ui/button';
 import { Calendar } from '@/components/ui/calendar';
 import { Campo } from '@/components/ui/campo';
 import { Card, CardContent } from '@/components/ui/card';
+import { Checkbox } from '@/components/ui/checkbox';
 import { larguraVariants } from '@/components/ui/largura';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { cn } from '@/lib/utils';
@@ -36,14 +37,38 @@ function dataParaISO(data: Date): string {
   return `${data.getFullYear()}-${dois(data.getMonth() + 1)}-${dois(data.getDate())}`;
 }
 
+type TurnoDoExpediente = { weekday: number; startTime: string; endTime: string };
+
+/**
+ * O "Dia inteiro" do dia escolhido: do começo do primeiro turno ao fim do
+ * último, no expediente daquele dia da semana. `null` quando o barbeiro não
+ * trabalha nesse dia — aí não há o que bloquear.
+ *
+ * `getDay()` do JS conta domingo como 0; o expediente segue o Luxon (7).
+ */
+export function intervaloDoDiaInteiro(
+  dia: Date,
+  expediente: TurnoDoExpediente[],
+): { inicio: string; fim: string } | null {
+  const weekday = dia.getDay() === 0 ? 7 : dia.getDay();
+  const turnos = expediente.filter((t) => t.weekday === weekday);
+  if (turnos.length === 0) return null;
+  const inicio = turnos.map((t) => t.startTime.slice(0, 5)).sort()[0]!;
+  const fim = turnos.map((t) => t.endTime.slice(0, 5)).sort().at(-1)!;
+  return { inicio, fim };
+}
+
 export function TimeOffSection({
   staffId,
   bloqueios,
   timeZone,
+  expediente = [],
 }: {
   staffId: string;
   bloqueios: Bloqueio[];
   timeZone: string;
+  /** Turnos do barbeiro — é deles que o atalho "Dia inteiro" tira o horário. */
+  expediente?: TurnoDoExpediente[];
 }) {
   const action = createTimeOffAction.bind(null, staffId);
   const [state, formAction, pending] = useActionState(action, ESTADO_INICIAL);
@@ -52,6 +77,9 @@ export function TimeOffSection({
   const [erroAoExcluir, setErroAoExcluir] = useState<string | null>(null);
   const [dia, setDia] = useState<Date | undefined>(undefined);
   const [calendarioAberto, setCalendarioAberto] = useState(false);
+  const [diaInteiro, setDiaInteiro] = useState(false);
+  const intervalo = dia ? intervaloDoDiaInteiro(dia, expediente) : null;
+  const usandoDiaInteiro = diaInteiro && intervalo !== null;
 
   useEffect(() => {
     if (state.ok) formRef.current?.reset();
@@ -122,7 +150,10 @@ export function TimeOffSection({
           <form
             ref={formRef}
             action={formAction}
-            onReset={() => setDia(undefined)}
+            onReset={() => {
+              setDia(undefined);
+              setDiaInteiro(false);
+            }}
             className={cn(larguraVariants({ tipo: 'formulario' }), 'flex flex-col gap-3')}
           >
             {/* O `Popover` envolve o `Campo` porque quem tem de ser o controle
@@ -169,16 +200,42 @@ export function TimeOffSection({
                 válidos", que é o mesmo caminho de quando a hora não vinha. */}
             <input type="hidden" name="date" value={dia ? dataParaISO(dia) : ''} readOnly />
 
-            {/* Início e fim lado a lado: são duas horas do mesmo intervalo e
-                cabem em 2 colunas mesmo em 360px. */}
-            <div className="grid grid-cols-2 gap-2">
-              <Campo rotulo="Início">
-                <input type="time" name="startTime" required />
-              </Campo>
-              <Campo rotulo="Fim">
-                <input type="time" name="endTime" required />
-              </Campo>
-            </div>
+            {/* Atalho de folga (decisão de 19/09/2026): preenche o horário com o
+                expediente daquele dia, e é esse bloqueio que a agenda mostra como
+                "de folga". O `<label>` por fora dá 44px de alvo ao checkbox. */}
+            <label className="flex min-h-11 cursor-pointer items-center gap-3">
+              <Checkbox checked={diaInteiro} onCheckedChange={(marcado) => setDiaInteiro(marcado === true)} />
+              <span className="text-[15px] leading-5">Dia inteiro</span>
+            </label>
+            {diaInteiro && dia && intervalo === null ? (
+              <p className="text-sm leading-5 text-tinta-2">
+                Sem expediente neste dia da semana — não há horário para bloquear.
+              </p>
+            ) : null}
+            {diaInteiro && !dia ? (
+              <p className="text-sm leading-5 text-tinta-2">Escolha a data para usar o expediente do dia.</p>
+            ) : null}
+
+            {usandoDiaInteiro ? (
+              <>
+                <p className="text-sm leading-5 text-tinta-2">
+                  Bloqueia todo o expediente: das {intervalo.inicio} às {intervalo.fim}.
+                </p>
+                <input type="hidden" name="startTime" value={intervalo.inicio} readOnly />
+                <input type="hidden" name="endTime" value={intervalo.fim} readOnly />
+              </>
+            ) : (
+              // Início e fim lado a lado: são duas horas do mesmo intervalo e
+              // cabem em 2 colunas mesmo em 360px.
+              <div className="grid grid-cols-2 gap-2">
+                <Campo rotulo="Início">
+                  <input type="time" name="startTime" required />
+                </Campo>
+                <Campo rotulo="Fim">
+                  <input type="time" name="endTime" required />
+                </Campo>
+              </div>
+            )}
 
             <Campo rotulo="Motivo" dica="Opcional — aparece só para a equipe.">
               <input name="reason" autoComplete="off" />
