@@ -52,6 +52,7 @@
    | `APP_URL` | sim | URL de produção, sem barra no fim |
    | `CRON_SECRET` | sim | 16+ caracteres aleatórios |
    | `REMINDER_WINDOW_MINUTES` | não | padrão 180 |
+   | `TRUSTED_IP_HEADER` | não fora da Vercel: **sim** | de onde sai o IP para o limite de reservas. Padrão `x-forwarded-for` (Vercel). Cloudflare: `cf-connecting-ip`; VPS: o cabeçalho que o proxy sobrescreve (ex.: `x-real-ip`). Com o cabeçalho errado, o cliente forja o IP e escapa do limite |
    | `WHATSAPP_ENABLED` | não | `false` até os templates estarem aprovados |
    | `WHATSAPP_PHONE_NUMBER_ID` | sim quando `WHATSAPP_ENABLED=true` | o boot recusa subir sem ela |
    | `WHATSAPP_ACCESS_TOKEN` | sim quando `WHATSAPP_ENABLED=true` | o boot recusa subir sem ela |

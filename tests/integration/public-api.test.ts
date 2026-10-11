@@ -1,12 +1,16 @@
 import { describe, it, expect, vi } from 'vitest';
 import { eq } from 'drizzle-orm';
 import { withTestDb, type TestDb } from '../helpers/db';
+import { HOJE_DOS_TESTES, usarRelogioFixo } from '../helpers/relogio';
 import {
   barbershop, staff, service, staffService, workingHours, customer, appointment, notificationLog,
 } from '@/db/schema';
 import { GET as getAvailabilityRoute } from '@/app/api/public/[slug]/availability/route';
 import { POST as postAppointmentRoute } from '@/app/api/public/[slug]/appointments/route';
 import { GET as getCatalogRoute } from '@/app/api/public/[slug]/catalog/route';
+
+// Agenda em 2026-09-07 fixo: ver tests/helpers/relogio.ts.
+usarRelogioFixo();
 
 /**
  * A rota precisa entregar a notificação a um agendador que sobreviva ao fim da
@@ -276,6 +280,57 @@ describe('API pública', () => {
         params('barbearia-teste'),
       );
       expect(res.status).toBe(400);
+    });
+  });
+});
+
+/**
+ * Spam de agendamento: trocar o telefone a cada pedido escapa do limite por
+ * telefone, e só a janela de 10 min por IP deixava ~1.400 reservas num dia.
+ */
+describe('teto diário de reservas por IP', () => {
+  const MINUTO = 60_000;
+
+  function reservarDe(ip: string, corteId: string, i: number) {
+    return postAppointmentRoute(
+      new Request('http://x/api/public/barbearia-teste/appointments', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', 'x-forwarded-for': ip },
+        body: JSON.stringify({
+          serviceId: corteId,
+          startAt: '2026-09-07T12:00:00.000Z',
+          name: 'Cliente',
+          // Telefone novo a cada pedido: é exatamente o que o atacante faz.
+          phone: `119${String(10_000_000 + i).padStart(8, '0')}`,
+        }),
+      }),
+      params('barbearia-teste'),
+    );
+  }
+
+  it('passa de 20 no dia e o mesmo IP é barrado, mesmo em janelas de 10 min diferentes', async () => {
+    await withTestDb(async (db) => {
+      const { corte } = await semear(db);
+      let i = 0;
+
+      // Duas janelas de 10 min cheias (10 + 10) = teto diário.
+      for (const deslocamento of [0, 10]) {
+        vi.setSystemTime(new Date(HOJE_DOS_TESTES.getTime() + deslocamento * MINUTO));
+        for (let k = 0; k < 10; k++) {
+          const res = await reservarDe('203.0.113.50', corte.id, i++);
+          expect(res.status, `pedido ${i} ainda dentro do teto`).not.toBe(429);
+        }
+      }
+
+      // Terceira janela de 10 min: a janela curta está livre, o teto do dia não.
+      vi.setSystemTime(new Date(HOJE_DOS_TESTES.getTime() + 20 * MINUTO));
+      const barrado = await reservarDe('203.0.113.50', corte.id, i++);
+      expect(barrado.status).toBe(429);
+      expect((await barrado.json()).error).toBe('RATE_LIMITED');
+
+      // Outro IP no mesmo momento continua podendo reservar.
+      const outro = await reservarDe('198.51.100.20', corte.id, i++);
+      expect(outro.status).not.toBe(429);
     });
   });
 });

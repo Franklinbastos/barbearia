@@ -29,8 +29,23 @@ export async function checkRateLimit(
  */
 const MAX_POR_PARTE = 64;
 
+/**
+ * De qual cabeçalho sai o IP do cliente. Depende de quem está na frente do app,
+ * e só vale se esse proxy **sobrescrever** o cabeçalho — senão o próprio cliente
+ * o inventa a cada pedido e nunca bate no limite:
+ *
+ * - Vercel: `x-forwarded-for` (padrão). A plataforma reescreve e o 1º item é o cliente.
+ * - Cloudflare: `cf-connecting-ip`. No `x-forwarded-for` de lá o cliente injeta o 1º item.
+ * - VPS atrás de Caddy/nginx: o cabeçalho que o proxy define, em geral `x-real-ip`.
+ */
+export const CABECALHO_DE_IP_PADRAO = 'x-forwarded-for';
+
+function cabecalhoDeIp(): string {
+  return (process.env.TRUSTED_IP_HEADER ?? '').trim().toLowerCase() || CABECALHO_DE_IP_PADRAO;
+}
+
 export function clientKey(req: Request, sufixo: string): string {
-  const bruto = (req.headers.get('x-forwarded-for') ?? '').split(',')[0].trim();
+  const bruto = (req.headers.get(cabecalhoDeIp()) ?? '').split(',')[0].trim();
   const ip = (bruto || 'desconhecido').slice(0, MAX_POR_PARTE);
   return `${ip}:${sufixo.slice(0, MAX_POR_PARTE)}`;
 }

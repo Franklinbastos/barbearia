@@ -10,6 +10,9 @@ import { checkRateLimit, clientKey } from '@/lib/rate-limit';
 
 export const dynamic = 'force-dynamic';
 
+/** Reservas por IP, por barbearia, por dia. Folga para uma família ou um salão com Wi-Fi compartilhado. */
+const LIMITE_DIARIO_POR_IP = 20;
+
 /** Controle, formatação invisível e afins — nada disso é nome de gente. */
 const CARACTERE_DE_CONTROLE = /\p{C}/u;
 /** O nome vai dentro da mensagem de WhatsApp da barbearia: link, nunca. */
@@ -51,10 +54,16 @@ export async function POST(req: Request, { params }: { params: Promise<{ slug: s
   const porIp = await checkRateLimit(db, {
     key: clientKey(req, `book:${slug}`), limit: 10, windowSeconds: 600,
   });
+  // Só a janela de 10 min deixava ~1.400 reservas por IP num dia: dá para lotar
+  // a semana da barbearia trocando o telefone a cada pedido. Até a confirmação
+  // pelo WhatsApp existir, o teto diário é o que segura um atacante de um IP só.
+  const porIpNoDia = await checkRateLimit(db, {
+    key: clientKey(req, `book-dia:${slug}`), limit: LIMITE_DIARIO_POR_IP, windowSeconds: 86_400,
+  });
   const porTelefone = await checkRateLimit(db, {
     key: `phone:${dados.phone}:${slug}`, limit: 5, windowSeconds: 3600,
   });
-  if (!porIp.allowed || !porTelefone.allowed) {
+  if (!porIp.allowed || !porIpNoDia.allowed || !porTelefone.allowed) {
     return NextResponse.json(
       { error: 'RATE_LIMITED', message: 'Você já fez vários agendamentos agora há pouco. Fale com a barbearia.' },
       { status: 429 },
