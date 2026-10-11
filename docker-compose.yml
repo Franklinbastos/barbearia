@@ -10,10 +10,57 @@ services:
       - "5433:5432"
     volumes:
       - barbearia-pgdata:/var/lib/postgresql/data
+      # Cria o barbearia_test na primeira subida do volume.
+      - ./docker/postgres-init:/docker-entrypoint-initdb.d:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U barbearia"]
       interval: 5s
       retries: 10
+
+  # App completo em container: `docker compose --profile app up -d --build`.
+  # Fica atrás de um profile para não mudar o fluxo de sempre
+  # (`docker compose up -d` sobe só o Postgres e o app roda com `npm run dev`).
+  app:
+    profiles: ["app"]
+    build: .
+    container_name: barbearia-app
+    ports:
+      - "3000:3000"
+    # Valores vêm do .env (interpolação do compose). O .env inteiro não é
+    # repassado de propósito: DATABASE_URL_TEST e o host do banco são outros aqui.
+    environment:
+      DATABASE_URL: postgres://barbearia:barbearia@postgres:5432/barbearia
+      AUTH_SECRET: ${AUTH_SECRET:-}
+      MANAGE_TOKEN_SECRET: ${MANAGE_TOKEN_SECRET:-}
+      CRON_SECRET: ${CRON_SECRET:-}
+      APP_URL: ${APP_URL:-http://localhost:3000}
+      WHATSAPP_ENABLED: ${WHATSAPP_ENABLED:-false}
+      WHATSAPP_PHONE_NUMBER_ID: ${WHATSAPP_PHONE_NUMBER_ID:-}
+      WHATSAPP_ACCESS_TOKEN: ${WHATSAPP_ACCESS_TOKEN:-}
+      WHATSAPP_LANGUAGE: ${WHATSAPP_LANGUAGE:-pt_BR}
+      REMINDER_WINDOW_MINUTES: ${REMINDER_WINDOW_MINUTES:-180}
+      TRUSTED_IP_HEADER: ${TRUSTED_IP_HEADER:-x-forwarded-for}
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  # Suíte inteira em Linux, igual em qualquer máquina:
+  # `docker compose --profile test run --rm test`
+  test:
+    profiles: ["test"]
+    build:
+      context: .
+      target: deps
+    volumes:
+      - .:/app
+      - /app/node_modules
+      - /app/.next
+    environment:
+      DATABASE_URL_TEST: postgres://barbearia:barbearia@postgres:5432/barbearia_test
+    command: sh -c "npm run db:migrate && npx vitest run"
+    depends_on:
+      postgres:
+        condition: service_healthy
 
 volumes:
   barbearia-pgdata:

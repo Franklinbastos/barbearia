@@ -23,6 +23,19 @@ npm run dev
 
 Abrir `http://localhost:3000/signup` para criar a primeira barbearia.
 
+### Tudo em Docker (igual em qualquer máquina)
+
+Só precisa de Docker e do `.env` com os três segredos gerados:
+
+```bash
+docker compose --profile app up -d --build        # Postgres + app em http://localhost:3000
+docker compose --profile test run --rm test        # suíte inteira em Linux
+```
+
+O container do app aplica as migrations ao subir. Num volume novo, o
+`barbearia_test` é criado sozinho (`docker/postgres-init/`); num volume antigo,
+crie uma vez com o comando da seção Testes.
+
 ## Testes
 
 A suíte roda contra um **banco dedicado**, nunca contra o banco de

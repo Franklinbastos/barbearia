@@ -1,0 +1,12 @@
+node_modules
+.next
+.git
+coverage
+test-results
+playwright-report
+blob-report
+.vercel
+*.tsbuildinfo
+# Segredos nunca entram na imagem: chegam por variável de ambiente.
+.env*
+!.env.example
