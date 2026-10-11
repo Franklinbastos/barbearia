@@ -6,8 +6,10 @@ import { Botao } from '@/components/ui/botao';
 import { coresDeBarbeiro } from '@/lib/cores-de-barbeiro';
 import { formatTime, type AppointmentStatus } from '@/lib/format';
 import { CartaoDaAgenda, duracaoEmMinutos } from './cartao-da-agenda';
+import type { BloqueioDaAgenda } from './folgas';
+import { LinhaDeBloqueio } from './linha-de-bloqueio';
 import { LinhaDaAgenda } from './linha-da-agenda';
-import { calcularProximosLivres, type ProximoLivre } from './proximos-livres';
+import { calcularProximosLivres, type AtendimentoParaLivres, type ProximoLivre } from './proximos-livres';
 import { Remarcacao, useRemarcacao } from './remarcacao';
 import {
   agruparVaosLivres,
@@ -75,13 +77,22 @@ export function buildDayList(
  * de valor e as duas coisas conviviam sem erro — mas quem lê `chaveDaLinha(linha:
  * LinhaDaAgenda)` num arquivo que renderiza `<LinhaDaAgenda>` lê a coisa errada.
  */
-type LinhaDaLista =
+export type LinhaDaLista =
   | { tipo: 'cartao'; instante: Date; item: AgendaItem }
+  | { tipo: 'bloqueio'; instante: Date; bloqueio: BloqueioDaAgenda }
   | { tipo: 'vao'; instante: Date; vao: VaoLivreAgrupado };
 
-function intercalarVaos(itens: AgendaItem[], vaos: VaoLivreAgrupado[]): LinhaDaLista[] {
+/** No empate de horário: o marcado, depois o bloqueado, por último o vago. */
+const ORDEM_NO_EMPATE: Record<LinhaDaLista['tipo'], number> = { cartao: 0, bloqueio: 1, vao: 2 };
+
+export function intercalarVaos(
+  itens: AgendaItem[],
+  vaos: VaoLivreAgrupado[],
+  bloqueios: BloqueioDaAgenda[] = [],
+): LinhaDaLista[] {
   const linhas: LinhaDaLista[] = [
     ...itens.map((item) => ({ tipo: 'cartao' as const, instante: item.startAt, item })),
+    ...bloqueios.map((bloqueio) => ({ tipo: 'bloqueio' as const, instante: bloqueio.startAt, bloqueio })),
     ...vaos.map((vao) => ({ tipo: 'vao' as const, instante: vao.inicio, vao })),
   ];
 
@@ -90,9 +101,22 @@ function intercalarVaos(itens: AgendaItem[], vaos: VaoLivreAgrupado[]): LinhaDaL
   // dois cartões da mesma hora continua valendo.
   return linhas.sort(
     (a, b) =>
-      a.instante.getTime() - b.instante.getTime() ||
-      (a.tipo === b.tipo ? 0 : a.tipo === 'cartao' ? -1 : 1),
+      a.instante.getTime() - b.instante.getTime() || ORDEM_NO_EMPATE[a.tipo] - ORDEM_NO_EMPATE[b.tipo],
   );
+}
+
+/**
+ * Bloqueio ocupa a cadeira do mesmo jeito que um atendimento marcado, para o
+ * vão livre e para "quem está livre agora". Sem isto o almoço do Pedro aparecia
+ * como "livre com Pedro" e virava destino de encaixe e de remarcação.
+ */
+export function bloqueiosComoOcupacao(bloqueios: BloqueioDaAgenda[]) {
+  return bloqueios.map((b) => ({
+    staffId: b.staffId,
+    startAt: b.startAt,
+    endAt: b.endAt,
+    status: 'BOOKED' as const,
+  }));
 }
 
 /**
@@ -101,9 +125,9 @@ function intercalarVaos(itens: AgendaItem[], vaos: VaoLivreAgrupado[]): LinhaDaL
  * chavear por ele remontaria a faixa a cada cinco minutos.
  */
 function chaveDaLinha(linha: LinhaDaLista): string {
-  return linha.tipo === 'cartao'
-    ? linha.item.id
-    : `vao-${linha.vao.staffId}-${linha.vao.fim.getTime()}`;
+  if (linha.tipo === 'cartao') return linha.item.id;
+  if (linha.tipo === 'bloqueio') return `bloqueio-${linha.bloqueio.id}`;
+  return `vao-${linha.vao.staffId}-${linha.vao.fim.getTime()}`;
 }
 
 /** Agrupa a lista já ordenada em blocos de uma hora, preservando a ordem. */
@@ -157,7 +181,7 @@ function LinhaDeProximosLivres({
   agora,
   timeZone,
 }: {
-  appointments: AgendaAppointment[];
+  appointments: AtendimentoParaLivres[];
   staffList: AgendaStaff[];
   cores: Map<string, string>;
   agora: Date;
@@ -207,6 +231,9 @@ function LinhaDeProximosLivres({
  */
 const DURACAO_MINIMA_PADRAO = 30;
 
+/** Constante de módulo: um `[]` no padrão da prop seria array novo a cada render e quebraria os `useMemo`. */
+const SEM_BLOQUEIOS: BloqueioDaAgenda[] = [];
+
 export function DayGrid({
   appointments,
   staffList,
@@ -215,6 +242,7 @@ export function DayGrid({
   hojeISO,
   agoraISO,
   duracaoMinima = DURACAO_MINIMA_PADRAO,
+  bloqueios = SEM_BLOQUEIOS,
 }: {
   appointments: AgendaAppointment[];
   staffList: AgendaStaff[];
@@ -227,6 +255,8 @@ export function DayGrid({
   agoraISO: string;
   /** Menor serviço da loja, em minutos: o piso do que vira faixa de vão livre. */
   duracaoMinima?: number;
+  /** Folgas e almoços que tocam o dia mostrado. */
+  bloqueios?: BloqueioDaAgenda[];
 }) {
   // UM relógio para a lista inteira: cada cartão recebe `agora` por prop em vez
   // de abrir o seu próprio intervalo.
@@ -271,15 +301,20 @@ export function DayGrid({
   // O agrupamento vem por último: é o recorte que alinha o início ao passo de
   // ±5, e dois buracos que começavam em horas diferentes só viram o mesmo
   // instante depois dele.
+  const ocupacao = useMemo(
+    () => [...appointments, ...bloqueiosComoOcupacao(bloqueios)],
+    [appointments, bloqueios],
+  );
+
   const vaos = useMemo(
     () =>
       agruparVaosLivres(
-        recortarNoAgora(buildVaosLivres(appointments, staffList, piso), agora, piso),
+        recortarNoAgora(buildVaosLivres(ocupacao, staffList, piso), agora, piso),
       ),
-    [appointments, staffList, piso, agora],
+    [ocupacao, staffList, piso, agora],
   );
 
-  const linhas = useMemo(() => intercalarVaos(itens, vaos), [itens, vaos]);
+  const linhas = useMemo(() => intercalarVaos(itens, vaos, bloqueios), [itens, vaos, bloqueios]);
   const grupos = useMemo(() => agruparPorHora(linhas, timeZone), [linhas, timeZone]);
 
   const eHoje = dataISO === hojeISO;
@@ -328,6 +363,21 @@ export function DayGrid({
         >
           <p className="text-[16px] leading-6">Nenhum agendamento neste dia.</p>
         </Bloco>
+        {/* Sem atendimento o estado vazio continua sendo a frase e a ação, e
+            os bloqueios vêm logo abaixo: "o Pedro está de folga" é justamente
+            o que explica um dia vazio. */}
+        {bloqueios.length > 0 ? (
+          <ol className="lista mt-3 text-left">
+            {bloqueios.map((bloqueio) => (
+              <LinhaDeBloqueio
+                key={bloqueio.id}
+                bloqueio={bloqueio}
+                timeZone={timeZone}
+                nomeDoBarbeiro={staffList.length > 1 ? nomes.get(bloqueio.staffId) : undefined}
+              />
+            ))}
+          </ol>
+        ) : null}
       </div>
     );
   }
@@ -356,7 +406,7 @@ export function DayGrid({
 
       {eHoje && staffList.length > 1 ? (
         <LinhaDeProximosLivres
-          appointments={appointments}
+          appointments={ocupacao}
           staffList={staffList}
           cores={cores}
           agora={agora}
@@ -376,7 +426,13 @@ export function DayGrid({
             {grupo.linhas.map((linha) => (
               <Fragment key={chaveDaLinha(linha)}>
                 {proxima === linha ? Regua : null}
-                {linha.tipo === 'vao' ? (
+                {linha.tipo === 'bloqueio' ? (
+                  <LinhaDeBloqueio
+                    bloqueio={linha.bloqueio}
+                    timeZone={timeZone}
+                    nomeDoBarbeiro={staffList.length > 1 ? nomes.get(linha.bloqueio.staffId) : undefined}
+                  />
+                ) : linha.tipo === 'vao' ? (
                   <FaixaDeVaoLivre
                     vao={linha.vao}
                     // Com um barbeiro só, repetir o nome dele em toda faixa não

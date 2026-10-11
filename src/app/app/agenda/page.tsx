@@ -1,11 +1,19 @@
 import { DateTime } from 'luxon';
 import { requireSession } from '@/lib/session';
 import { db } from '@/db/client';
-import { findBarbershopById, listActiveStaff, listActiveServices, listAppointmentsBetween } from '@/db/repositories';
+import {
+  findBarbershopById,
+  listActiveStaff,
+  listActiveServices,
+  listAppointmentsBetween,
+  listTimeOffBetween,
+  listWorkingHoursForBarbershop,
+} from '@/db/repositories';
 import { CabecalhoDePagina } from '@/components/ui/cabecalho-de-pagina';
 import { Largura } from '@/components/ui/largura';
 import { BarraDeData } from './barra-de-data';
 import { DayGrid } from './day-grid';
+import { situacaoDoDia, textoDasFolgas } from './folgas';
 import { ManualBookingForm } from './manual-booking-form';
 
 export default async function AgendaPage({
@@ -27,14 +35,35 @@ export default async function AgendaPage({
   const inicio = dia.startOf('day').toJSDate();
   const fim = dia.plus({ days: 1 }).startOf('day').toJSDate();
 
-  const [staffList, servicos, appointments] = await Promise.all([
+  // Janela dos bloqueios: o dia mostrado precisa deles para a lista, e o
+  // calendário da barra para marcar dia de folga. Um mês para trás e três para
+  // frente cobrem a navegação comum; além disso o calendário ainda marca a folga
+  // de semana (vem do expediente), só não a de bloqueio.
+  const inicioDaJanela = dia.startOf('month').minus({ months: 1 }).toJSDate();
+  const fimDaJanela = dia.startOf('month').plus({ months: 4 }).toJSDate();
+
+  const [staffList, servicos, appointments, expedientes, bloqueiosDaJanela] = await Promise.all([
     listActiveStaff(db, sessao.barbershopId),
     listActiveServices(db, sessao.barbershopId),
     listAppointmentsBetween(db, sessao.barbershopId, inicio, fim),
+    listWorkingHoursForBarbershop(db, sessao.barbershopId),
+    listTimeOffBetween(db, sessao.barbershopId, inicioDaJanela, fimDaJanela),
   ]);
 
   const dataISO = dia.toISODate()!;
   const hojeISO = agora.toISODate()!;
+
+  const situacao = situacaoDoDia(dataISO, timeZone, staffList, expedientes, bloqueiosDaJanela);
+  const deFolgaNoDia = new Set(situacao.folgas.filter((f) => f.tipo === 'bloqueio').map((f) => f.staffId));
+  const ativos = new Set(staffList.map((b) => b.id));
+  const bloqueiosDoDia = bloqueiosDaJanela
+    .filter((b) => ativos.has(b.staffId) && b.startAt < fim && b.endAt > inicio)
+    .map((b) => ({ ...b, diaInteiro: deFolgaNoDia.has(b.staffId) }));
+  const folgasDoDiaMostrado = textoDasFolgas(
+    situacao.folgas,
+    new Map(staffList.map((b) => [b.id, b.name])),
+    situacao.fechado,
+  );
 
   // "8 no dia" não conta cancelado: o horário voltou para a grade e não é mais
   // trabalho do dia. "A atender" é só o que ainda está agendado.
@@ -85,6 +114,13 @@ export default async function AgendaPage({
         dataISO={dataISO}
         hojeISO={hojeISO}
         contagens={contagens}
+        folgas={{
+          doDia: folgasDoDiaMostrado,
+          timeZone,
+          staffList,
+          expedientes,
+          bloqueios: bloqueiosDaJanela,
+        }}
         acao={
           loja ? (
             <ManualBookingForm
@@ -117,6 +153,7 @@ export default async function AgendaPage({
           hojeISO={hojeISO}
           agoraISO={agora.toJSDate().toISOString()}
           duracaoMinima={duracaoMinima}
+          bloqueios={bloqueiosDoDia}
         />
       </Largura>
     </div>

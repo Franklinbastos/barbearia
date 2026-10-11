@@ -5,7 +5,7 @@ import { CalendarDays, ChevronLeft, ChevronRight } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { ptBR } from 'react-day-picker/locale';
-import { useState, type ReactNode } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 
 import { Button, buttonVariants } from '@/components/ui/button';
 import { Calendar } from '@/components/ui/calendar';
@@ -13,6 +13,7 @@ import { Largura } from '@/components/ui/largura';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { dataParaISO, isoParaData } from '@/lib/data-local';
 import { cn } from '@/lib/utils';
+import { resumoDoMes, type BloqueioDaAgenda, type Expediente } from './folgas';
 
 /**
  * A barra de data da agenda (§5.7, item 2).
@@ -93,7 +94,34 @@ export type BarraDeDataProps = {
    * `display: none` no pai leva junto até filho `position: fixed`.
    */
   acao?: ReactNode;
+  /**
+   * Folgas da equipe (decisão de 19/09/2026): o texto do dia mostrado entra
+   * junto da contagem, e o calendário marca os dias de folga do mês que exibe,
+   * com a lista de quem folga logo abaixo — o "quem" que funciona também no
+   * celular, onde não existe passar o mouse.
+   */
+  folgas?: {
+    /** "Pedro de folga · Tiago não trabalha", já pronto para o dia mostrado. */
+    doDia: string | null;
+    timeZone: string;
+    staffList: { id: string; name: string }[];
+    expedientes: Expediente[];
+    bloqueios: Pick<BloqueioDaAgenda, 'staffId' | 'startAt' | 'endAt'>[];
+  };
 };
+
+/**
+ * Pontinho embaixo do número do dia. É o `td` do dia que recebe a classe, e o
+ * ponto sai por pseudo-elemento para não mexer na área de toque do botão.
+ */
+const MARCA_DE_FOLGA =
+  'relative after:pointer-events-none after:absolute after:bottom-1 after:left-1/2 after:size-1 after:-translate-x-1/2 after:rounded-full after:bg-tinta-3';
+
+/**
+ * Dia em que a loja não abre: apagadinho, sem pontinho. Continua clicável — o
+ * dono pode querer ver ou encaixar mesmo assim.
+ */
+const MARCA_DE_FECHADO = 'opacity-45';
 
 /**
  * Alvo de 44px das setas. Continua acima dos 36px de controle da lib porque
@@ -121,7 +149,7 @@ function rotuloDoDia(dia: Date): string {
   return format(dia, "EEEE, d 'de' MMMM", { locale: ptBR }).replace('-feira', '');
 }
 
-export function BarraDeData({ dataISO, hojeISO, contagens, acao }: BarraDeDataProps) {
+export function BarraDeData({ dataISO, hojeISO, contagens, acao, folgas }: BarraDeDataProps) {
   const router = useRouter();
   const [aberto, setAberto] = useState(false);
 
@@ -129,6 +157,24 @@ export function BarraDeData({ dataISO, hojeISO, contagens, acao }: BarraDeDataPr
   const amanha = deslocarDia(dataISO, 1);
   const eHoje = dataISO === hojeISO;
   const diaSelecionado = isoParaData(dataISO);
+
+  // O mês que o calendário exibe: é dele que sai a marca de folga e a lista de
+  // baixo. Volta para o mês do dia mostrado toda vez que o calendário abre.
+  const [mesExibido, setMesExibido] = useState(diaSelecionado);
+  const resumo = useMemo(
+    () =>
+      folgas
+        ? resumoDoMes(
+            mesExibido.getFullYear(),
+            mesExibido.getMonth() + 1,
+            folgas.timeZone,
+            folgas.staffList,
+            folgas.expedientes,
+            folgas.bloqueios,
+          )
+        : null,
+    [folgas, mesExibido],
+  );
 
   // **WCAG 2.5.3 (Label in Name).** Era um `aria-label` fixo na palavra Data. Um
   // rótulo escondido que **cobre** o texto visível reprova de duas maneiras:
@@ -146,8 +192,17 @@ export function BarraDeData({ dataISO, hojeISO, contagens, acao }: BarraDeDataPr
   // dado, e quem fala num dia sem nada é o estado vazio da lista. Uma string só
   // para os dois lugares onde ela aparece — a linha do desktop e a linha de
   // baixo do celular —, senão são duas verdades para manter.
+  //
+  // A folga do dia entra na mesma linha: "8 no dia · 3 a atender · Pedro de
+  // folga". Num dia sem atendimento ela aparece sozinha — é justamente o que
+  // explica o dia vazio.
   const contagem =
-    contagens.total > 0 ? `${contagens.total} no dia · ${contagens.aAtender} a atender` : null;
+    [
+      contagens.total > 0 ? `${contagens.total} no dia · ${contagens.aAtender} a atender` : null,
+      folgas?.doDia ?? null,
+    ]
+      .filter(Boolean)
+      .join(' · ') || null;
 
   // `/app/agenda` sem `?data=`, e não `?data=${hojeISO}`: o servidor recalcula o
   // dia da loja a cada visita, então o botão continua acertando o dia numa aba
@@ -215,7 +270,13 @@ export function BarraDeData({ dataISO, hojeISO, contagens, acao }: BarraDeDataPr
               <ChevronRight aria-hidden="true" />
             </Link>
 
-            <Popover open={aberto} onOpenChange={setAberto}>
+            <Popover
+              open={aberto}
+              onOpenChange={(abrir) => {
+                if (abrir) setMesExibido(diaSelecionado);
+                setAberto(abrir);
+              }}
+            >
               <PopoverTrigger
                 render={
                   <Button
@@ -236,7 +297,17 @@ export function BarraDeData({ dataISO, hojeISO, contagens, acao }: BarraDeDataPr
                   locale={ptBR}
                   autoFocus
                   selected={diaSelecionado}
-                  defaultMonth={diaSelecionado}
+                  month={mesExibido}
+                  onMonthChange={setMesExibido}
+                  modifiers={
+                    resumo
+                      ? {
+                          folga: (dia: Date) => resumo.diasDeFolga.has(dataParaISO(dia)),
+                          fechado: (dia: Date) => resumo.diasFechados.has(dataParaISO(dia)),
+                        }
+                      : undefined
+                  }
+                  modifiersClassNames={{ folga: MARCA_DE_FOLGA, fechado: MARCA_DE_FECHADO }}
                   // "Hoje" é o de quem abriu a loja, não o do relógio do
                   // navegador: o servidor já mandou `hojeISO` no fuso dela.
                   today={isoParaData(hojeISO)}
@@ -248,6 +319,19 @@ export function BarraDeData({ dataISO, hojeISO, contagens, acao }: BarraDeDataPr
                     router.push(`/app/agenda?data=${dataParaISO(escolhido)}`);
                   }}
                 />
+                {resumo && resumo.linhas.length > 0 ? (
+                  <div data-slot="folgas-do-mes" className="max-w-72 border-t border-border p-3">
+                    <p className="flex items-center gap-2 text-[12px] leading-4 font-bold text-tinta-2">
+                      <span aria-hidden="true" className="inline-block size-1 rounded-full bg-tinta-3" />
+                      Folgas neste mês
+                    </p>
+                    <ul className="mt-1 flex flex-col gap-0.5 text-[12px] leading-4 text-tinta-2">
+                      {resumo.linhas.map((linha) => (
+                        <li key={linha}>{linha}</li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : null}
                 {/* O "ir para hoje" do celular. Lá ele não cabe na linha — o
                     rótulo da data come a largura toda entre as duas setas —,
                     e o lugar dele é aqui dentro, junto do resto da navegação

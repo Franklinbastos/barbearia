@@ -1,7 +1,15 @@
 import { describe, it, expect } from 'vitest';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { buildDayList, DayGrid, type AgendaAppointment, type AgendaStaff } from './day-grid';
+import {
+  bloqueiosComoOcupacao,
+  buildDayList,
+  DayGrid,
+  intercalarVaos,
+  type AgendaAppointment,
+  type AgendaStaff,
+} from './day-grid';
+import { buildVaosLivres } from './vao-livre';
 
 const TZ = 'America/Sao_Paulo';
 
@@ -334,5 +342,85 @@ describe('DayGrid — o dia vazio e a linha de próximos livres', () => {
     expect(html).toContain('>livre<');
     expect(html).toContain('João');
     expect(html).toContain('Maria');
+  });
+});
+
+/**
+ * Bloqueios na agenda do dia (decisão de 19/09/2026): linha própria, em cinza,
+ * com o motivo — e a cadeira ocupada para o vão livre e para "quem está livre".
+ */
+describe('bloqueios na agenda do dia', () => {
+  const CONTEXTO = {
+    staffList: EQUIPE,
+    timeZone: TZ,
+    dataISO: '2026-09-09',
+    hojeISO: '2026-09-01',
+    agoraISO: '2026-09-01T12:00:00.000Z',
+  };
+  // 15:00Z–16:00Z = 12:00–13:00 em São Paulo.
+  const almoco = {
+    id: 'b1',
+    staffId: 'st-joao',
+    startAt: new Date('2026-09-09T15:00:00.000Z'),
+    endAt: new Date('2026-09-09T16:00:00.000Z'),
+    reason: 'Almoço',
+  };
+  const marcacoes = [
+    agendamento({ id: 'a1', staffId: 'st-joao', hora: '13:00', customerName: 'Bruno' }), // 10:00 local
+    agendamento({ id: 'a2', staffId: 'st-joao', hora: '19:00', customerName: 'Caio' }), // 16:00 local
+  ];
+
+  it('mostra o bloqueio como linha própria, com horário, barbeiro e motivo', () => {
+    const html = renderToStaticMarkup(
+      createElement(DayGrid, { appointments: marcacoes, bloqueios: [almoco], ...CONTEXTO }),
+    );
+    expect(html).toContain('data-slot="bloqueio"');
+    expect(html).toContain('12:00–13:00 · João · Almoço');
+  });
+
+  it('sem motivo escrito, diz só "Bloqueado"', () => {
+    const html = renderToStaticMarkup(
+      createElement(DayGrid, { appointments: marcacoes, bloqueios: [{ ...almoco, reason: null }], ...CONTEXTO }),
+    );
+    expect(html).toContain('12:00–13:00 · João · Bloqueado');
+  });
+
+  it('sem motivo e cobrindo o dia inteiro, diz "Folga"', () => {
+    const html = renderToStaticMarkup(
+      createElement(DayGrid, {
+        appointments: marcacoes,
+        bloqueios: [{ ...almoco, reason: null, diaInteiro: true }],
+        ...CONTEXTO,
+      }),
+    );
+    expect(html).toContain('12:00–13:00 · João · Folga');
+  });
+
+  it('o almoço deixa de ser oferecido como vão livre', () => {
+    const sem = buildVaosLivres(marcacoes, EQUIPE, 30);
+    const com = buildVaosLivres([...marcacoes, ...bloqueiosComoOcupacao([almoco])], EQUIPE, 30);
+
+    // Sem o bloqueio: um buraco só, das 10:30 às 16:00, atravessando o almoço.
+    expect(sem.map((v) => v.minutos)).toEqual([330]);
+    // Com ele: 10:30–12:00 e 13:00–16:00; nenhum pedaço dentro do almoço.
+    expect(com.map((v) => v.minutos)).toEqual([90, 180]);
+    for (const vao of com) {
+      const cruza = vao.inicio < almoco.endAt && vao.fim > almoco.startAt;
+      expect(cruza).toBe(false);
+    }
+  });
+
+  it('dia sem atendimento continua com o estado vazio e mostra o bloqueio logo abaixo', () => {
+    const html = renderToStaticMarkup(
+      createElement(DayGrid, { appointments: [], bloqueios: [almoco], ...CONTEXTO }),
+    );
+    expect(html).toContain('Nenhum agendamento neste dia.');
+    expect(html).toContain('12:00–13:00 · João · Almoço');
+  });
+
+  it('no empate de horário, o atendimento vem antes do bloqueio', () => {
+    const item = { ...agendamento({ id: 'a9', staffId: 'st-maria', hora: '15:00' }), staffName: 'Maria' };
+    const linhas = intercalarVaos([item], [], [almoco]);
+    expect(linhas.map((l) => l.tipo)).toEqual(['cartao', 'bloqueio']);
   });
 });

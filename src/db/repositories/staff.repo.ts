@@ -1,4 +1,4 @@
-import { and, eq, asc, gte, sql } from 'drizzle-orm';
+import { and, eq, asc, gt, gte, lt, sql } from 'drizzle-orm';
 import { staff, staffService, service, workingHours, timeOff } from '@/db/schema';
 import type { Db } from './types';
 
@@ -69,6 +69,35 @@ export async function listWorkingHoursForStaff(db: Db, barbershopId: string, sta
     .from(workingHours)
     .where(and(eq(workingHours.barbershopId, barbershopId), eq(workingHours.staffId, staffId)))
     .orderBy(asc(workingHours.weekday), asc(workingHours.startTime));
+}
+
+/** Expediente de todos os barbeiros da loja — a agenda precisa dele para saber quem folga em cada dia. */
+export async function listWorkingHoursForBarbershop(db: Db, barbershopId: string) {
+  return db
+    .select({
+      staffId: workingHours.staffId,
+      weekday: workingHours.weekday,
+      startTime: workingHours.startTime,
+      endTime: workingHours.endTime,
+    })
+    .from(workingHours)
+    .where(eq(workingHours.barbershopId, barbershopId))
+    .orderBy(asc(workingHours.staffId), asc(workingHours.weekday), asc(workingHours.startTime));
+}
+
+/** Bloqueios (folga, almoço) de todos os barbeiros que tocam a janela [from, to). */
+export async function listTimeOffBetween(db: Db, barbershopId: string, from: Date, to: Date) {
+  return db
+    .select({
+      id: timeOff.id,
+      staffId: timeOff.staffId,
+      startAt: timeOff.startAt,
+      endAt: timeOff.endAt,
+      reason: timeOff.reason,
+    })
+    .from(timeOff)
+    .where(and(eq(timeOff.barbershopId, barbershopId), lt(timeOff.startAt, to), gt(timeOff.endAt, from)))
+    .orderBy(asc(timeOff.startAt));
 }
 
 export async function listStaffServiceLinks(db: Db, barbershopId: string, staffId: string) {
