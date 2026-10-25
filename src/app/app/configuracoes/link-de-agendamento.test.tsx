@@ -1,7 +1,12 @@
 // @vitest-environment jsdom
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
+
+// O `<BotaoDeCopiar>` chama o sonner, que precisa de um `<Toaster />` montado
+// para desenhar. O comportamento dele tem teste próprio; aqui só não pode
+// explodir.
+vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
+
 import { LinkDeAgendamento } from './link-de-agendamento';
 
 const URL_DA_LOJA = 'https://app.exemplo.com/b/barbearia-do-marcao';
@@ -9,49 +14,33 @@ const URL_DA_LOJA = 'https://app.exemplo.com/b/barbearia-do-marcao';
 const montar = () => render(<LinkDeAgendamento url={URL_DA_LOJA} />);
 
 describe('LinkDeAgendamento', () => {
-  it('mostra a URL inteira, sem cortar', () => {
-    // o slug pode ser longo e em 360px o endereço é a única coisa da tela que
-    // não tem onde quebrar — por isso `break-all`, nunca `truncate`
+  it('a URL fica num campo de leitura, não em texto apagado', () => {
+    // Era `InputGroupText`, que nasce em `text-muted-foreground`: a URL saía
+    // cinza clara como se o campo estivesse desabilitado. `readOnly` não é
+    // `disabled` — continua legível por leitor de tela e selecionável.
     const { container } = montar();
-    const endereco = container.querySelector('[data-slot="link-endereco"]')!;
-    expect(endereco.textContent).toBe(URL_DA_LOJA);
-    expect(endereco.className).toMatch(/break-all/);
+    const campo = container.querySelector('[data-slot="link-endereco"]') as HTMLInputElement;
+    expect(campo.tagName).toBe('INPUT');
+    expect(campo.readOnly).toBe(true);
+    expect(campo.disabled).toBe(false);
+    expect(campo.value).toBe(URL_DA_LOJA);
   });
 
-  it('copiar põe a URL na área de transferência e avisa', async () => {
-    // Sem mock: o `setup()` do userEvent já instala uma área de transferência
-    // de mentira que grava de verdade, e depois disso `navigator.clipboard` só
-    // tem getter — trocá-la por um `vi.fn()` lança `TypeError`. Ler o que ficou
-    // guardado testa o comportamento em vez da chamada.
-    const usuario = userEvent.setup();
+  it('o campo tem nome acessível próprio', () => {
+    // O rótulo visível é um `<p>`, não um `<label>` — sem `aria-label` o campo
+    // chegaria mudo em leitor de tela.
     montar();
-
-    await usuario.click(screen.getByRole('button', { name: /copiar/i }));
-
-    expect(await navigator.clipboard.readText()).toBe(URL_DA_LOJA);
-    // Polaris: "Provide feedback inline using a confirmation check icon
-    // post-click". Sem retorno, a pessoa clica de novo achando que falhou.
-    expect(screen.getByRole('status').textContent).toMatch(/copiad/i);
+    expect(screen.getByLabelText('Link de agendamento da loja')).toBeDefined();
   });
 
-  it('a região de aviso existe antes do clique', () => {
-    // região viva que nasce já preenchida costuma não ser anunciada
-    montar();
-    expect(screen.getByRole('status').textContent).toBe('');
-  });
-
-  it('o endereço vem no input-group da lib, e não como campo', () => {
-    // O componente que o shadcn tem para "valor com ação colada" — mas com
-    // `InputGroupText`, que é `<span>`. O Carbon proíbe valor estático em campo
-    // desabilitado ou `readOnly`, e desabilitado nem é lido por leitor de tela.
+  it('usa o input-group da lib', () => {
+    // O componente que o shadcn tem para "valor com ação colada", e a forma do
+    // exemplo canônico dele para este caso exato.
     const { container } = montar();
     expect(container.querySelector('[data-slot="input-group"]')).not.toBeNull();
-    expect(container.querySelector('[data-slot="input-group"] input')).toBeNull();
   });
 
   it('o copiar diz o que copia', () => {
-    // "Copiar o link", e não "Copiar": o `<BotaoDeCopiar>` monta o nome a partir
-    // do `oQue`, e a URL fica no `InputGroupText` ao lado, no mesmo grupo.
     montar();
     expect(screen.getByRole('button', { name: 'Copiar o link' })).toBeDefined();
   });
@@ -65,16 +54,15 @@ describe('LinkDeAgendamento', () => {
     expect(atalho.getAttribute('rel')).toMatch(/noopener/);
   });
 
-  it('o copiar e o abrir dividem a largura e medem a mesma altura', () => {
-    // pedido do dono em 16/08: meio a meio, e sem degrau entre os dois. A
-    // altura vem do mesmo `min-h-11` nos dois lados.
+  it('o campo e o botão dividem a largura, e nenhum dos dois força altura', () => {
+    // Os 44px do `min-h-11` davam um degrau contra os campos de 36px logo acima
+    // — foi o que o dono viu. Agora a altura vem do `InputGroup` (h-9) e do
+    // `.btn` (`--altura-controle`), que são o mesmo número.
     const { container } = montar();
     const linha = container.querySelector('.sm\\:grid-cols-2')!;
     expect(linha).not.toBeNull();
-    const grupo = linha.querySelector('[data-slot="input-group"]')!;
-    const abrir = linha.querySelector('[data-slot="link-abrir"]')!;
-    expect(grupo.className).toMatch(/min-h-11/);
-    expect(abrir.className).toMatch(/min-h-11/);
+    expect(linha.querySelector('[data-slot="input-group"]')!.className).not.toMatch(/min-h-11/);
+    expect(linha.querySelector('[data-slot="link-abrir"]')!.className).not.toMatch(/min-h-11/);
   });
 
   it('não é um formulário', () => {
@@ -85,8 +73,6 @@ describe('LinkDeAgendamento', () => {
   });
 
   it('não tem mais QR code', () => {
-    // saiu em 16/08 a pedido do dono: custava um `<details>`, 160px de tela e
-    // uma dependência de 2 MB para um uso que acontece uma vez
     const { container } = montar();
     expect(container.querySelector('details')).toBeNull();
   });

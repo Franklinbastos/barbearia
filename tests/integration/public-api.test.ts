@@ -223,12 +223,17 @@ describe('API pública', () => {
       const { loja, corte } = await semear(db);
       await db.update(barbershop).set({ maxAdvanceDays: 7 }).where(eq(barbershop.id, loja.id));
 
-      const url = `http://x/api/public/barbearia-teste/availability?serviceId=${corte.id}&date=${SEGUNDA}`;
+      // A data precisa continuar fora da janela quando o calendário avançar.
+      // O literal 2026-09-07 deixou de testar isso em setembro de 2026.
+      const foraDaJanela = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+      const dia = foraDaJanela.toISOString().slice(0, 10);
+      const inicio = `${dia}T12:00:00.000Z`;
+      const url = `http://x/api/public/barbearia-teste/availability?serviceId=${corte.id}&date=${dia}`;
       const res = await getAvailabilityRoute(new Request(url), params('barbearia-teste'));
       expect(res.status).toBe(409);
       expect((await res.json()).error).toBe('OUTSIDE_BOOKING_WINDOW');
 
-      const criacao = await postAgendamento(corte.id, '11999998888');
+      const criacao = await postAgendamento(corte.id, '11999998888', { startAt: inicio });
       expect(criacao.status).toBe(409);
       expect((await criacao.json()).error).toBe('OUTSIDE_BOOKING_WINDOW');
     });

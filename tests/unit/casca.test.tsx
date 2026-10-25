@@ -22,9 +22,10 @@ import { SidebarProvider } from '@/components/ui/sidebar';
  * reforma e é o mais fácil de perder numa troca de casca) e o nome da loja, que
  * também é o atalho de um toque para a agenda.
  *
- * Eram cinco seções; em 14/08/2026 o Resumo entrou na frente da Agenda e são
- * seis. A lista da asserção é a única cópia dela no teste — quem acrescentar
- * seção acrescenta ali, e quem tirar tem de explicar o que sumiu do painel.
+ * Eram cinco seções; em 14/08/2026 o Resumo entrou na frente da Agenda e, com
+ * a cobrança em 01/09/2026, são sete. A lista da asserção é a única cópia dela
+ * no teste — quem acrescentar seção acrescenta ali, e quem tirar tem de explicar
+ * o que sumiu do painel.
  *
  * **O logout mudou de forma, não de existência.** Até 13/08/2026 ele era um
  * botão solto no rodapé e bastava `getByRole('button', { name: /sair/i })`.
@@ -86,9 +87,17 @@ function montaCasca() {
 }
 
 describe('PanelNav', () => {
-  it('lista as seis seções do painel', () => {
+  it('lista as sete seções do painel', () => {
     montaCasca();
-    for (const secao of ['Resumo', 'Agenda', 'Serviços', 'Equipe', 'Clientes', 'Configurações']) {
+    for (const secao of [
+      'Resumo',
+      'Agenda',
+      'Serviços',
+      'Equipe',
+      'Clientes',
+      'Assinatura',
+      'Configurações',
+    ]) {
       expect(screen.getByRole('link', { name: secao })).toBeDefined();
     }
   });

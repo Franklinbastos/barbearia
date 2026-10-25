@@ -1,6 +1,12 @@
 // @vitest-environment jsdom
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
+
+// O toast é do sonner, que precisa de um `<Toaster />` montado para desenhar.
+// Aqui interessa **que** ele foi chamado e com qual texto, não o desenho dele —
+// o desenho é da lib e tem os testes dela.
+const toastFalso = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn() }));
+vi.mock('sonner', () => ({ toast: toastFalso }));
 import userEvent from '@testing-library/user-event';
 import { BotaoDeCopiar } from './botao-de-copiar';
 
@@ -20,23 +26,23 @@ describe('BotaoDeCopiar', () => {
     expect(await navigator.clipboard.readText()).toBe(TEXTO);
   });
 
-  it('avisa que copiou, e o ícone vira ✓', async () => {
-    // Polaris: "Provide feedback inline using a confirmation check icon
-    // post-click". Sem retorno, a pessoa clica de novo achando que falhou.
+  it('o ícone vira ✓ e sai um toast', async () => {
+    // Os dois, e cada um por um motivo: o ✓ é o que o Polaris pede no próprio
+    // controle, e o toast é o que o dono vê sem procurar um ícone de 16px no
+    // canto de um campo. É o que o `CopyableField` do Cal.com faz.
     const usuario = userEvent.setup();
     const { container } = render(<BotaoDeCopiar texto={TEXTO} oQue="o link" />);
 
     expect(container.querySelector('[data-slot="copiar-feito"]')).toBeNull();
     await usuario.click(screen.getByRole('button', { name: 'Copiar o link' }));
 
-    expect(screen.getByRole('status').textContent).toMatch(/copiad/i);
     expect(container.querySelector('[data-slot="copiar-feito"]')).not.toBeNull();
+    expect(toastFalso.success).toHaveBeenCalledWith('Copiado.');
   });
 
-  it('a região de aviso existe antes do clique', () => {
-    // Região viva que nasce já preenchida costuma não ser anunciada.
-    render(<BotaoDeCopiar texto={TEXTO} oQue="o link" />);
-    expect(screen.getByRole('status').textContent).toBe('');
+  it('o ícone é o de copiar antes do clique', () => {
+    const { container } = render(<BotaoDeCopiar texto={TEXTO} oQue="o link" />);
+    expect(container.querySelector('[data-slot="copiar-icone"]')).not.toBeNull();
   });
 
   it('o nome acessível diz o que vai ser copiado', () => {
@@ -52,8 +58,11 @@ describe('BotaoDeCopiar', () => {
     expect(botao.getAttribute('aria-label')).toBeNull();
   });
 
-  it('pode dispensar o aviso próprio quando quem chama já tem um', () => {
-    render(<BotaoDeCopiar texto={TEXTO} oQue="o link" aviso="nenhum" />);
-    expect(screen.queryByRole('status')).toBeNull();
+  it('o ícone não fica anunciado duas vezes', () => {
+    // Quem ouve recebe a notícia pelo toast, que o sonner já põe em região viva.
+    const { container } = render(<BotaoDeCopiar texto={TEXTO} oQue="o link" />);
+    expect(container.querySelector('[data-slot="copiar-icone"]')?.getAttribute('aria-hidden')).toBe(
+      'true',
+    );
   });
 });

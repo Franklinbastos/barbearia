@@ -5,6 +5,7 @@ import { db } from '@/db/client';
 import { findBarbershopById, findStaffById } from '@/db/repositories';
 import { PanelNav } from '@/components/panel-nav';
 import { Separator } from '@/components/ui/separator';
+import { Toaster } from '@/components/ui/sonner';
 import { SidebarInset, SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar';
 
 /**
@@ -47,6 +48,19 @@ export default async function PanelLayout({ children }: { children: React.ReactN
 
   return (
     <SidebarProvider defaultOpen={sidebarAberta}>
+      {/* O `<Toaster />` mora aqui, no layout do **painel**, e não no raiz.
+
+          A §P5 proíbe toast para o que acontece debaixo do dedo — "Compareceu"
+          confirma trocando a cor da própria linha, e um toast ali competiria com
+          o "Desfazer" que já ocupa aquele lugar. O que sobra para o toast é o
+          oposto: ação cujo resultado **não tem onde aparecer**, como copiar um
+          link para a área de transferência. Cal.com e Stripe usam toast
+          exatamente aí.
+
+          Fora do raiz porque a página pública abre em 3G na porta da barbearia e
+          não tem nenhuma ação desse tipo — o sonner não precisa descer com ela. */}
+      <Toaster position="bottom-center" />
+
       <PanelNav nomeDaLoja={nomeDaLoja} nomeDoUsuario={eu?.name} />
 
       {/* `SidebarInset` já é o `<main>` da página — é onde o shadcn põe a barra

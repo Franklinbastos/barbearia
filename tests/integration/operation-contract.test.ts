@@ -168,7 +168,9 @@ describe('authorize — shape {allowed, message}', () => {
         .insert(customer)
         .values({ barbershopId: lojaA.id, name: 'Bruno', phone: '11999998888' })
         .returning();
-      const inicio = new Date(Date.now() + 24 * 60 * 60 * 1000);
+      // Folga real sobre a política padrão de 24h. Exatamente 24h fica alguns
+      // milissegundos abaixo do limite quando a rota lê o relógio depois.
+      const inicio = new Date(Date.now() + 48 * 60 * 60 * 1000);
       const fim = new Date(inicio.getTime() + 30 * 60 * 1000);
       const [marcado] = await db
         .insert(appointment)
