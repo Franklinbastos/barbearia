@@ -5,6 +5,7 @@ import {
   ChartColumn,
   ChevronsUpDown,
   Contact,
+  CreditCard,
   LogOut,
   Scissors,
   Settings,
@@ -80,6 +81,7 @@ const ITENS = [
   { href: '/app/servicos', label: 'Serviços', Icone: Scissors },
   { href: '/app/equipe', label: 'Equipe', Icone: Users },
   { href: '/app/clientes', label: 'Clientes', Icone: Contact },
+  { href: '/app/assinatura', label: 'Assinatura', Icone: CreditCard },
   { href: '/app/configuracoes', label: 'Configurações', Icone: Settings },
 ];
 
